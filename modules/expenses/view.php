@@ -72,9 +72,9 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <a href="create.php" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-plus-circle me-1"></i> New Expense
                 </a>
-                <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
-                    <i class="bi bi-printer me-1"></i> Print Voucher (Ctrl+P)
-                </button>
+                <a href="print.php?id=<?= $expense['id'] ?>" class="btn btn-primary btn-sm">
+                    <i class="bi bi-printer me-1"></i> Print Voucher
+                </a>
             </div>
         </div>
 

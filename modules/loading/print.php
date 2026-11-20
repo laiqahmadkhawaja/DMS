@@ -158,7 +158,7 @@ $areasList = !empty($areaNames) ? implode(', ', $areaNames) : 'All Routes';
                 <i class="bi bi-printer-fill me-1"></i> Print Sheet (Ctrl+P)
             </button>
             <a href="view.php?id=<?= $id ?>" class="btn btn-sm btn-outline-light">
-                <i class="bi bi-arrow-left me-1"></i> View Details
+                <i class="bi bi-arrow-left me-1"></i> Back to Load Sheet
             </a>
             <button onclick="window.close();" class="btn btn-sm btn-outline-light">
                 <i class="bi bi-x me-1"></i> Close

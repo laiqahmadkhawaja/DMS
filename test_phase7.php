@@ -40,7 +40,15 @@ $requiredFiles = [
     'templates/delivery_sheets/delivery_print.php',
     'modules/delivery/print.php',
     'templates/settlements/settlement_print.php',
-    'modules/settlements/print.php'
+    'modules/settlements/print.php',
+    'modules/orders/print.php',
+    'modules/purchases/print.php',
+    'modules/goods_receiving/print.php',
+    'modules/returns/print.php',
+    'modules/accounts/print_receipt.php',
+    'modules/accounts/print_supplier_payment.php',
+    'modules/accounts/print_journal.php',
+    'modules/expenses/print.php'
 ];
 
 foreach ($requiredFiles as $file) {

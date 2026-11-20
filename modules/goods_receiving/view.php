@@ -89,9 +89,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Back to GRNs
                 </a>
-                <button type="button" onclick="window.print();" class="btn btn-primary btn-sm shadow-sm">
+                <a href="print.php?id=<?= $grn['id'] ?>" class="btn btn-primary btn-sm shadow-sm">
                     <i class="bi bi-printer me-1"></i> Print GRN Slip
-                </button>
+                </a>
             </div>
         </div>
 

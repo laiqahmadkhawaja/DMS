@@ -76,9 +76,9 @@ require_once INCLUDES_PATH . '/topbar.php';
             </a>
         <?php endif; ?>
 
-        <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.print()">
+        <a href="<?= APP_URL ?>/modules/orders/print.php?id=<?= $order['id'] ?>" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-printer me-1"></i> Print Order (F10)
-        </button>
+        </a>
 
         <?php if (in_array($order['status'], ['draft', 'confirmed']) && has_permission('orders_cancel')): ?>
             <a href="javascript:void(0)" onclick="dmsConfirm('Are you sure you want to cancel this order?', function(){ window.location.href='<?= APP_URL ?>/modules/orders/action.php?id=<?= $order['id'] ?>&action=cancel'; })" class="btn btn-sm btn-outline-danger">
@@ -189,6 +189,15 @@ require_once INCLUDES_PATH . '/topbar.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'F10') {
+        e.preventDefault();
+        window.location.href = '<?= APP_URL ?>/modules/orders/print.php?id=<?= $order['id'] ?>';
+    }
+});
+</script>
 
 <?php
 require_once INCLUDES_PATH . '/footer.php';

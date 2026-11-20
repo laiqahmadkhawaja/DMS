@@ -259,8 +259,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 </span>
                             </td>
                             <td class="text-end">
-                                <a href="<?= APP_URL ?>/modules/orders/view.php?id=<?= $ord['id'] ?>" class="btn btn-xs btn-outline-info py-0 px-2" title="View / Print Order">
+                                <a href="<?= APP_URL ?>/modules/orders/view.php?id=<?= $ord['id'] ?>" class="btn btn-xs btn-outline-info py-0 px-2" title="View Order">
                                     <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="<?= APP_URL ?>/modules/orders/print.php?id=<?= $ord['id'] ?>" class="btn btn-xs btn-outline-primary py-0 px-2" title="Print Order Voucher">
+                                    <i class="bi bi-printer"></i>
                                 </a>
                                 <?php if ($ord['status'] === 'draft' && has_permission('orders_confirm')): ?>
                                     <a href="<?= APP_URL ?>/modules/orders/action.php?id=<?= $ord['id'] ?>&action=confirm" class="btn btn-xs btn-outline-success py-0 px-2" title="Confirm Order for Loading">

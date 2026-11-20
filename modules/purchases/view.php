@@ -95,9 +95,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Back to Orders
                 </a>
-                <button type="button" onclick="window.print();" class="btn btn-outline-primary btn-sm">
+                <a href="print.php?id=<?= $po['id'] ?>" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-printer me-1"></i> Print PO
-                </button>
+                </a>
                 <?php if (in_array($po['status'], ['ordered', 'partially_received'], true) && has_permission('purchases_receive')): ?>
                     <a href="../goods_receiving/create.php?po_id=<?= $po['id'] ?>" class="btn btn-success btn-sm shadow-sm fw-bold">
                         <i class="bi bi-box-arrow-in-down me-1"></i> Receive Goods at Warehouse (GRN)

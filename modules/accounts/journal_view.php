@@ -86,9 +86,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="journal_create.php" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-plus-circle me-1"></i> New JV
                 </a>
-                <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
-                    <i class="bi bi-printer me-1"></i> Print Voucher (Ctrl+P)
-                </button>
+                <a href="print_journal.php?id=<?= $entry['id'] ?>" class="btn btn-primary btn-sm">
+                    <i class="bi bi-printer me-1"></i> Print Voucher
+                </a>
             </div>
         </div>
 
