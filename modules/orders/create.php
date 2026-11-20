@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $discountAmount = 0.0;
         $totalCartons = 0.0;
         $totalPieces = 0.0;
+        $totalUnits = 0.0;
 
         foreach ($itemProductIds as $idx => $pid) {
             $prodId = (int)$pid;
@@ -104,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $discountAmount += $lineDiscount;
             $totalCartons += $cartonQty;
             $totalPieces += $pcsQty;
+            $totalUnits += $totalQuantityInBaseUnits;
 
             $validItems[] = [
                 'product_id'       => $prodId,
@@ -131,17 +133,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $createdOrderId = db_transaction(function () use (
                 $orderNumber, $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
                 $grossAmount, $discountAmount, $netAmount, $orderStatus, $remarks,
-                $validItems, $totalCartons
+                $validItems, $totalCartons, $totalUnits
             ) {
                 $confirmedAt = ($orderStatus === 'confirmed') ? date('Y-m-d H:i:s') : null;
 
                 $stmt = db()->prepare("
                     INSERT INTO orders (
                         order_number, order_date, delivery_date, customer_id, booker_id, area_id,
+                        total_cartons, total_units,
                         gross_amount, discount_amount, net_amount, status, remarks,
                         created_by, confirmed_at, created_at, updated_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?,
+                        ?, ?,
                         ?, ?, ?, ?, ?,
                         ?, ?, NOW(), NOW()
                     )
@@ -149,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt->execute([
                     $orderNumber, $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
+                    $totalCartons, $totalUnits,
                     $grossAmount, $discountAmount, $netAmount, $orderStatus, $remarks,
                     current_user_id(), $confirmedAt
                 ]);

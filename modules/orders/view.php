@@ -39,6 +39,11 @@ $items = db_fetch_all("
     ORDER BY oi.id ASC
 ", [$id]);
 
+$calcCartons = array_sum(array_column($items, 'carton_qty'));
+$calcUnits   = array_sum(array_column($items, 'quantity'));
+$totalCartons = (float)($order['total_cartons'] ?? 0) > 0 ? (float)$order['total_cartons'] : $calcCartons;
+$totalUnits   = (float)($order['total_units'] ?? 0) > 0 ? (float)$order['total_units'] : $calcUnits;
+
 $pageTitle = 'Order ' . $order['order_number'] . ' — ' . APP_NAME;
 $activeMenu = 'orders';
 
@@ -146,7 +151,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <small class="text-muted font-monospace d-block"><?= e($item['product_code']) ?></small>
                         </td>
                         <td class="text-center fw-semibold"><?= format_qty($item['carton_qty']) ?> Ctn</td>
-                        <td class="text-center"><?= format_qty($item['pcs_qty']) ?> <?= e($item['unit_symbol']) ?></td>
+                        <td class="text-center"><?= (float)$item['pcs_qty'] > 0 ? format_qty($item['pcs_qty']) . ' Pcs' : '-' ?></td>
                         <td class="text-end"><?= format_currency($item['rate']) ?></td>
                         <td class="text-end"><?= (float)$item['discount_percent'] > 0 ? number_format((float)$item['discount_percent'], 1) . '%' : '-' ?></td>
                         <td class="text-end fw-semibold"><?= format_currency($item['line_total']) ?></td>
@@ -156,8 +161,8 @@ require_once INCLUDES_PATH . '/topbar.php';
             <tfoot class="table-fmcg-total">
                 <tr>
                     <th colspan="2" class="text-end">Order Totals:</th>
-                    <th class="text-center"><?= format_qty($order['total_cartons']) ?> Ctns</th>
-                    <th class="text-center"><?= format_qty($order['total_units']) ?> Units</th>
+                    <th class="text-center"><?= format_qty($totalCartons) ?> Ctns</th>
+                    <th class="text-center"><?= format_qty($totalUnits) ?> Units</th>
                     <th class="text-end" colspan="2">Gross: <?= format_currency($order['gross_amount']) ?></th>
                     <th class="text-end fs-6"><?= format_currency($order['net_amount']) ?></th>
                 </tr>
