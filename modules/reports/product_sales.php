@@ -4,12 +4,10 @@
  * Product-Wise Sales Analysis Register
  */
 
-require_once __DIR__ . '/../../config/constants.php';
-require_once __DIR__ . '/../../config/database.php';
-require_once __DIR__ . '/../../includes/database_helpers.php';
-require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/auth.php';
-require_once __DIR__ . '/../../includes/permission.php';
+define('DMS_RUNNING', true);
+require_once __DIR__ . '/../../config/config.php';
+require_once INCLUDES_PATH . '/auth.php';
+require_once INCLUDES_PATH . '/permission.php';
 
 require_login();
 require_permission('reports_daily');

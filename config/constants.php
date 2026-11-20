@@ -48,6 +48,29 @@ define('DB_CHARSET', 'utf8mb4');
 define('DEFAULT_CURRENCY', 'Rs.');
 define('DEFAULT_TIMEZONE', 'Asia/Karachi');
 
+// Ensure timezone and session are initialized across all modules
+date_default_timezone_set(DEFAULT_TIMEZONE);
+
+if (session_status() === PHP_SESSION_NONE) {
+    $lifetime = 86400; // 24 hours
+    ini_set('session.gc_maxlifetime', (string)$lifetime);
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    
+    $isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+    
+    session_set_cookie_params([
+        'lifetime' => $lifetime,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => $isSecure,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+    
+    session_start();
+}
+
 // Document Numbering Prefixes
 define('PREFIX_ORDER', 'ORD');
 define('PREFIX_INVOICE', 'INV');
