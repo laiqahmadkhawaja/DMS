@@ -51,16 +51,16 @@ $lineHeight = $compactMode ? '21px' : '24px';
             <tbody>
                 <tr>
                     <td style="width: 14%; padding: 1px 3px;">BILL NO.</td>
-                    <td style="width: 36%; padding: 1px 3px; font-weight: bold;"><?= htmlspecialchars($invoice['invoice_number']) ?></td>
-                    <td style="width: 14%; padding: 1px 3px;" class="text-end">booker:</td>
-                    <td style="width: 36%; padding: 1px 3px;"><?= htmlspecialchars($invoice['booker_name'] ?? '') ?></td>
+                    <td style="width: 42%; padding: 1px 3px; font-weight: bold;"><?= htmlspecialchars($invoice['invoice_number']) ?></td>
+                    <td colspan="2" class="text-end pe-0" style="width: 44%; padding: 1px 0px; text-align: right;">
+                        booker: <span class="fw-bold"><?= htmlspecialchars($invoice['booker_name'] ?? '') ?></span>
+                    </td>
                 </tr>
                 <tr>
                     <td style="padding: 1px 3px;">Name :</td>
                     <td style="padding: 1px 3px; font-weight: bold;"><?= htmlspecialchars($invoice['customer_name'] ?? ($invoice['shop_name'] ?? '')) ?></td>
-                    <td style="padding: 1px 3px;" class="text-end">Dt:</td>
-                    <td style="padding: 1px 3px;">
-                        <span class="date-badge" style="background-color: #c99c04; color: #000; font-weight: bold; padding: 1px 7px; border-radius: 2px; font-size: <?= $fontSize ?>; display: inline-block;">
+                    <td colspan="2" class="text-end pe-0" style="padding: 1px 0px; text-align: right;">
+                        Date: <span class="date-badge" style="background-color: #c99c04; color: #000; font-weight: bold; padding: 1px 7px; border-radius: 2px; font-size: <?= $fontSize ?>; display: inline-block;">
                             <?= !empty($invoice['invoice_date']) ? date('d-m-y', strtotime($invoice['invoice_date'])) : date('d-m-y') ?>
                         </span>
                     </td>
@@ -144,7 +144,7 @@ $lineHeight = $compactMode ? '21px' : '24px';
     </table>
 
     <!-- Footer Note & Signatures -->
-    <div class="d-flex justify-content-between pt-1 small fw-bold" style="font-size: <?= $compactMode ? '9.5px' : '10.5px' ?>; color: #000; margin-top: 3px;">
+    <div class="d-flex justify-content-between pt-1 small fw-bold" style="font-size: <?= $compactMode ? '9.5px' : '10.5px' ?>; color: #000; margin-top: <?= $compactMode ? '22px' : '32px' ?>; padding-top: 4px;">
         <div>Customer Signature: __________________</div>
         <div>Salesman: <?= htmlspecialchars($invoice['salesman_name'] ?? 'Route Delivery') ?></div>
         <div>Authorized: __________________</div>
