@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Data for dropdowns
 $salesmen   = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_active = 1 ORDER BY salesman_name ASC");
-$warehouses = db_fetch_all("SELECT id, warehouse_name FROM warehouses WHERE is_active = 1 ORDER BY id ASC");
+$warehouses = db_fetch_all("SELECT id, warehouse_name, is_primary FROM warehouses WHERE is_active = 1 AND is_deleted = 0 ORDER BY is_primary DESC, warehouse_name ASC");
 $areas      = db_fetch_all("SELECT id, area_name FROM areas WHERE is_active = 1 ORDER BY area_name ASC");
 $bookers    = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_active = 1 ORDER BY booker_name ASC");
 
@@ -305,10 +305,22 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-bold">Dispatch Warehouse <span class="text-danger">*</span></label>
-                            <select name="warehouse_id" class="form-select" required>
+                            <label class="form-label small fw-bold d-flex justify-content-between align-items-center">
+                                <span>Dispatch Warehouse <span class="text-danger">*</span></span>
+                                <span>
+                                    <a href="javascript:void(0)" onclick="openWarehouseDrawer()" class="text-primary text-decoration-none small fw-normal me-2">
+                                        <i class="bi bi-plus-circle me-1"></i>New
+                                    </a>
+                                    <a href="../warehouses/index.php" target="_blank" class="text-secondary text-decoration-none small fw-normal" title="Manage Warehouses">
+                                        <i class="bi bi-gear"></i>
+                                    </a>
+                                </span>
+                            </label>
+                            <select name="warehouse_id" id="warehouseSelect" class="form-select" required>
                                 <?php foreach ($warehouses as $wh): ?>
-                                    <option value="<?= $wh['id'] ?>"><?= htmlspecialchars($wh['warehouse_name']) ?></option>
+                                    <option value="<?= $wh['id'] ?>" <?= $wh['is_primary'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($wh['warehouse_name']) ?><?= $wh['is_primary'] ? ' (Default Hub)' : '' ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -475,8 +487,95 @@ require_once INCLUDES_PATH . '/topbar.php';
     </div>
 </div>
 
+<!-- Real-time Slide Drawer: Quick Add Warehouse -->
+<div id="drawer-add-warehouse" class="dms-drawer">
+    <div class="dms-drawer-header">
+        <span><i class="bi bi-building-add me-2 text-primary"></i> Quick Add Warehouse / Depot</span>
+        <button type="button" class="btn-close" onclick="closeWarehouseDrawer()"></button>
+    </div>
+    <form id="quickAddWarehouseForm" onsubmit="submitQuickWarehouse(event)">
+        <div class="dms-drawer-body">
+            <div id="whDrawerAlert" class="alert alert-danger d-none py-2 small"></div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Warehouse Code <span class="text-danger">*</span></label>
+                <input type="text" name="warehouse_code" id="quickWhCode" class="form-control form-control-sm font-monospace" placeholder="e.g. WH-02" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Warehouse Name <span class="text-danger">*</span></label>
+                <input type="text" name="warehouse_name" id="quickWhName" class="form-control form-control-sm" placeholder="e.g. Rahwali Depot, City Godown" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Location / Address</label>
+                <textarea name="location" id="quickWhLocation" class="form-control form-control-sm" rows="2" placeholder="e.g. G.T. Road Gujranwala"></textarea>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="is_active" value="1" id="quickWhActive" checked>
+                <label class="form-check-label small" for="quickWhActive">Active & Available for Dispatch</label>
+            </div>
+        </div>
+        <div class="dms-drawer-footer">
+            <button type="button" class="btn btn-sm btn-light border" onclick="closeWarehouseDrawer()">Cancel</button>
+            <button type="submit" class="btn btn-sm btn-primary" id="btnSaveQuickWh">
+                <i class="bi bi-check2 me-1"></i> Save & Select
+            </button>
+        </div>
+    </form>
+</div>
+
 <script>
 let fetchedOrders = [];
+
+function openWarehouseDrawer() {
+    const drawer = document.getElementById('drawer-add-warehouse');
+    if (drawer) {
+        drawer.classList.add('show');
+        document.getElementById('quickWhName').focus();
+    }
+}
+
+function closeWarehouseDrawer() {
+    const drawer = document.getElementById('drawer-add-warehouse');
+    if (drawer) {
+        drawer.classList.remove('show');
+        document.getElementById('whDrawerAlert').classList.add('d-none');
+    }
+}
+
+function submitQuickWarehouse(e) {
+    e.preventDefault();
+    const form = document.getElementById('quickAddWarehouseForm');
+    const alertEl = document.getElementById('whDrawerAlert');
+    alertEl.classList.add('d-none');
+
+    const formData = new FormData(form);
+    formData.append('ajax', '1');
+
+    fetch('../warehouses/create.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const select = document.getElementById('warehouseSelect');
+            if (select) {
+                const opt = new Option(data.data.warehouse_name, data.data.id, true, true);
+                select.add(opt);
+                select.value = data.data.id;
+            }
+            closeWarehouseDrawer();
+            form.reset();
+        } else {
+            alertEl.textContent = data.message || 'Error creating warehouse';
+            alertEl.classList.remove('d-none');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alertEl.textContent = 'Network or server error while adding warehouse.';
+        alertEl.classList.remove('d-none');
+    });
+}
 
 // Fetch confirmed orders via AJAX
 function loadConfirmedOrders() {

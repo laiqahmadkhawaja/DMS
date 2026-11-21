@@ -254,6 +254,11 @@ $activeMenu = $activeMenu ?? 'dashboard';
                 <i class="bi bi-building"></i> Suppliers
             </a>
         </li>
+        <li>
+            <a href="<?= APP_URL ?>/modules/warehouses/index.php" class="dms-menu-item <?= $activeMenu === 'warehouses' ? 'active' : '' ?>">
+                <i class="bi bi-building-gear"></i> Warehouses
+            </a>
+        </li>
         <?php endif; ?>
         
         <?php if (has_permission('settings_manage') || has_permission('users_manage')): ?>
