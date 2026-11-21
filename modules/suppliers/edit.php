@@ -14,6 +14,8 @@ if (!$supplier) {
     redirect(APP_URL . '/modules/suppliers/index.php');
 }
 
+$brands = db_fetch_all("SELECT id, brand_code, brand_name FROM brands WHERE is_deleted = 0 ORDER BY brand_name ASC");
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $supplierCode  = clean_input($_POST['supplier_code'] ?? '');
     $supplierName  = clean_input($_POST['supplier_name'] ?? '');
@@ -90,8 +92,25 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <input type="text" name="supplier_code" class="form-control form-control-sm" value="<?= e($supplier['supplier_code']) ?>" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Company / Brand</label>
-                            <input type="text" name="company_name" class="form-control form-control-sm" value="<?= e($supplier['company_name']) ?>">
+                            <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+                                <span>Company / Brand</span>
+                                <a href="<?= APP_URL ?>/modules/brands/index.php" target="_blank" class="text-primary text-decoration-none small fw-normal" title="Manage Brands">
+                                    <i class="bi bi-plus-circle me-1"></i>New Brand
+                                </a>
+                            </label>
+                            <select name="company_name" class="form-select form-select-sm">
+                                <option value="">-- Select Company / Brand --</option>
+                                <?php foreach ($brands as $b): ?>
+                                    <option value="<?= e($b['brand_name']) ?>" <?= ($supplier['company_name'] === $b['brand_name']) ? 'selected' : '' ?>>
+                                        <?= e($b['brand_name']) ?> (<?= e($b['brand_code']) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                                <?php if (!empty($supplier['company_name']) && !in_array($supplier['company_name'], array_column($brands, 'brand_name'))): ?>
+                                    <option value="<?= e($supplier['company_name']) ?>" selected>
+                                        <?= e($supplier['company_name']) ?> (Current)
+                                    </option>
+                                <?php endif; ?>
+                            </select>
                         </div>
                     </div>
 

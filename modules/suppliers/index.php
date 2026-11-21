@@ -40,6 +40,7 @@ foreach ($suppliers as $s) {
 }
 
 $nextCode = 'SUPP-' . sprintf('%03d', (int)db_fetch_val("SELECT COUNT(*) FROM suppliers") + 1);
+$brands = db_fetch_all("SELECT id, brand_code, brand_name FROM brands WHERE is_deleted = 0 ORDER BY brand_name ASC");
 
 require_once INCLUDES_PATH . '/header.php';
 require_once INCLUDES_PATH . '/sidebar.php';
@@ -185,8 +186,20 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <input type="text" name="supplier_code" class="form-control form-control-sm" value="<?= e($nextCode) ?>" required>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label small fw-semibold">Company / Brand</label>
-                    <input type="text" name="company_name" class="form-control form-control-sm" placeholder="e.g. Nimko Foods, Dawn Confectionery">
+                    <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+                        <span>Company / Brand</span>
+                        <a href="javascript:void(0)" onclick="openBrandDrawerFromSupplier()" class="text-primary text-decoration-none small fw-normal" title="Register New Brand">
+                            <i class="bi bi-plus-circle me-1"></i>New Brand
+                        </a>
+                    </label>
+                    <select name="company_name" id="supplierCompanyBrand" class="form-select form-select-sm">
+                        <option value="">-- Select Company / Brand --</option>
+                        <?php foreach ($brands as $b): ?>
+                            <option value="<?= e($b['brand_name']) ?>">
+                                <?= e($b['brand_name']) ?> (<?= e($b['brand_code']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </div>
             <div class="mb-3">
@@ -240,6 +253,95 @@ require_once INCLUDES_PATH . '/topbar.php';
         </div>
     </form>
 </div>
+
+<!-- Real-time Slide Drawer: Add Brand from Supplier Form -->
+<div id="drawer-add-brand-quick" class="dms-drawer" style="z-index: 1060;">
+    <div class="dms-drawer-header">
+        <span><i class="bi bi-bookmark-plus me-2 text-primary"></i> Create New Brand</span>
+        <button type="button" class="btn-close" onclick="closeBrandDrawerQuick()"></button>
+    </div>
+    <form id="quickBrandForm" onsubmit="submitQuickBrand(event)">
+        <div class="dms-drawer-body">
+            <div id="brandDrawerAlert" class="alert alert-danger d-none py-2 small"></div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Brand Code <span class="text-danger">*</span></label>
+                <input type="text" name="brand_code" id="quickBrdCode" class="form-control form-control-sm font-monospace" placeholder="e.g. BRD-003" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Brand / Manufacturer Name <span class="text-danger">*</span></label>
+                <input type="text" name="brand_name" id="quickBrdName" class="form-control form-control-sm" placeholder="e.g. Ghazi Foods, Mitchells" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Description</label>
+                <textarea name="description" id="quickBrdDesc" class="form-control form-control-sm" rows="2" placeholder="Manufacturer or brand details..."></textarea>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="is_active" value="1" id="quickBrdActive" checked>
+                <label class="form-check-label small" for="quickBrdActive">Brand Active in Catalog</label>
+            </div>
+        </div>
+        <div class="dms-drawer-footer">
+            <button type="button" class="btn btn-sm btn-light border" onclick="closeBrandDrawerQuick()">Cancel</button>
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="bi bi-check2 me-1"></i> Save & Select Brand
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function openBrandDrawerFromSupplier() {
+    const drawer = document.getElementById('drawer-add-brand-quick');
+    if (drawer) {
+        drawer.classList.add('show');
+        document.getElementById('quickBrdName').focus();
+    }
+}
+
+function closeBrandDrawerQuick() {
+    const drawer = document.getElementById('drawer-add-brand-quick');
+    if (drawer) {
+        drawer.classList.remove('show');
+        document.getElementById('brandDrawerAlert').classList.add('d-none');
+    }
+}
+
+function submitQuickBrand(e) {
+    e.preventDefault();
+    const form = document.getElementById('quickBrandForm');
+    const alertEl = document.getElementById('brandDrawerAlert');
+    alertEl.classList.add('d-none');
+
+    const formData = new FormData(form);
+    formData.append('ajax', '1');
+
+    fetch('<?= APP_URL ?>/modules/brands/create.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const select = document.getElementById('supplierCompanyBrand');
+            if (select) {
+                const opt = new Option(data.data.brand_name + ' (' + data.data.brand_code + ')', data.data.brand_name, true, true);
+                select.add(opt);
+                select.value = data.data.brand_name;
+            }
+            closeBrandDrawerQuick();
+            form.reset();
+        } else {
+            alertEl.textContent = data.message || 'Error creating brand';
+            alertEl.classList.remove('d-none');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alertEl.textContent = 'Network or server error while adding brand.';
+        alertEl.classList.remove('d-none');
+    });
+}
+</script>
 
 <?php
 require_once INCLUDES_PATH . '/footer.php';
