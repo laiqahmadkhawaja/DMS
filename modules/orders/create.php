@@ -297,13 +297,27 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
 
                         <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Route / Area <span class="text-danger">*</span></label>
-                            <select name="area_id" id="areaSelect" class="form-select form-select-sm" required>
-                                <option value="">-- Area --</option>
-                                <?php foreach ($areas as $a): ?>
-                                    <option value="<?= $a['id'] ?>"><?= e($a['area_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label class="form-label small fw-bold mb-1 d-flex justify-content-between align-items-center">
+                                <span>Route / Area <span class="text-danger">*</span></span>
+                                <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                                <a href="javascript:void(0)" onclick="openQuickAreaDrawer('areaSelect')" class="text-primary text-decoration-none" title="Quick Add Route">
+                                    <i class="bi bi-plus-circle-fill"></i> New
+                                </a>
+                                <?php endif; ?>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <select name="area_id" id="areaSelect" class="form-select form-select-sm" required>
+                                    <option value="">-- Area --</option>
+                                    <?php foreach ($areas as $a): ?>
+                                        <option value="<?= $a['id'] ?>"><?= e($a['area_name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                                <button type="button" class="btn btn-outline-primary" onclick="openQuickAreaDrawer('areaSelect')" title="Add New Area in Real-Time">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <div class="col-md-2">

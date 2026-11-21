@@ -25,23 +25,29 @@ $successMsg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $settingsToUpdate = $_POST['settings'] ?? [];
     
+    // Explicitly handle checkboxes that may not be sent if unchecked
+    $knownBooleans = ['allow_realtime_routes', 'enforce_fixed_routes'];
+    foreach ($knownBooleans as $boolKey) {
+        if (!isset($settingsToUpdate[$boolKey])) {
+            $settingsToUpdate[$boolKey] = '0';
+        }
+    }
+
     if (is_array($settingsToUpdate) && !empty($settingsToUpdate)) {
         try {
             db()->beginTransaction();
             
             $stmt = db()->prepare("
-                UPDATE settings 
-                SET setting_value = ?, updated_at = NOW() 
-                WHERE setting_key = ?
+                INSERT INTO settings (setting_group, setting_key, setting_value, updated_at)
+                VALUES ('general', ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
             ");
             
             $updatedCount = 0;
             foreach ($settingsToUpdate as $key => $val) {
                 $cleanedVal = trim(clean_input($val));
-                $stmt->execute([$cleanedVal, $key]);
-                if ($stmt->rowCount() > 0) {
-                    $updatedCount++;
-                }
+                $stmt->execute([$key, $cleanedVal]);
+                $updatedCount++;
             }
             
             // Record in audit log
@@ -180,6 +186,58 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <option value="1" <?= get_setting('show_signature_boxes', '1') == '1' ? 'selected' : '' ?>>Enabled (Customer, Salesman & Cashier signatures)</option>
                                     <option value="0" <?= get_setting('show_signature_boxes') == '0' ? 'selected' : '' ?>>Disabled (Maximize printable line item space)</option>
                                 </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Delivery Routes & Driver Assignment Policy -->
+                    <div class="card border-0 shadow-sm mt-4">
+                        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center">
+                            <i class="bi bi-geo-alt-fill text-danger me-2 fs-5"></i>
+                            <h6 class="mb-0 fw-bold text-navy">Delivery Routes & Salesman Assignment Policy</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">
+                                Configure whether delivery salesmen/drivers strictly follow pre-assigned fixed market routes or if staff can dynamically create new routes in real time.
+                            </p>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Route Operation Mode</label>
+                                <select name="settings[route_assignment_mode]" class="form-select mb-2" id="routeAssignmentModeSelect">
+                                    <option value="realtime" <?= get_setting('route_assignment_mode', 'realtime') === 'realtime' ? 'selected' : '' ?>>
+                                        Flexible / Dynamic Mode (Allow Real-Time Route Creation on all forms)
+                                    </option>
+                                    <option value="fixed" <?= get_setting('route_assignment_mode', 'realtime') === 'fixed' ? 'selected' : '' ?>>
+                                        Strict Fixed Route Mode (Drivers strictly operate on assigned beats)
+                                    </option>
+                                </select>
+                                <small class="text-muted d-block">
+                                    In Dynamic Mode, staff can add new market routes instantly via side-drawer without page reloads.
+                                </small>
+                            </div>
+
+                            <div class="border rounded p-3 bg-light">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" name="settings[allow_realtime_routes]" value="1" id="allowRealtimeRoutesSwitch"
+                                           <?= get_setting('allow_realtime_routes', '1') == '1' ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-bold text-dark" for="allowRealtimeRoutesSwitch">
+                                        Enable Real-Time Route Creation (Quick Add Drawer)
+                                    </label>
+                                    <div class="text-muted small">
+                                        Shows the <code>+</code> button next to Route/Area dropdowns across Order Booking, Billing, Customer, and Salesmen forms.
+                                    </div>
+                                </div>
+
+                                <div class="form-check form-switch mb-0 pt-2 border-top">
+                                    <input class="form-check-input" type="checkbox" name="settings[enforce_fixed_routes]" value="1" id="enforceFixedRoutesSwitch"
+                                           <?= get_setting('enforce_fixed_routes', '0') == '1' ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-bold text-dark" for="enforceFixedRoutesSwitch">
+                                        Enforce Fixed Salesman Delivery Routes
+                                    </label>
+                                    <div class="text-muted small">
+                                        When assigning deliveries, warns or locks to the salesman's fixed primary route.
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

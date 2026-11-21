@@ -103,7 +103,13 @@ if ($preLoadSheetId > 0) {
     }
 }
 
-$salesmen   = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_active = 1 ORDER BY salesman_name ASC");
+$salesmen   = db_fetch_all("
+    SELECT sm.id, sm.salesman_name, sm.assigned_area_id, a.area_name as assigned_area_name 
+    FROM salesmen sm 
+    LEFT JOIN areas a ON sm.assigned_area_id = a.id 
+    WHERE sm.is_active = 1 
+    ORDER BY sm.salesman_name ASC
+");
 $loadSheets = db_fetch_all("SELECT id, load_number, delivery_date FROM load_sheets WHERE status = 'issued' ORDER BY id DESC LIMIT 20");
 
 // Available finalized invoices not yet in an active run
@@ -175,8 +181,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <select name="salesman_id" class="form-select" required>
                                 <option value="">-- Select Salesman --</option>
                                 <?php foreach ($salesmen as $sm): ?>
-                                    <option value="<?= $sm['id'] ?>" <?= ($defaultSalesmanId === (int)$sm['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($sm['salesman_name']) ?>
+                                    <option value="<?= $sm['id'] ?>" <?= ($defaultSalesmanId === (int)$sm['id']) ? 'selected' : '' ?> data-area-id="<?= (int)($sm['assigned_area_id'] ?? 0) ?>">
+                                        <?= htmlspecialchars($sm['salesman_name']) ?><?= !empty($sm['assigned_area_name']) ? ' [Beat: ' . htmlspecialchars($sm['assigned_area_name']) . ']' : '' ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>

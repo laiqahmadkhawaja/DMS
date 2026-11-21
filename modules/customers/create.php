@@ -174,13 +174,27 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Area / Route Beat <span class="text-danger">*</span></label>
-                            <select name="area_id" class="form-select form-select-sm" required>
-                                <option value="">-- Select Market Route --</option>
-                                <?php foreach ($areas as $ar): ?>
-                                    <option value="<?= $ar['id'] ?>"><?= e($ar['area_name']) ?> (<?= e($ar['city']) ?>)</option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+                                <span>Area / Route Beat <span class="text-danger">*</span></span>
+                                <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                                <a href="javascript:void(0)" onclick="openQuickAreaDrawer('custAreaSelect')" class="text-primary text-decoration-none" title="Quick Add Route">
+                                    <i class="bi bi-plus-circle-fill"></i> New Route
+                                </a>
+                                <?php endif; ?>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <select name="area_id" id="custAreaSelect" class="form-select form-select-sm" required>
+                                    <option value="">-- Select Market Route --</option>
+                                    <?php foreach ($areas as $ar): ?>
+                                        <option value="<?= $ar['id'] ?>"><?= e($ar['area_name']) ?> (<?= e($ar['city']) ?>)</option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                                <button type="button" class="btn btn-outline-primary" onclick="openQuickAreaDrawer('custAreaSelect')" title="Add New Area in Real-Time">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Assigned Order Booker</label>

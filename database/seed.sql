@@ -208,7 +208,10 @@ INSERT INTO `settings` (`setting_group`, `setting_key`, `setting_value`, `data_t
 ('numbering', 'return_prefix', 'RET', 'string', 'Prefix for sales returns'),
 ('print', 'invoice_paper_size', 'A4', 'string', 'Default paper size for invoices'),
 ('print', 'multi_invoice_fit_mode', 'auto_pack', 'string', 'Algorithm for packing multiple bills on A4 page'),
-('print', 'show_signature_boxes', '1', 'boolean', 'Print receiver and salesman signature lines on bills')
+('print', 'show_signature_boxes', '1', 'boolean', 'Print receiver and salesman signature lines on bills'),
+('distribution', 'route_assignment_mode', 'realtime', 'string', 'Route assignment policy: realtime allows dynamic area creation on all forms; fixed enforces strict salesman route assignment.'),
+('distribution', 'allow_realtime_routes', '1', 'boolean', 'Allow adding new delivery areas / routes on-the-fly via slide drawer without reloading page'),
+('distribution', 'enforce_fixed_routes', '0', 'boolean', 'Enforce drivers and salesmen to operate strictly within their pre-assigned delivery routes')
 ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);
 
 -- ---------------------------------------------------------------------

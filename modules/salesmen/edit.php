@@ -110,15 +110,29 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold">Primary Delivery Beat / Route</label>
-                        <select name="assigned_area_id" class="form-select form-select-sm">
-                            <option value="">-- No route assigned --</option>
-                            <?php foreach ($allAreas as $ar): ?>
-                                <option value="<?= $ar['id'] ?>" <?= (int)$salesman['assigned_area_id'] === (int)$ar['id'] ? 'selected' : '' ?>>
-                                    <?= e($ar['area_name']) ?> (<?= e($ar['city']) ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label class="form-label small fw-semibold d-flex justify-content-between align-items-center">
+                            <span>Primary Delivery Beat / Route</span>
+                            <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                            <a href="javascript:void(0)" onclick="openQuickAreaDrawer('smEditAreaSelect')" class="text-primary text-decoration-none" title="Quick Add Route">
+                                <i class="bi bi-plus-circle-fill"></i> New Beat
+                            </a>
+                            <?php endif; ?>
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <select name="assigned_area_id" id="smEditAreaSelect" class="form-select form-select-sm">
+                                <option value="">-- No route assigned --</option>
+                                <?php foreach ($allAreas as $ar): ?>
+                                    <option value="<?= $ar['id'] ?>" <?= (int)$salesman['assigned_area_id'] === (int)$ar['id'] ? 'selected' : '' ?>>
+                                        <?= e($ar['area_name']) ?> (<?= e($ar['city']) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                            <button type="button" class="btn btn-outline-primary" onclick="openQuickAreaDrawer('smEditAreaSelect')" title="Add New Beat in Real-Time">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-semibold">Notes</label>
