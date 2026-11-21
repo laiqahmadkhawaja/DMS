@@ -73,6 +73,76 @@ $bookersList = !empty($bookerNames) ? implode(', ', $bookerNames) : 'All Routes'
 
 $areaNames = array_unique(array_filter(array_column($orders, 'area_name')));
 $areasList = !empty($areaNames) ? implode(', ', $areaNames) : 'All Routes';
+
+// Check for linked settlement & determine filled view mode
+$settlement = db_fetch_one("
+    SELECT s.*, dr.run_number 
+    FROM settlements s 
+    LEFT JOIN delivery_runs dr ON s.delivery_run_id = dr.id
+    WHERE s.load_sheet_id = ? 
+       OR s.delivery_run_id IN (SELECT id FROM delivery_runs WHERE load_sheet_id = ?)
+    ORDER BY s.id DESC LIMIT 1
+", [$id, $id]);
+
+$isSettled = !empty($settlement) || $sheet['status'] === 'returned_closed';
+$fillFigures = isset($_GET['filled']) ? ($_GET['filled'] == '1') : $isSettled;
+
+// Calculate per-product settled returns & credits
+$productCredits = [];
+$productReturns = [];
+$productReturnQtys = [];
+
+if ($settlement) {
+    $retItems = db_fetch_all("
+        SELECT 
+            sri.product_id,
+            SUM(sri.quantity) as return_base_units,
+            SUM(sri.amount) as return_amount
+        FROM sales_returns sr
+        JOIN sales_return_items sri ON sr.id = sri.sales_return_id
+        WHERE sr.settlement_id = ?
+        GROUP BY sri.product_id
+    ", [$settlement['id']]);
+
+    foreach ($retItems as $ri) {
+        $productReturns[(int)$ri['product_id']] = (float)$ri['return_amount'];
+        $productReturnQtys[(int)$ri['product_id']] = (float)$ri['return_base_units'];
+    }
+
+    $invoiceLines = db_fetch_all("
+        SELECT 
+            sii.product_id,
+            sii.invoice_id,
+            sii.line_total,
+            p.wholesale_rate,
+            inv.net_amount,
+            COALESCE(si.credit_amount, inv.credit_amount) as invoice_credit,
+            COALESCE(si.return_amount, inv.return_amount) as invoice_return
+        FROM sales_invoice_items sii
+        JOIN sales_invoices inv ON sii.invoice_id = inv.id
+        JOIN products p ON sii.product_id = p.id
+        LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
+        WHERE inv.load_sheet_id = ? 
+           OR inv.order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?)
+    ", [$settlement['id'], $id, $id]);
+
+    foreach ($invoiceLines as $il) {
+        $pid = (int)$il['product_id'];
+        $lineTot = (float)$il['line_total'];
+        $invNet = (float)$il['net_amount'] > 0 ? (float)$il['net_amount'] : 1;
+        $ratio = min(1.0, $lineTot / $invNet);
+
+        $lineCredit = (float)$il['invoice_credit'] * $ratio;
+        $productCredits[$pid] = ($productCredits[$pid] ?? 0.0) + $lineCredit;
+
+        if (!isset($productReturns[$pid])) {
+            $lineRet = (float)$il['invoice_return'] * $ratio;
+            $productReturns[$pid] = ($productReturns[$pid] ?? 0.0) + $lineRet;
+            $rate = (float)$il['wholesale_rate'] > 0 ? (float)$il['wholesale_rate'] : 1;
+            $productReturnQtys[$pid] = ($productReturnQtys[$pid] ?? 0.0) + ($lineRet / $rate);
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -154,6 +224,9 @@ $areasList = !empty($areaNames) ? implode(', ', $areaNames) : 'All Routes';
         </div>
 
         <div class="d-flex align-items-center gap-2">
+            <a href="?id=<?= $id ?>&filled=<?= $fillFigures ? '0' : '1' ?>" class="btn btn-sm <?= $fillFigures ? 'btn-info text-white fw-bold' : 'btn-outline-light' ?>">
+                <i class="bi bi-pencil me-1"></i> <?= $fillFigures ? 'Figures: Filled' : 'Mode: Field Blank Form' ?>
+            </a>
             <button onclick="window.print();" class="btn btn-sm btn-primary fw-bold px-3">
                 <i class="bi bi-printer-fill me-1"></i> Print Sheet (Ctrl+P)
             </button>

@@ -153,6 +153,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             WHERE settlement_id = ?
         ")->execute([$totalCash, $id]);
 
+        // Ensure Delivery Run and Load Sheet status are synced
+        if (!empty($settlement['delivery_run_id'])) {
+            db()->prepare("UPDATE delivery_runs SET status = 'completed', updated_at = NOW() WHERE id = ?")
+                ->execute([(int)$settlement['delivery_run_id']]);
+        }
+        $lsId = $settlement['load_sheet_id'];
+        if (!$lsId && !empty($settlement['delivery_run_id'])) {
+            $lsId = db_fetch_val("SELECT load_sheet_id FROM delivery_runs WHERE id = ?", [(int)$settlement['delivery_run_id']]);
+            if ($lsId) {
+                db()->prepare("UPDATE settlements SET load_sheet_id = ? WHERE id = ?")->execute([(int)$lsId, $id]);
+            }
+        }
+        if ($lsId) {
+            db()->prepare("UPDATE load_sheets SET status = 'returned_closed', updated_at = NOW() WHERE id = ?")
+                ->execute([(int)$lsId]);
+        }
+
         // 4. Reverse existing journal entry and re-post balanced entry
         $existingJE = db_fetch_one("SELECT id FROM journal_entries WHERE reference_type = 'settlement' AND reference_id = ?", [$id]);
         if ($existingJE) {

@@ -78,9 +78,9 @@ $fillFigures = !empty($fillFigures);
                     <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;"><?= number_format($billAmount, 0) ?></td>
                     
                     <?php if ($fillFigures): ?>
-                        <td class="text-end pe-1" style="border: 1px solid #000; padding: 0px 3px;"><?= $creditVal > 0 ? number_format($creditVal, 0) : '' ?></td>
-                        <td class="text-end pe-1" style="border: 1px solid #000; padding: 0px 3px;"><?= $returnVal > 0 ? number_format($returnVal, 0) : '' ?></td>
-                        <td class="text-end pe-1" style="border: 1px solid #000; padding: 0px 3px;"><?= $cashVal > 0 ? number_format($cashVal, 0) : '' ?></td>
+                        <td class="text-end pe-1" style="border: 1px solid #000; padding: 0px 3px;"><?= $creditVal > 0 ? number_format($creditVal, 0) : '0' ?></td>
+                        <td class="text-end pe-1" style="border: 1px solid #000; padding: 0px 3px;"><?= $returnVal > 0 ? number_format($returnVal, 0) : '0' ?></td>
+                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;"><?= $cashVal > 0 ? number_format($cashVal, 0) : '0' ?></td>
                     <?php else: ?>
                         <!-- Blank boxed cells for delivery salesman handwriting -->
                         <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
@@ -111,9 +111,9 @@ $fillFigures = !empty($fillFigures);
                 <td colspan="3" class="text-center text-uppercase" style="border: 1px solid #000; padding: 1px 3px;">Total</td>
                 <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($totalAmount, 0) ?></td>
                 <?php if ($fillFigures): ?>
-                    <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= $totalCredit > 0 ? number_format($totalCredit, 0) : '' ?></td>
-                    <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= $totalReturn > 0 ? number_format($totalReturn, 0) : '' ?></td>
-                    <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= $totalCash > 0 ? number_format($totalCash, 0) : '' ?></td>
+                    <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($totalCredit, 0) ?></td>
+                    <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($totalReturn, 0) ?></td>
+                    <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($totalCash, 0) ?></td>
                 <?php else: ?>
                     <td style="border: 1px solid #000;"></td>
                     <td style="border: 1px solid #000;"></td>

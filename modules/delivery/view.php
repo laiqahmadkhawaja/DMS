@@ -38,12 +38,24 @@ if (!$run) {
     redirect(APP_URL . '/modules/delivery/index.php');
 }
 
+$settlement = db_fetch_one("
+    SELECT * FROM settlements 
+    WHERE delivery_run_id = ? 
+    ORDER BY id DESC LIMIT 1
+", [$id]);
+
 $bills = db_fetch_all("
     SELECT 
         drb.*,
         inv.invoice_number,
         inv.invoice_date,
         inv.net_amount,
+        inv.paid_amount,
+        inv.credit_amount,
+        inv.return_amount,
+        si.cash_amount as settled_cash,
+        si.credit_amount as settled_credit,
+        si.return_amount as settled_return,
         c.shop_name,
         c.phone as customer_phone,
         c.address as customer_address,
@@ -51,12 +63,17 @@ $bills = db_fetch_all("
         b.booker_name
     FROM delivery_run_bills drb
     JOIN sales_invoices inv ON drb.invoice_id = inv.id
+    LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
     JOIN customers c ON inv.customer_id = c.id
     JOIN areas a ON inv.area_id = a.id
     JOIN bookers b ON inv.booker_id = b.id
     WHERE drb.delivery_run_id = ?
     ORDER BY drb.stop_sequence ASC, a.area_name ASC, c.shop_name ASC
-", [$id]);
+", [$settlement ? $settlement['id'] : 0, $id]);
+
+$isSettled = !empty($settlement) || $run['status'] === 'completed';
+$viewMode = $_GET['mode'] ?? ($isSettled ? 'filled' : 'blank');
+$showFilled = ($viewMode === 'filled');
 
 $pageTitle = 'Delivery Run ' . $run['run_number'];
 $breadcrumbs = [
@@ -115,7 +132,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <i class="bi bi-geo-alt me-2"></i>Delivery Run: <?= htmlspecialchars($run['run_number']) ?>
                 </h4>
                 <div class="d-flex gap-2 align-items-center">
-                    <span class="badge bg-primary"><?= htmlspecialchars($run['status']) ?></span>
+                    <?php if ($run['status'] === 'completed'): ?>
+                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Completed</span>
+                    <?php else: ?>
+                        <span class="badge bg-primary"><?= htmlspecialchars($run['status']) ?></span>
+                    <?php endif; ?>
+
+                    <?php if ($settlement): ?>
+                        <a href="../settlements/view.php?id=<?= $settlement['id'] ?>" class="badge bg-info text-dark text-decoration-none border shadow-sm">
+                            <i class="bi bi-receipt me-1"></i>Settlement: <?= htmlspecialchars($settlement['settlement_number']) ?>
+                        </a>
+                    <?php endif; ?>
                     <span class="text-muted small">Salesman: <?= htmlspecialchars($run['salesman_name']) ?> | Date: <?= date('d-M-Y', strtotime($run['run_date'])) ?></span>
                 </div>
             </div>
@@ -123,7 +150,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
-                <a href="print.php?id=<?= $run['id'] ?>" target="_blank" class="btn btn-outline-primary btn-sm shadow-sm">
+                <a href="?id=<?= $id ?>&mode=<?= $showFilled ? 'blank' : 'filled' ?>" class="btn btn-sm <?= $showFilled ? 'btn-outline-secondary' : 'btn-outline-success' ?> shadow-sm">
+                    <i class="bi <?= $showFilled ? 'bi-file-earmark' : 'bi-check2-circle' ?> me-1"></i> <?= $showFilled ? 'Blank Field Form' : 'Show Settled Figures' ?>
+                </a>
+                <a href="print.php?id=<?= $run['id'] ?>&filled=<?= $showFilled ? '1' : '0' ?>" target="_blank" class="btn btn-outline-primary btn-sm shadow-sm">
                     <i class="bi bi-printer me-1"></i> Print Sheet (Photo 8)
                 </a>
                 <?php if ($run['status'] !== 'completed'): ?>
@@ -173,18 +203,42 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <?php 
                             $sr = 1;
                             $totalDispatched = 0;
+                            $totalCredit = 0;
+                            $totalReturn = 0;
+                            $totalCash = 0;
+
                             foreach ($bills as $b): 
                                 $totalDispatched += (float)$b['net_amount'];
+                                $cashVal   = $b['settled_cash'] !== null ? (float)$b['settled_cash'] : (float)$b['paid_amount'];
+                                $creditVal = $b['settled_credit'] !== null ? (float)$b['settled_credit'] : (float)$b['credit_amount'];
+                                $returnVal = $b['settled_return'] !== null ? (float)$b['settled_return'] : (float)$b['return_amount'];
+
+                                $totalCredit += $creditVal;
+                                $totalReturn += $returnVal;
+                                $totalCash   += $cashVal;
                             ?>
                                 <tr style="height: 32px;">
                                     <td class="text-center" style="border: 1px solid #000;"><?= $sr++ ?></td>
                                     <td class="ps-2 fw-bold" style="border: 1px solid #000;"><?= htmlspecialchars($b['shop_name']) ?></td>
                                     <td class="text-center" style="border: 1px solid #000;"><?= htmlspecialchars($b['invoice_number']) ?></td>
                                     <td class="text-center fw-bold" style="border: 1px solid #000;"><?= number_format((float)$b['net_amount'], 0) ?></td>
-                                    <!-- Blank columns for salesman to write with pen on delivery -->
-                                    <td style="border: 1px solid #000; background-color: #fff;"></td>
-                                    <td style="border: 1px solid #000; background-color: #fff;"></td>
-                                    <td style="border: 1px solid #000; background-color: #fff;"></td>
+                                    
+                                    <?php if ($showFilled): ?>
+                                        <td class="text-end pe-2 fw-bold text-danger" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= $creditVal > 0 ? number_format($creditVal, 0) : '0' ?>
+                                        </td>
+                                        <td class="text-end pe-2 fw-bold text-warning" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= $returnVal > 0 ? number_format($returnVal, 0) : '0' ?>
+                                        </td>
+                                        <td class="text-end pe-2 fw-bold text-success" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= $cashVal > 0 ? number_format($cashVal, 0) : '0' ?>
+                                        </td>
+                                    <?php else: ?>
+                                        <!-- Blank columns for salesman to write with pen on delivery -->
+                                        <td style="border: 1px solid #000; background-color: #fff;"></td>
+                                        <td style="border: 1px solid #000; background-color: #fff;"></td>
+                                        <td style="border: 1px solid #000; background-color: #fff;"></td>
+                                    <?php endif; ?>
                                 </tr>
                             <?php endforeach; ?>
 
@@ -205,9 +259,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <tr style="background-color: #c99c04; color: #000;" class="yellow-total fw-bold">
                                 <td colspan="3" class="text-center text-uppercase">Total</td>
                                 <td class="text-center"><?= number_format($totalDispatched, 0) ?></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
+                                <?php if ($showFilled): ?>
+                                    <td class="text-end pe-2 fw-bold text-danger"><?= number_format($totalCredit, 0) ?></td>
+                                    <td class="text-end pe-2 fw-bold text-warning"><?= number_format($totalReturn, 0) ?></td>
+                                    <td class="text-end pe-2 fw-bold text-success"><?= number_format($totalCash, 0) ?></td>
+                                <?php else: ?>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                <?php endif; ?>
                             </tr>
                         </tfoot>
                     </table>

@@ -58,7 +58,21 @@ $items = db_fetch_all("
     ORDER BY c.category_name ASC, p.product_name ASC
 ", [$id]);
 
-// Fetch included orders
+// Check for linked settlement & determine filled view mode
+$settlement = db_fetch_one("
+    SELECT s.*, dr.run_number 
+    FROM settlements s 
+    LEFT JOIN delivery_runs dr ON s.delivery_run_id = dr.id
+    WHERE s.load_sheet_id = ? 
+       OR s.delivery_run_id IN (SELECT id FROM delivery_runs WHERE load_sheet_id = ?)
+    ORDER BY s.id DESC LIMIT 1
+", [$id, $id]);
+
+$isSettled = !empty($settlement) || $sheet['status'] === 'returned_closed';
+$viewMode = $_GET['mode'] ?? ($isSettled ? 'filled' : 'blank');
+$showFilled = ($viewMode === 'filled');
+
+// Fetch included orders with recovery data
 $orders = db_fetch_all("
     SELECT 
         o.id,
@@ -71,16 +85,84 @@ $orders = db_fetch_all("
         o.net_amount,
         o.status as order_status,
         inv.id as invoice_id,
-        inv.invoice_number
+        inv.invoice_number,
+        inv.paid_amount,
+        inv.credit_amount,
+        inv.return_amount,
+        si.cash_amount as settled_cash,
+        si.credit_amount as settled_credit,
+        si.return_amount as settled_return
     FROM load_sheet_orders lso
     JOIN orders o ON lso.order_id = o.id
     JOIN customers c ON o.customer_id = c.id
     JOIN areas a ON o.area_id = a.id
     JOIN bookers b ON o.booker_id = b.id
-    LEFT JOIN sales_invoices inv ON inv.order_id = o.id AND inv.load_sheet_id = lso.load_sheet_id
+    LEFT JOIN sales_invoices inv ON (inv.order_id = o.id AND (inv.load_sheet_id = lso.load_sheet_id OR inv.load_sheet_id IS NULL))
+    LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
     WHERE lso.load_sheet_id = ?
     ORDER BY a.area_name ASC, c.shop_name ASC
-", [$id]);
+", [$settlement ? $settlement['id'] : 0, $id]);
+
+// Calculate per-product settled returns & credits
+$productCredits = [];
+$productReturns = [];
+$productReturnQtys = [];
+
+if ($settlement) {
+    // 1. Direct sales return items if itemized
+    $retItems = db_fetch_all("
+        SELECT 
+            sri.product_id,
+            SUM(sri.quantity) as return_base_units,
+            SUM(sri.amount) as return_amount
+        FROM sales_returns sr
+        JOIN sales_return_items sri ON sr.id = sri.sales_return_id
+        WHERE sr.settlement_id = ?
+        GROUP BY sri.product_id
+    ", [$settlement['id']]);
+
+    foreach ($retItems as $ri) {
+        $productReturns[(int)$ri['product_id']] = (float)$ri['return_amount'];
+        $productReturnQtys[(int)$ri['product_id']] = (float)$ri['return_base_units'];
+    }
+
+    // 2. Invoice line distributions for credits and returns
+    $invoiceLines = db_fetch_all("
+        SELECT 
+            sii.product_id,
+            sii.invoice_id,
+            sii.line_total,
+            sii.carton_qty,
+            sii.pcs_qty,
+            p.wholesale_rate,
+            inv.net_amount,
+            COALESCE(si.credit_amount, inv.credit_amount) as invoice_credit,
+            COALESCE(si.return_amount, inv.return_amount) as invoice_return
+        FROM sales_invoice_items sii
+        JOIN sales_invoices inv ON sii.invoice_id = inv.id
+        JOIN products p ON sii.product_id = p.id
+        LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
+        WHERE inv.load_sheet_id = ? 
+           OR inv.order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?)
+    ", [$settlement['id'], $id, $id]);
+
+    foreach ($invoiceLines as $il) {
+        $pid = (int)$il['product_id'];
+        $lineTot = (float)$il['line_total'];
+        $invNet = (float)$il['net_amount'] > 0 ? (float)$il['net_amount'] : 1;
+        $ratio = min(1.0, $lineTot / $invNet);
+
+        $lineCredit = (float)$il['invoice_credit'] * $ratio;
+        $productCredits[$pid] = ($productCredits[$pid] ?? 0.0) + $lineCredit;
+
+        if (!isset($productReturns[$pid])) {
+            $lineRet = (float)$il['invoice_return'] * $ratio;
+            $productReturns[$pid] = ($productReturns[$pid] ?? 0.0) + $lineRet;
+            $rate = (float)$il['wholesale_rate'] > 0 ? (float)$il['wholesale_rate'] : 1;
+            $productReturnQtys[$pid] = ($productReturnQtys[$pid] ?? 0.0) + ($lineRet / $rate);
+        }
+    }
+}
 
 // Booker names for header
 $bookerNames = array_unique(array_column($orders, 'booker_name'));
@@ -152,12 +234,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <i class="bi bi-file-earmark-spreadsheet me-2"></i>Load Sheet: <?= htmlspecialchars($sheet['load_number']) ?>
                 </h4>
                 <div class="d-flex gap-2 align-items-center">
-                    <?php if ($sheet['status'] === 'draft'): ?>
+                    <?php if ($sheet['status'] === 'returned_closed' || $settlement): ?>
+                        <span class="badge bg-info text-dark"><i class="bi bi-check2-all me-1"></i>Settled & Closed</span>
+                        <?php if ($settlement): ?>
+                            <a href="../settlements/view.php?id=<?= $settlement['id'] ?>" class="badge bg-light text-primary text-decoration-none border shadow-sm">
+                                <i class="bi bi-receipt me-1"></i>Settlement: <?= htmlspecialchars($settlement['settlement_number']) ?>
+                            </a>
+                        <?php endif; ?>
+                    <?php elseif ($sheet['status'] === 'draft'): ?>
                         <span class="badge bg-warning text-dark"><i class="bi bi-hourglass me-1"></i>Draft</span>
                     <?php elseif ($sheet['status'] === 'issued'): ?>
                         <span class="badge bg-success"><i class="bi bi-truck me-1"></i>Issued / Dispatched</span>
-                    <?php elseif ($sheet['status'] === 'returned_closed'): ?>
-                        <span class="badge bg-info text-dark"><i class="bi bi-check2-all me-1"></i>Settled & Closed</span>
                     <?php else: ?>
                         <span class="badge bg-secondary"><?= htmlspecialchars($sheet['status']) ?></span>
                     <?php endif; ?>
@@ -168,20 +255,28 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
-                <?php if ($sheet['status'] !== 'cancelled' && $sheet['status'] !== 'returned_closed'): ?>
+                <a href="?id=<?= $id ?>&mode=<?= $showFilled ? 'blank' : 'filled' ?>" class="btn btn-sm <?= $showFilled ? 'btn-outline-secondary' : 'btn-outline-success' ?> shadow-sm">
+                    <i class="bi <?= $showFilled ? 'bi-file-earmark' : 'bi-check2-circle' ?> me-1"></i> <?= $showFilled ? 'Blank Field Form' : 'Show Settled Figures' ?>
+                </a>
+                <?php if ($sheet['status'] !== 'cancelled' && $sheet['status'] !== 'returned_closed' && !$settlement): ?>
                     <a href="edit.php?id=<?= $sheet['id'] ?>" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-pencil me-1"></i> Edit Sheet
                     </a>
                 <?php endif; ?>
-                <a href="print.php?id=<?= $sheet['id'] ?>" target="_blank" class="btn btn-outline-primary btn-sm shadow-sm">
+                <a href="print.php?id=<?= $sheet['id'] ?>&filled=<?= $showFilled ? '1' : '0' ?>" target="_blank" class="btn btn-outline-primary btn-sm shadow-sm">
                     <i class="bi bi-printer me-1"></i> Print Sheet (Photo 5/9)
                 </a>
+                <?php if ($settlement): ?>
+                    <a href="../settlements/view.php?id=<?= $settlement['id'] ?>" class="btn btn-sm btn-outline-success shadow-sm">
+                        <i class="bi bi-file-earmark-check me-1"></i> View Settlement
+                    </a>
+                <?php endif; ?>
                 <?php if ($sheet['status'] === 'draft' && has_permission('loading_issue')): ?>
                     <a href="issue.php?id=<?= $sheet['id'] ?>" class="btn btn-success btn-sm shadow-sm" onclick="return confirm('Confirm stock dispatch from warehouse?');">
                         <i class="bi bi-box-arrow-right me-1"></i> Issue Stock Now
                     </a>
                 <?php endif; ?>
-                <?php if ($sheet['status'] === 'issued'): ?>
+                <?php if ($sheet['status'] === 'issued' && !$settlement): ?>
                     <a href="../delivery/create.php?load_sheet_id=<?= $sheet['id'] ?>" class="btn btn-info btn-sm shadow-sm text-white">
                         <i class="bi bi-pin-map me-1"></i> Create Delivery Run
                     </a>
@@ -252,6 +347,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                             $totalCtn = 0;
                             $totalPcs = 0;
                             $grandTotalAmount = 0;
+                            $grandTotalReturnAmt = 0;
+                            $grandTotalReturnQty = 0;
+                            $grandTotalCreditAmt = 0;
+
                             foreach ($items as $item): 
                                 $ctnRatio = (float)$item['ctn_ratio'] > 0 ? (float)$item['ctn_ratio'] : 1;
                                 $baseQty = (float)$item['ordered_qty'];
@@ -263,6 +362,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 $totalCtn += $ctnPart;
                                 $totalPcs += $pcsPart;
                                 $grandTotalAmount += (float)$item['total_amount'];
+
+                                $pid = (int)$item['product_id'];
+                                $itemCredit = (float)($productCredits[$pid] ?? 0);
+                                $itemReturnAmt = (float)($productReturns[$pid] ?? 0);
+                                $itemReturnQty = (float)($productReturnQtys[$pid] ?? 0);
+
+                                $grandTotalReturnAmt += $itemReturnAmt;
+                                $grandTotalReturnQty += $itemReturnQty;
+                                $grandTotalCreditAmt += $itemCredit;
                             ?>
                                 <tr>
                                     <td class="small fw-semibold"><?= htmlspecialchars($item['category_name'] ?: 'General') ?></td>
@@ -271,9 +379,22 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-center"><?= $pcsPart > 0 ? $pcsPart : '' ?></td>
                                     <td class="text-center"><?= number_format((float)$item['rate'], 2) ?></td>
                                     <td class="text-end pe-2 fw-bold"><?= number_format((float)$item['total_amount'], 2) ?></td>
-                                    <!-- Blank columns for salesman recovery reconciliation as in real photos -->
-                                    <td style="background-color: #fafafa;"></td>
-                                    <td style="background-color: #fafafa;"></td>
+                                    
+                                    <?php if ($showFilled): ?>
+                                        <td style="border: 1px solid #000; background-color: #fff;">
+                                            <div class="d-flex justify-content-around small fw-bold">
+                                                <span><?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?></span>
+                                                <span class="<?= $itemReturnAmt > 0 ? 'text-warning' : 'text-dark' ?>"><?= number_format($itemReturnAmt, 2) ?></span>
+                                            </div>
+                                        </td>
+                                        <td class="text-end pe-2 fw-bold text-danger" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= number_format($itemCredit, 2) ?>
+                                        </td>
+                                    <?php else: ?>
+                                        <!-- Blank columns for salesman recovery reconciliation as in real photos -->
+                                        <td style="background-color: #fafafa; border: 1px solid #000;"></td>
+                                        <td style="background-color: #fafafa; border: 1px solid #000;"></td>
+                                    <?php endif; ?>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -284,8 +405,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <td class="text-center"><?= $totalPcs ?></td>
                                 <td></td>
                                 <td class="text-end pe-2"><?= number_format($grandTotalAmount, 2) ?></td>
-                                <td></td>
-                                <td></td>
+                                <?php if ($showFilled): ?>
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-around small fw-bold">
+                                            <span><?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 0) : '0' ?></span>
+                                            <span><?= number_format($grandTotalReturnAmt, 2) ?></span>
+                                        </div>
+                                    </td>
+                                    <td class="text-end pe-2 fw-bold text-danger"><?= number_format($grandTotalCreditAmt, 2) ?></td>
+                                <?php else: ?>
+                                    <td></td>
+                                    <td></td>
+                                <?php endif; ?>
                             </tr>
                         </tfoot>
                     </table>
@@ -329,11 +460,21 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th>Route / Area</th>
                                 <th>Booker</th>
                                 <th class="text-end">Bill Amount</th>
+                                <?php if ($showFilled): ?>
+                                    <th class="text-end text-success">Cash Paid</th>
+                                    <th class="text-end text-danger">Credit</th>
+                                    <th class="text-end text-warning">Return</th>
+                                    <th class="text-center">Recovery</th>
+                                <?php endif; ?>
                                 <th class="text-end pe-3">Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($orders as $o): ?>
+                            <?php foreach ($orders as $o): 
+                                $rowCash = $o['settled_cash'] !== null ? (float)$o['settled_cash'] : (float)$o['paid_amount'];
+                                $rowCredit = $o['settled_credit'] !== null ? (float)$o['settled_credit'] : (float)$o['credit_amount'];
+                                $rowReturn = $o['settled_return'] !== null ? (float)$o['settled_return'] : (float)$o['return_amount'];
+                            ?>
                                 <tr>
                                     <td class="ps-3 fw-bold text-navy">
                                         <a href="../orders/view.php?id=<?= $o['id'] ?>" class="text-decoration-none">
@@ -353,6 +494,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($o['area_name']) ?></span></td>
                                     <td><?= htmlspecialchars($o['booker_name']) ?></td>
                                     <td class="text-end fw-bold text-navy"><?= format_currency((float)$o['net_amount']) ?></td>
+                                    <?php if ($showFilled): ?>
+                                        <td class="text-end fw-bold text-success"><?= number_format($rowCash, 2) ?></td>
+                                        <td class="text-end fw-bold text-danger"><?= number_format($rowCredit, 2) ?></td>
+                                        <td class="text-end fw-bold text-warning"><?= number_format($rowReturn, 2) ?></td>
+                                        <td class="text-center">
+                                            <?php if ($rowCash > 0 || $rowCredit > 0 || $rowReturn > 0): ?>
+                                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Settled</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-secondary">Pending</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endif; ?>
                                     <td class="text-end pe-3">
                                         <?php if (!empty($o['invoice_id'])): ?>
                                             <a href="../invoices/print.php?id=<?= $o['invoice_id'] ?>" target="_blank" class="btn btn-xs btn-outline-secondary" title="Print Customer Memo">

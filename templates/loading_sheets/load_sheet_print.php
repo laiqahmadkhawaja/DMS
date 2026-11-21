@@ -76,6 +76,10 @@ if (!defined('DMS_RUNNING')) {
             $totalCtn = 0;
             $totalPcs = 0;
             $grandTotalAmount = 0;
+            $grandTotalReturnAmt = 0;
+            $grandTotalReturnQty = 0;
+            $grandTotalCreditAmt = 0;
+
             foreach ($items as $item): 
                 $ctnRatio = (float)$item['ctn_ratio'] > 0 ? (float)$item['ctn_ratio'] : 1;
                 $baseQty = (float)$item['ordered_qty'];
@@ -86,6 +90,15 @@ if (!defined('DMS_RUNNING')) {
                 $totalCtn += $ctnPart;
                 $totalPcs += $pcsPart;
                 $grandTotalAmount += (float)$item['total_amount'];
+
+                $pid = (int)$item['product_id'];
+                $itemCredit = (float)($productCredits[$pid] ?? 0);
+                $itemReturnAmt = (float)($productReturns[$pid] ?? 0);
+                $itemReturnQty = (float)($productReturnQtys[$pid] ?? 0);
+
+                $grandTotalReturnAmt += $itemReturnAmt;
+                $grandTotalReturnQty += $itemReturnQty;
+                $grandTotalCreditAmt += $itemCredit;
             ?>
                 <tr style="height: 17px;">
                     <td class="fw-semibold ps-1 text-truncate" style="border: 1px solid #000; padding: 0px 3px;">
@@ -106,9 +119,22 @@ if (!defined('DMS_RUNNING')) {
                     <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;">
                         <?= number_format((float)$item['total_amount'], 0) ?>
                     </td>
-                    <!-- Salesman field handwriting columns -->
-                    <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
-                    <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
+                    
+                    <?php if (!empty($fillFigures)): ?>
+                        <td style="border: 1px solid #000; padding: 0px 2px;">
+                            <div class="d-flex justify-content-around fw-bold" style="font-size: 9px;">
+                                <span><?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?></span>
+                                <span><?= number_format($itemReturnAmt, 0) ?></span>
+                            </div>
+                        </td>
+                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;">
+                            <?= number_format($itemCredit, 0) ?>
+                        </td>
+                    <?php else: ?>
+                        <!-- Salesman field handwriting columns -->
+                        <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
+                        <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
+                    <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
         </tbody>
@@ -119,8 +145,18 @@ if (!defined('DMS_RUNNING')) {
                 <td class="text-center" style="border: 1px solid #000; padding: 1px 3px;"><?= $totalPcs ?></td>
                 <td style="border: 1px solid #000;"></td>
                 <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($grandTotalAmount, 0) ?></td>
-                <td style="border: 1px solid #000;"></td>
-                <td style="border: 1px solid #000;"></td>
+                <?php if (!empty($fillFigures)): ?>
+                    <td class="text-center" style="border: 1px solid #000; padding: 0px 2px;">
+                        <div class="d-flex justify-content-around fw-bold" style="font-size: 9px;">
+                            <span><?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 0) : '0' ?></span>
+                            <span><?= number_format($grandTotalReturnAmt, 0) ?></span>
+                        </div>
+                    </td>
+                    <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($grandTotalCreditAmt, 0) ?></td>
+                <?php else: ?>
+                    <td style="border: 1px solid #000;"></td>
+                    <td style="border: 1px solid #000;"></td>
+                <?php endif; ?>
             </tr>
         </tfoot>
     </table>

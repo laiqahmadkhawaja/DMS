@@ -18,8 +18,6 @@ if ($id <= 0) {
     exit('Invalid delivery run ID');
 }
 
-$fillFigures = isset($_GET['filled']) && $_GET['filled'] == '1';
-
 $run = db_fetch_one("
     SELECT 
         dr.*,
@@ -38,12 +36,24 @@ if (!$run) {
     exit('Delivery run not found');
 }
 
+$settlement = db_fetch_one("
+    SELECT * FROM settlements 
+    WHERE delivery_run_id = ? 
+    ORDER BY id DESC LIMIT 1
+", [$id]);
+
+$isSettled = !empty($settlement) || $run['status'] === 'completed';
+$fillFigures = isset($_GET['filled']) ? ($_GET['filled'] == '1') : $isSettled;
+
 $bills = db_fetch_all("
     SELECT 
         drb.*,
         inv.invoice_number,
         inv.invoice_date,
         inv.net_amount,
+        COALESCE(si.cash_amount, inv.paid_amount) as cash_amount,
+        COALESCE(si.credit_amount, inv.credit_amount) as credit_amount,
+        COALESCE(si.return_amount, inv.return_amount) as return_amount,
         c.shop_name,
         c.phone as customer_phone,
         c.address as customer_address,
@@ -51,12 +61,13 @@ $bills = db_fetch_all("
         b.booker_name
     FROM delivery_run_bills drb
     JOIN sales_invoices inv ON drb.invoice_id = inv.id
+    LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
     JOIN customers c ON inv.customer_id = c.id
     JOIN areas a ON inv.area_id = a.id
     JOIN bookers b ON inv.booker_id = b.id
     WHERE drb.delivery_run_id = ?
     ORDER BY drb.stop_sequence ASC, a.area_name ASC, c.shop_name ASC
-", [$id]);
+", [$settlement ? $settlement['id'] : 0, $id]);
 ?>
 <!DOCTYPE html>
 <html lang="en">

@@ -42,6 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $salesmanId     = (int)($_POST['salesman_id'] ?? 0);
     $deliveryRunId  = !empty($_POST['delivery_run_id']) ? (int)$_POST['delivery_run_id'] : null;
     $loadSheetId    = !empty($_POST['load_sheet_id']) ? (int)$_POST['load_sheet_id'] : null;
+    if (!$loadSheetId && $deliveryRunId) {
+        $foundLs = db_fetch_val("SELECT load_sheet_id FROM delivery_runs WHERE id = ?", [$deliveryRunId]);
+        $loadSheetId = $foundLs ? (int)$foundLs : null;
+    }
     $remarks        = sanitize_input($_POST['remarks'] ?? '');
     $itemsData      = $_POST['items'] ?? [];
 
@@ -218,10 +222,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
 
-            // 4. Mark Delivery Run as completed if linked
+            // 4. Mark Delivery Run as completed and Load Sheet as returned_closed if linked
             if ($deliveryRunId) {
                 db()->prepare("UPDATE delivery_runs SET status = 'completed', updated_at = NOW() WHERE id = ?")
                     ->execute([$deliveryRunId]);
+            }
+            if ($loadSheetId) {
+                db()->prepare("UPDATE load_sheets SET status = 'returned_closed', updated_at = NOW() WHERE id = ?")
+                    ->execute([$loadSheetId]);
             }
 
             // 5. Post to General Ledger (Balanced Double-Entry)
