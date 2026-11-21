@@ -54,21 +54,19 @@ if (!defined('DMS_RUNNING')) {
     <!-- Products Dispatch Table (Photo 5 & 9 Columns - Congested Excel Grid) -->
     <table class="table table-bordered table-sm load-items-table mb-1" style="border: 1px solid #000; font-size: 10px; color: #000; line-height: 1.2;">
         <thead>
+            <tr style="background-color: #d1b80d; color: #000; border-bottom: 1px solid #000;" class="text-center fw-bold text-uppercase">
+                <th rowspan="2" style="width: 14%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Company / Area</th>
+                <th rowspan="2" style="width: 30%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;" class="text-start ps-1">Product</th>
+                <th rowspan="2" style="width: 8%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Ctn Qty</th>
+                <th rowspan="2" style="width: 8%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Pcs Qty</th>
+                <th rowspan="2" style="width: 10%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Rate</th>
+                <th rowspan="2" style="width: 12%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;" class="text-end pe-1">Total Amount</th>
+                <th colspan="2" style="width: 18%; border: 1px solid #000; padding: 1px 2px;">Return</th>
+                <th rowspan="2" style="width: 10%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Credit</th>
+            </tr>
             <tr style="background-color: #d1b80d; color: #000; border-bottom: 1.5px solid #000;" class="text-center fw-bold text-uppercase">
-                <th style="width: 14%; border: 1px solid #000; padding: 1px 3px;">Company / Area</th>
-                <th style="width: 32%; border: 1px solid #000; padding: 1px 3px;" class="text-start ps-1">Product</th>
-                <th style="width: 8%; border: 1px solid #000; padding: 1px 3px;">Ctn Qty</th>
-                <th style="width: 8%; border: 1px solid #000; padding: 1px 3px;">Pcs Qty</th>
-                <th style="width: 10%; border: 1px solid #000; padding: 1px 3px;">Rate</th>
-                <th style="width: 12%; border: 1px solid #000; padding: 1px 3px;" class="text-end pe-1">Total Amount</th>
-                <th style="width: 16%; border: 1px solid #000; padding: 1px 2px;">
-                    <div>Return</div>
-                    <div class="d-flex justify-content-around fw-bold border-top border-dark pt-0" style="font-size: 9px;">
-                        <span>Return</span>
-                        <span>Amount</span>
-                    </div>
-                </th>
-                <th style="width: 10%; border: 1px solid #000; padding: 1px 3px;">Credit</th>
+                <th style="width: 7%; border: 1px solid #000; padding: 1px 2px; font-size: 9px;">Return</th>
+                <th style="width: 11%; border: 1px solid #000; padding: 1px 2px; font-size: 9px;">Amount</th>
             </tr>
         </thead>
         <tbody>
@@ -121,17 +119,18 @@ if (!defined('DMS_RUNNING')) {
                     </td>
                     
                     <?php if (!empty($fillFigures)): ?>
-                        <td style="border: 1px solid #000; padding: 0px 2px;">
-                            <div class="d-flex justify-content-around fw-bold" style="font-size: 9px;">
-                                <span><?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?></span>
-                                <span><?= number_format($itemReturnAmt, 0) ?></span>
-                            </div>
+                        <td class="text-center fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
+                            <?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?>
+                        </td>
+                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
+                            <?= number_format($itemReturnAmt, 0) ?>
                         </td>
                         <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;">
                             <?= number_format($itemCredit, 0) ?>
                         </td>
                     <?php else: ?>
                         <!-- Salesman field handwriting columns -->
+                        <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
                         <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
                         <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
                     <?php endif; ?>
@@ -146,14 +145,15 @@ if (!defined('DMS_RUNNING')) {
                 <td style="border: 1px solid #000;"></td>
                 <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($grandTotalAmount, 0) ?></td>
                 <?php if (!empty($fillFigures)): ?>
-                    <td class="text-center" style="border: 1px solid #000; padding: 0px 2px;">
-                        <div class="d-flex justify-content-around fw-bold" style="font-size: 9px;">
-                            <span><?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 0) : '0' ?></span>
-                            <span><?= number_format($grandTotalReturnAmt, 0) ?></span>
-                        </div>
+                    <td class="text-center fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 9px;">
+                        <?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 0) : '0' ?>
+                    </td>
+                    <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 9px;">
+                        <?= number_format($grandTotalReturnAmt, 0) ?>
                     </td>
                     <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($grandTotalCreditAmt, 0) ?></td>
                 <?php else: ?>
+                    <td style="border: 1px solid #000;"></td>
                     <td style="border: 1px solid #000;"></td>
                     <td style="border: 1px solid #000;"></td>
                 <?php endif; ?>

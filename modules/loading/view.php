@@ -327,20 +327,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <table class="table table-bordered print-table align-middle mb-0" style="border: 2px solid #000;">
                         <thead>
                             <tr style="background-color: #d1b80d; color: #000;" class="print-yellow-header text-center small text-uppercase">
-                                <th style="width: 14%; border: 1px solid #000;">Company / Area</th>
-                                <th style="width: 32%; border: 1px solid #000;" class="text-start">Product</th>
-                                <th style="width: 9%; border: 1px solid #000;">Ctn Qty</th>
-                                <th style="width: 9%; border: 1px solid #000;">Pcs Qty</th>
-                                <th style="width: 10%; border: 1px solid #000;">Rate</th>
-                                <th style="width: 12%; border: 1px solid #000;">Total Amount</th>
-                                <th style="width: 14%; border: 1px solid #000;">
-                                    <div>Return</div>
-                                    <div class="d-flex justify-content-around small fw-normal border-top border-dark mt-1 pt-1">
-                                        <span>Return</span>
-                                        <span>Amount</span>
-                                    </div>
-                                </th>
-                                <th style="width: 10%; border: 1px solid #000;">Credit</th>
+                                <th rowspan="2" style="width: 14%; border: 1px solid #000; vertical-align: middle;">Company / Area</th>
+                                <th rowspan="2" style="width: 30%; border: 1px solid #000; vertical-align: middle;" class="text-start">Product</th>
+                                <th rowspan="2" style="width: 8%; border: 1px solid #000; vertical-align: middle;">Ctn Qty</th>
+                                <th rowspan="2" style="width: 8%; border: 1px solid #000; vertical-align: middle;">Pcs Qty</th>
+                                <th rowspan="2" style="width: 10%; border: 1px solid #000; vertical-align: middle;">Rate</th>
+                                <th rowspan="2" style="width: 12%; border: 1px solid #000; vertical-align: middle;">Total Amount</th>
+                                <th colspan="2" style="width: 12%; border: 1px solid #000; padding: 2px;">Return</th>
+                                <th rowspan="2" style="width: 10%; border: 1px solid #000; vertical-align: middle;">Credit</th>
+                            </tr>
+                            <tr style="background-color: #d1b80d; color: #000;" class="print-yellow-header text-center small text-uppercase">
+                                <th style="width: 5%; border: 1px solid #000; font-size: 0.72rem; padding: 2px;">Return</th>
+                                <th style="width: 7%; border: 1px solid #000; font-size: 0.72rem; padding: 2px;">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -382,17 +380,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-end pe-2 fw-bold"><?= number_format((float)$item['total_amount'], 2) ?></td>
                                     
                                     <?php if ($showFilled): ?>
-                                        <td style="border: 1px solid #000; background-color: #fff;">
-                                            <div class="d-flex justify-content-around small fw-bold">
-                                                <span><?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?></span>
-                                                <span class="<?= $itemReturnAmt > 0 ? 'text-warning' : 'text-dark' ?>"><?= number_format($itemReturnAmt, 2) ?></span>
-                                            </div>
+                                        <td class="text-center small fw-bold" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?>
+                                        </td>
+                                        <td class="text-end pe-2 small fw-bold <?= $itemReturnAmt > 0 ? 'text-warning' : 'text-dark' ?>" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= number_format($itemReturnAmt, 2) ?>
                                         </td>
                                         <td class="text-end pe-2 fw-bold text-danger" style="border: 1px solid #000; background-color: #fff;">
                                             <?= number_format($itemCredit, 2) ?>
                                         </td>
                                     <?php else: ?>
                                         <!-- Blank columns for salesman recovery reconciliation as in real photos -->
+                                        <td style="background-color: #fafafa; border: 1px solid #000;"></td>
                                         <td style="background-color: #fafafa; border: 1px solid #000;"></td>
                                         <td style="background-color: #fafafa; border: 1px solid #000;"></td>
                                     <?php endif; ?>
@@ -407,16 +406,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <td></td>
                                 <td class="text-end pe-2"><?= number_format($grandTotalAmount, 2) ?></td>
                                 <?php if ($showFilled): ?>
-                                    <td class="text-center">
-                                        <div class="d-flex justify-content-around small fw-bold">
-                                            <span><?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 0) : '0' ?></span>
-                                            <span><?= number_format($grandTotalReturnAmt, 2) ?></span>
-                                        </div>
+                                    <td class="text-center small fw-bold" style="border: 1px solid #000;">
+                                        <?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 0) : '0' ?>
                                     </td>
-                                    <td class="text-end pe-2 fw-bold text-danger"><?= number_format($grandTotalCreditAmt, 2) ?></td>
+                                    <td class="text-end pe-2 small fw-bold" style="border: 1px solid #000;">
+                                        <?= number_format($grandTotalReturnAmt, 2) ?>
+                                    </td>
+                                    <td class="text-end pe-2 fw-bold text-danger" style="border: 1px solid #000;"><?= number_format($grandTotalCreditAmt, 2) ?></td>
                                 <?php else: ?>
-                                    <td></td>
-                                    <td></td>
+                                    <td style="border: 1px solid #000;"></td>
+                                    <td style="border: 1px solid #000;"></td>
+                                    <td style="border: 1px solid #000;"></td>
                                 <?php endif; ?>
                             </tr>
                         </tfoot>
