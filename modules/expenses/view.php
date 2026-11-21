@@ -50,13 +50,11 @@ $jv = db_fetch_one("
 $pageTitle = "Expense Voucher - " . $expense['expense_number'];
 $activeMenu = "expenses";
 
-require_once __DIR__ . '/../../includes/header.php';
-require_once __DIR__ . '/../../includes/sidebar.php';
+require_once INCLUDES_PATH . '/header.php';
+require_once INCLUDES_PATH . '/sidebar.php';
+require_once INCLUDES_PATH . '/topbar.php';
 ?>
 
-<div class="dms-main-content">
-    <div class="container-fluid py-3">
-        
         <!-- Action Toolbar -->
         <div class="d-flex justify-content-between align-items-center mb-3 no-print">
             <div class="d-flex align-items-center gap-2">
@@ -197,17 +195,14 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             </div>
         </div>
 
-    </div>
-</div>
-
 <style>
 @media print {
     body { background-color: #fff !important; }
     .no-print, .dms-sidebar, .dms-topbar { display: none !important; }
-    .dms-main-content { margin-left: 0 !important; padding: 0 !important; width: 100% !important; }
+    .dms-content, .dms-main { margin-left: 0 !important; padding: 0 !important; width: 100% !important; }
     .card { border: none !important; box-shadow: none !important; }
     .print-container { width: 100% !important; max-width: 100% !important; padding: 0 !important; }
 }
 </style>
 
-<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+<?php require_once INCLUDES_PATH . '/footer.php'; ?>

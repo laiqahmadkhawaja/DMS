@@ -18,13 +18,11 @@ $activeMenu = "excel";
 $today = date('Y-m-d');
 $firstOfMonth = date('Y-m-01');
 
-require_once __DIR__ . '/../../includes/header.php';
-require_once __DIR__ . '/../../includes/sidebar.php';
+require_once INCLUDES_PATH . '/header.php';
+require_once INCLUDES_PATH . '/sidebar.php';
+require_once INCLUDES_PATH . '/topbar.php';
 ?>
 
-<div class="dms-main-content">
-    <div class="container-fluid py-3">
-        
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
@@ -152,7 +150,4 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 
         </div>
 
-    </div>
-</div>
-
-<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+<?php require_once INCLUDES_PATH . '/footer.php'; ?>

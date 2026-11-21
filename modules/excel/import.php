@@ -257,13 +257,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-require_once __DIR__ . '/../../includes/header.php';
-require_once __DIR__ . '/../../includes/sidebar.php';
+require_once INCLUDES_PATH . '/header.php';
+require_once INCLUDES_PATH . '/sidebar.php';
+require_once INCLUDES_PATH . '/topbar.php';
 ?>
 
-<div class="dms-main-content">
-    <div class="container-fluid py-3">
-        
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
                 <h4 class="mb-1 text-navy fw-bold">
@@ -353,7 +351,4 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 
         </div>
 
-    </div>
-</div>
-
-<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+<?php require_once INCLUDES_PATH . '/footer.php'; ?>
