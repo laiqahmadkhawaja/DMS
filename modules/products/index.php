@@ -64,13 +64,21 @@ require_once INCLUDES_PATH . '/topbar.php';
         <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-tag me-2 text-primary"></i>Product Catalog & Pricing</h5>
         <small class="text-muted">Master product list with carton packing, purchase/wholesale rates, and real-time stock</small>
     </div>
-    <?php if (has_permission('products_create')): ?>
-    <div>
+    <div class="d-flex gap-2">
+        <?php if (has_permission('masters_manage')): ?>
+        <a href="<?= APP_URL ?>/modules/categories/index.php" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-tags me-1"></i> Manage Categories
+        </a>
+        <a href="<?= APP_URL ?>/modules/brands/index.php" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-bookmark-star me-1"></i> Manage Brands
+        </a>
+        <?php endif; ?>
+        <?php if (has_permission('products_create')): ?>
         <a href="<?= APP_URL ?>/modules/products/create.php" class="btn btn-sm btn-primary">
             <i class="bi bi-plus-lg me-1"></i> Add Product (Ctrl+N)
         </a>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
 </div>
 
 <!-- Search & Filter Bar -->

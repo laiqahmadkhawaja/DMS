@@ -7,7 +7,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_permission('masters_manage');
 
 $pageTitle = 'Product Categories — ' . APP_NAME;
-$activeMenu = 'products';
+$activeMenu = 'categories';
 
 $search = clean_input($_GET['search'] ?? '');
 $sql = "SELECT * FROM product_categories WHERE is_deleted = 0";
@@ -34,7 +34,13 @@ require_once INCLUDES_PATH . '/topbar.php';
         <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-tags me-2 text-primary"></i>Product Categories</h5>
         <small class="text-muted">Dynamic item classifications (e.g. Nimko, Snacks, Confectionery, Biscuits)</small>
     </div>
-    <div>
+    <div class="d-flex gap-2">
+        <a href="<?= APP_URL ?>/modules/brands/index.php" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-bookmark-star me-1"></i> Manage Brands
+        </a>
+        <a href="<?= APP_URL ?>/modules/products/index.php" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-tag me-1"></i> Products Catalog
+        </a>
         <button type="button" class="btn btn-sm btn-primary" onclick="openDrawer('drawer-add-category')">
             <i class="bi bi-plus-lg me-1"></i> Add Category (Ctrl+N)
         </button>

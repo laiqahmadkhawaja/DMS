@@ -225,6 +225,16 @@ $activeMenu = $activeMenu ?? 'dashboard';
         
         <?php if (has_permission('masters_manage')): ?>
         <li>
+            <a href="<?= APP_URL ?>/modules/categories/index.php" class="dms-menu-item <?= $activeMenu === 'categories' ? 'active' : '' ?>">
+                <i class="bi bi-tags"></i> Categories
+            </a>
+        </li>
+        <li>
+            <a href="<?= APP_URL ?>/modules/brands/index.php" class="dms-menu-item <?= $activeMenu === 'brands' ? 'active' : '' ?>">
+                <i class="bi bi-bookmark-star"></i> Brands
+            </a>
+        </li>
+        <li>
             <a href="<?= APP_URL ?>/modules/areas/index.php" class="dms-menu-item <?= $activeMenu === 'areas' ? 'active' : '' ?>">
                 <i class="bi bi-map"></i> Areas / Routes
             </a>

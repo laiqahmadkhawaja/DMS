@@ -118,8 +118,13 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Category <span class="text-danger">*</span></label>
-                            <select name="category_id" class="form-select form-select-sm" required>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0">Category <span class="text-danger">*</span></label>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" onclick="openDrawer('drawer-quick-add-category')">
+                                    <i class="bi bi-plus-circle me-1"></i>New Category
+                                </button>
+                            </div>
+                            <select name="category_id" id="productCategoryId" class="form-select form-select-sm" required>
                                 <?php foreach ($categories as $cat): ?>
                                     <option value="<?= $cat['id'] ?>" <?= (int)$product['category_id'] === (int)$cat['id'] ? 'selected' : '' ?>>
                                         <?= e($cat['category_name']) ?>
@@ -128,8 +133,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-semibold">Brand / Manufacturer</label>
-                            <select name="brand_id" class="form-select form-select-sm">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0">Brand / Manufacturer</label>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" onclick="openDrawer('drawer-quick-add-brand')">
+                                    <i class="bi bi-plus-circle me-1"></i>New Brand
+                                </button>
+                            </div>
+                            <select name="brand_id" id="productBrandId" class="form-select form-select-sm">
                                 <option value="">-- Optional Brand --</option>
                                 <?php foreach ($brands as $br): ?>
                                     <option value="<?= $br['id'] ?>" <?= (int)$product['brand_id'] === (int)$br['id'] ? 'selected' : '' ?>>
@@ -225,6 +235,164 @@ require_once INCLUDES_PATH . '/topbar.php';
         </div>
     </div>
 </form>
+
+<!-- Non-Modal Slide Drawer: Quick Add Category -->
+<div id="drawer-quick-add-category" class="dms-drawer">
+    <div class="dms-drawer-header">
+        <span><i class="bi bi-tags me-2 text-primary"></i> Quick Add Category</span>
+        <button type="button" class="btn-close" onclick="closeDrawer()"></button>
+    </div>
+    <form id="form-quick-add-cat" onsubmit="handleQuickAddCategory(event)">
+        <div class="dms-drawer-body">
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Category Name <span class="text-danger">*</span></label>
+                <input type="text" name="category_name" id="quickCatName" class="form-control form-control-sm" placeholder="e.g. Snacks, Confectionery, Spices" required autofocus>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Category Code</label>
+                <input type="text" name="category_code" id="quickCatCode" class="form-control form-control-sm" placeholder="Auto-generated if left blank">
+                <div class="form-text">Leave blank to auto-generate (e.g. CAT-005).</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Description</label>
+                <textarea name="description" id="quickCatDesc" class="form-control form-control-sm" rows="3" placeholder="Category notes or line summary..."></textarea>
+            </div>
+        </div>
+        <div class="dms-drawer-footer">
+            <button type="button" class="btn btn-sm btn-light border" onclick="closeDrawer()">Cancel (ESC)</button>
+            <button type="submit" class="btn btn-sm btn-primary" id="btnSaveQuickCat"><i class="bi bi-check2 me-1"></i> Save & Select</button>
+        </div>
+    </form>
+</div>
+
+<!-- Non-Modal Slide Drawer: Quick Add Brand -->
+<div id="drawer-quick-add-brand" class="dms-drawer">
+    <div class="dms-drawer-header">
+        <span><i class="bi bi-bookmark-star me-2 text-primary"></i> Quick Add Brand</span>
+        <button type="button" class="btn-close" onclick="closeDrawer()"></button>
+    </div>
+    <form id="form-quick-add-brd" onsubmit="handleQuickAddBrand(event)">
+        <div class="dms-drawer-body">
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Brand / Manufacturer Name <span class="text-danger">*</span></label>
+                <input type="text" name="brand_name" id="quickBrandName" class="form-control form-control-sm" placeholder="e.g. National Foods, Mitchells, Lays" required autofocus>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Brand Code</label>
+                <input type="text" name="brand_code" id="quickBrandCode" class="form-control form-control-sm" placeholder="Auto-generated if left blank">
+                <div class="form-text">Leave blank to auto-generate (e.g. BRD-005).</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small fw-semibold">Description</label>
+                <textarea name="description" id="quickBrandDesc" class="form-control form-control-sm" rows="3" placeholder="Brand notes or manufacturer details..."></textarea>
+            </div>
+        </div>
+        <div class="dms-drawer-footer">
+            <button type="button" class="btn btn-sm btn-light border" onclick="closeDrawer()">Cancel (ESC)</button>
+            <button type="submit" class="btn btn-sm btn-primary" id="btnSaveQuickBrd"><i class="bi bi-check2 me-1"></i> Save & Select</button>
+        </div>
+    </form>
+</div>
+
+<script>
+async function handleQuickAddCategory(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveQuickCat');
+    const nameInput = document.getElementById('quickCatName');
+    const codeInput = document.getElementById('quickCatCode');
+    const descInput = document.getElementById('quickCatDesc');
+    const catName = nameInput.value.trim();
+
+    if (!catName) {
+        showToast('Category name is required.', 'danger');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+    const formData = new FormData();
+    formData.append('ajax', '1');
+    formData.append('category_name', catName);
+    formData.append('category_code', codeInput.value.trim());
+    formData.append('description', descInput.value.trim());
+
+    try {
+        const res = await dmsFetch(window.DMS_APP_URL + '/modules/categories/create.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (res && res.success) {
+            const select = document.getElementById('productCategoryId');
+            if (select) {
+                const opt = new Option(res.data.category_name, res.data.id, true, true);
+                select.add(opt);
+                select.value = res.data.id;
+            }
+            nameInput.value = '';
+            codeInput.value = '';
+            descInput.value = '';
+            closeDrawer();
+            showToast(res.message || 'Category added successfully.', 'success');
+        }
+    } catch (err) {
+        showToast('Error saving category: ' + err.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2 me-1"></i> Save & Select';
+    }
+}
+
+async function handleQuickAddBrand(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSaveQuickBrd');
+    const nameInput = document.getElementById('quickBrandName');
+    const codeInput = document.getElementById('quickBrandCode');
+    const descInput = document.getElementById('quickBrandDesc');
+    const brandName = nameInput.value.trim();
+
+    if (!brandName) {
+        showToast('Brand name is required.', 'danger');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+    const formData = new FormData();
+    formData.append('ajax', '1');
+    formData.append('brand_name', brandName);
+    formData.append('brand_code', codeInput.value.trim());
+    formData.append('description', descInput.value.trim());
+
+    try {
+        const res = await dmsFetch(window.DMS_APP_URL + '/modules/brands/create.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (res && res.success) {
+            const select = document.getElementById('productBrandId');
+            if (select) {
+                const opt = new Option(res.data.brand_name, res.data.id, true, true);
+                select.add(opt);
+                select.value = res.data.id;
+            }
+            nameInput.value = '';
+            codeInput.value = '';
+            descInput.value = '';
+            closeDrawer();
+            showToast(res.message || 'Brand added successfully.', 'success');
+        }
+    } catch (err) {
+        showToast('Error saving brand: ' + err.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2 me-1"></i> Save & Select';
+    }
+}
+</script>
 
 <?php
 require_once INCLUDES_PATH . '/footer.php';
