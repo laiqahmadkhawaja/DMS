@@ -22,7 +22,7 @@ $isPurchasesActive  = in_array($activeMenu, ['suppliers', 'purchases', 'goods_re
 $isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'categories', 'brands', 'warehouses']);
 $isAccountsActive   = in_array($activeMenu, ['accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger']);
 $isOperationsActive = in_array($activeMenu, ['areas', 'bookers', 'salesmen']);
-$isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
+$isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_company', 'rpt_profitability', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
 $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
 ?>
 <aside class="dms-sidebar">
@@ -339,6 +339,16 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                     <li>
                         <a href="<?= APP_URL ?>/modules/reports/daily_closing.php" class="dms-menu-item <?= $activeMenu === 'rpt_closing' ? 'active' : '' ?>">
                             <i class="bi bi-journal-bookmark-fill text-warning"></i> Daily Closing (Roznamcha)
+                        </a>
+                    </li>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/reports/company_sales.php" class="dms-menu-item <?= $activeMenu === 'rpt_company' ? 'active' : '' ?>">
+                            <i class="bi bi-building-check text-info"></i> Company Sales & Udhaar
+                        </a>
+                    </li>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/reports/product_profitability.php" class="dms-menu-item <?= $activeMenu === 'rpt_profitability' ? 'active' : '' ?>">
+                            <i class="bi bi-trophy text-warning"></i> Top Profitable Products
                         </a>
                     </li>
                     <li>

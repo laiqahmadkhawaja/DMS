@@ -169,6 +169,28 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <i class="bi bi-chevron-right text-primary fw-bold"></i>
                             </a>
 
+                            <a href="company_sales.php" class="list-group-item list-group-item-action p-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold text-navy mb-1">
+                                        <i class="bi bi-building-check text-primary me-2"></i>Company-Wise Sales & Market Receivables Exposure
+                                        <span class="badge bg-warning text-dark ms-2">پھنسا ہوا ادھار</span>
+                                    </div>
+                                    <div class="text-muted small">Volume & revenue per company, gross profit earned, and market credit (udhaar) tied to each company's items.</div>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted"></i>
+                            </a>
+
+                            <a href="product_profitability.php" class="list-group-item list-group-item-action p-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold text-navy mb-1">
+                                        <i class="bi bi-trophy-fill text-warning me-2"></i>Product Profitability & Top 5 / Top 10 Ranking
+                                        <span class="badge bg-success ms-2">ٹاپ منافع بخش اشیاء</span>
+                                    </div>
+                                    <div class="text-muted small">Most profitable products, gross margins %, ranking presets (Top 5, 10, 20) and volume bestsellers.</div>
+                                </div>
+                                <i class="bi bi-chevron-right text-muted"></i>
+                            </a>
+
                             <a href="daily_sales.php" class="list-group-item list-group-item-action p-3 d-flex justify-content-between align-items-center">
                                 <div>
                                     <div class="fw-bold text-navy mb-1">

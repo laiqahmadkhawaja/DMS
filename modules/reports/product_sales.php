@@ -21,6 +21,7 @@ $firstOfMonth = date('Y-m-01');
 $fromDate   = clean_input($_GET['from_date'] ?? $firstOfMonth);
 $toDate     = clean_input($_GET['to_date'] ?? $today);
 $categoryId = !empty($_GET['category_id']) ? (int)$_GET['category_id'] : null;
+$supplierId = !empty($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : null;
 
 $params = [$fromDate, $toDate];
 $where = "si.invoice_date >= ? AND si.invoice_date <= ? AND si.status != 'cancelled'";
@@ -28,6 +29,10 @@ $where = "si.invoice_date >= ? AND si.invoice_date <= ? AND si.status != 'cancel
 if ($categoryId) {
     $where .= " AND p.category_id = ?";
     $params[] = $categoryId;
+}
+if ($supplierId) {
+    $where .= " AND p.supplier_id = ?";
+    $params[] = $supplierId;
 }
 
 // Fetch Product Aggregates
@@ -38,6 +43,7 @@ $productSales = db_fetch_all("
         p.product_name,
         p.carton_qty as ratio,
         pc.category_name,
+        COALESCE(s.supplier_name, 'Direct Brand') as supplier_name,
         COALESCE(SUM(sii.carton_qty), 0) as cartons_sold,
         COALESCE(SUM(sii.pcs_qty), 0) as pcs_sold,
         COALESCE(SUM(sii.quantity), 0) as total_units_sold,
@@ -57,6 +63,7 @@ $productSales = db_fetch_all("
         ), 0) as return_amount
     FROM products p
     JOIN product_categories pc ON p.category_id = pc.id
+    LEFT JOIN suppliers s ON p.supplier_id = s.id
     LEFT JOIN sales_invoice_items sii ON p.id = sii.product_id
     LEFT JOIN sales_invoices si ON sii.invoice_id = si.id AND {$where}
     WHERE p.is_deleted = 0
@@ -87,6 +94,7 @@ foreach ($productSales as &$ps) {
 unset($ps);
 
 $categories = db_fetch_all("SELECT id, category_name FROM product_categories WHERE is_deleted = 0 ORDER BY category_name ASC");
+$suppliers  = db_fetch_all("SELECT id, supplier_name FROM suppliers WHERE is_deleted = 0 ORDER BY supplier_name ASC");
 
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
@@ -118,15 +126,26 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="card border-0 shadow-sm mb-4 no-print">
             <div class="card-body py-2">
                 <form method="GET" action="product_sales.php" class="row g-2 align-items-end">
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-md-2 col-sm-6">
                         <label class="form-label small text-muted mb-1">From Date</label>
                         <input type="date" name="from_date" class="form-control form-control-sm" value="<?= htmlspecialchars($fromDate) ?>">
                     </div>
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-md-2 col-sm-6">
                         <label class="form-label small text-muted mb-1">To Date</label>
                         <input type="date" name="to_date" class="form-control form-control-sm" value="<?= htmlspecialchars($toDate) ?>">
                     </div>
-                    <div class="col-md-4 col-sm-6">
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Company / Supplier</label>
+                        <select name="supplier_id" class="form-select form-select-sm">
+                            <option value="">-- All Companies --</option>
+                            <?php foreach ($suppliers as $s): ?>
+                                <option value="<?= $s['id'] ?>" <?= $supplierId === (int)$s['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($s['supplier_name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
                         <label class="form-label small text-muted mb-1">Category</label>
                         <select name="category_id" class="form-select form-select-sm">
                             <option value="">-- All Categories --</option>
@@ -171,6 +190,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th style="width: 50px;" class="text-center">#</th>
                                 <th>Item Code</th>
                                 <th>Product Description</th>
+                                <th>Company / Supplier</th>
                                 <th>Category</th>
                                 <th class="text-center">Ratio</th>
                                 <th class="text-center">Cartons</th>
@@ -183,7 +203,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <tbody>
                             <?php if (empty($productSales)): ?>
                                 <tr>
-                                    <td colspan="10" class="text-center py-4 text-muted">No product sales recorded in this period.</td>
+                                    <td colspan="11" class="text-center py-4 text-muted">No product sales recorded in this period.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php $sn = 1; foreach ($productSales as $row): ?>
@@ -191,6 +211,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <td class="text-center text-muted small"><?= $sn++ ?></td>
                                         <td class="fw-bold text-navy"><?= htmlspecialchars($row['product_code']) ?></td>
                                         <td class="fw-semibold"><?= htmlspecialchars($row['product_name']) ?></td>
+                                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['supplier_name']) ?></span></td>
                                         <td class="small text-muted"><?= htmlspecialchars($row['category_name']) ?></td>
                                         <td class="text-center small"><?= (int)$row['ratio'] ?> pcs</td>
                                         <td class="text-center fw-semibold"><?= number_format($row['cartons_sold'], 1) ?></td>
@@ -206,7 +227,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </tbody>
                         <tfoot class="table-light fw-bold fs-6">
                             <tr>
-                                <td colspan="5" class="text-end">Grand Total:</td>
+                                <td colspan="6" class="text-end">Grand Total:</td>
                                 <td class="text-center"><?= number_format($totals['cartons'], 1) ?></td>
                                 <td class="text-center"><?= number_format($totals['pieces'], 0) ?></td>
                                 <td class="text-end"><?= format_currency($totals['gross']) ?></td>
