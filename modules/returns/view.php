@@ -85,6 +85,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </h4>
                 <div class="d-flex gap-2 align-items-center">
                     <span class="badge bg-success"><?= htmlspecialchars($ret['status']) ?></span>
+                    <?php if ((int)($ret['stock_settled'] ?? 1) === 1): ?>
+                        <span class="badge bg-success-subtle text-success border border-success"><i class="bi bi-check2"></i> Stock Restocked into Inventory</span>
+                    <?php else: ?>
+                        <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Physical Stock Pending Verification</span>
+                    <?php endif; ?>
                     <span class="text-muted small">Date: <?= date('d-M-Y', strtotime($ret['return_date'])) ?></span>
                 </div>
             </div>

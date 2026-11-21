@@ -67,6 +67,19 @@ $journalEntry = db_fetch_one("
     WHERE reference_type = 'settlement' AND reference_id = ?
 ", [$id]);
 
+// Linked Sales Returns
+$settlementReturns = db_fetch_all("
+    SELECT sr.*, c.shop_name, inv.invoice_number 
+    FROM sales_returns sr
+    JOIN customers c ON sr.customer_id = c.id
+    LEFT JOIN sales_invoices inv ON sr.invoice_id = inv.id
+    WHERE sr.settlement_id = ?
+", [$id]);
+
+$pendingReturns = array_filter($settlementReturns, function($r) {
+    return (int)($r['stock_settled'] ?? 1) === 0;
+});
+
 $pageTitle = 'Settlement ' . $settlement['settlement_number'];
 $activeMenu = 'settlements';
 $breadcrumbs = [
@@ -141,6 +154,46 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </a>
             </div>
         </div>
+
+        <?php if (!empty($pendingReturns)): ?>
+            <div class="alert alert-warning border-0 shadow-sm mb-4 no-print">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="fw-bold fs-6 text-dark">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i> Pending Return Stock Items (Physical Verification Needed)
+                    </div>
+                    <span class="badge bg-danger"><?= count($pendingReturns) ?> Bills with Unsettled Return Stock</span>
+                </div>
+                <p class="small text-muted mb-2">The following returns were recorded during this settlement, but physical items have not yet been verified into warehouse stock:</p>
+                <div class="table-responsive bg-white rounded p-2">
+                    <table class="table table-sm table-bordered align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th>Customer / Shop</th>
+                                <th>Bill Number</th>
+                                <th>Return Value</th>
+                                <th>Stock Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($pendingReturns as $pr): ?>
+                                <tr>
+                                    <td class="fw-bold"><?= htmlspecialchars($pr['shop_name']) ?></td>
+                                    <td><?= htmlspecialchars($pr['invoice_number'] ?: 'N/A') ?></td>
+                                    <td class="fw-bold text-danger"><?= format_currency((float)$pr['total_amount']) ?></td>
+                                    <td><span class="badge bg-warning text-dark">Pending Stock Check-In</span></td>
+                                    <td class="text-end">
+                                        <a href="<?= APP_URL ?>/modules/returns/create.php?settlement_id=<?= $settlement['id'] ?>&invoice_id=<?= $pr['invoice_id'] ?>&customer_id=<?= $pr['customer_id'] ?>&amount=<?= $pr['total_amount'] ?>" class="btn btn-xs btn-primary fw-bold">
+                                            <i class="bi bi-box-seam me-1"></i> Settle Return Stock Now
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- PRINTABLE SETTLEMENT SHEET (EXACT REPLICA OF PHOTO 1) -->
         <div class="card border-0 shadow-sm print-sheet mb-4">

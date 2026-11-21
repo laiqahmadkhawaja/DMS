@@ -84,6 +84,8 @@ $returns = db_fetch_all("
         sr.return_number,
         sr.return_date,
         sr.customer_id,
+        sr.invoice_id,
+        sr.settlement_id,
         c.shop_name as customer_name,
         inv.invoice_number,
         st.settlement_number,
@@ -91,6 +93,7 @@ $returns = db_fetch_all("
         sr.condition_type,
         sr.reason,
         sr.status,
+        sr.stock_settled,
         sr.created_at
     FROM sales_returns sr
     JOIN customers c ON sr.customer_id = c.id
@@ -261,9 +264,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td class="text-end fw-bold text-dark"><?= format_currency((float)$r['total_amount']) ?></td>
                                         <td class="text-center">
-                                            <span class="badge bg-info text-dark"><?= htmlspecialchars($r['status']) ?></span>
+                                            <?php if ((int)($r['stock_settled'] ?? 1) === 0): ?>
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Pending Stock</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-success-subtle text-success border border-success"><i class="bi bi-check2"></i> Restocked</span>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="text-end pe-3">
+                                            <?php if ((int)($r['stock_settled'] ?? 1) === 0): ?>
+                                                <a href="create.php?settlement_id=<?= $r['settlement_id'] ?>&invoice_id=<?= $r['invoice_id'] ?>&customer_id=<?= $r['customer_id'] ?>&amount=<?= $r['total_amount'] ?>" class="btn btn-sm btn-primary me-1" title="Settle Stock">
+                                                    <i class="bi bi-box-seam me-1"></i> Settle
+                                                </a>
+                                            <?php endif; ?>
                                             <a href="view.php?id=<?= $r['id'] ?>" class="btn btn-sm btn-outline-primary" title="View Details">
                                                 <i class="bi bi-eye"></i>
                                             </a>

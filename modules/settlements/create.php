@@ -87,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'credit_amount'     => $credit,
             'return_amount'     => $return,
             'difference_amount' => $diff,
+            'return_items_json' => $row['return_items_json'] ?? '',
             'remarks'           => $remarksRow
         ];
     }
@@ -144,10 +145,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtSalesReturn = db()->prepare("
                 INSERT INTO sales_returns (
                     return_number, invoice_id, customer_id, settlement_id, return_date, 
-                    total_amount, reason, condition_type, status, created_by, created_at
+                    total_amount, reason, condition_type, status, stock_settled, created_by, created_at
                 ) VALUES (
                     ?, ?, ?, ?, ?, 
-                    ?, 'Route Return', 'saleable', 'processed', ?, NOW()
+                    ?, 'Route Return', 'saleable', 'processed', ?, ?, NOW()
+                )
+            ");
+
+            $stmtReturnItem = db()->prepare("
+                INSERT INTO sales_return_items (
+                    sales_return_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty,
+                    quantity, rate, discount_percent, amount, reason, condition_type, created_at
+                ) VALUES (
+                    ?, ?, ?, ?, 0, 0,
+                    ?, ?, 0.00, ?, 'Route Return', 'saleable', NOW()
                 )
             ");
 
@@ -179,32 +190,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // If return amount recorded, create sales return voucher & record inventory return
                 if ($vi['return_amount'] > 0) {
                     $retNumber = generate_document_number(PREFIX_RETURN, 'sales_returns', 'return_number');
+                    $retItemsJson = $vi['return_items_json'] ?? '';
+                    $decodedItems = !empty($retItemsJson) ? json_decode($retItemsJson, true) : null;
+                    $isStockSettled = (!empty($decodedItems) && is_array($decodedItems) && count($decodedItems) > 0) ? 1 : 0;
+
                     $stmtSalesReturn->execute([
                         $retNumber, $vi['invoice_id'], $vi['customer_id'], $settlementId,
-                        $settlementDate, $vi['return_amount'], $userId
+                        $settlementDate, $vi['return_amount'], $isStockSettled, $userId
                     ]);
                     $returnId = (int)db()->lastInsertId();
 
-                    // Fetch invoice items to record return into stock
-                    $invItem = db_fetch_one("SELECT product_id, rate FROM sales_invoice_items WHERE invoice_id = ? LIMIT 1", [$vi['invoice_id']]);
-                    if ($invItem) {
-                        $rate = (float)$invItem['rate'] > 0 ? (float)$invItem['rate'] : 1;
-                        $ctnReturned = $vi['return_amount'] / $rate;
-                        $ratios = get_product_packaging_ratios((int)$invItem['product_id']);
-                        $piecesReturned = round($ctnReturned * $ratios['pcs_per_ctn'], 4);
+                    if ($isStockSettled) {
+                        foreach ($decodedItems as $dItem) {
+                            $rPid = (int)($dItem['product_id'] ?? 0);
+                            $rCtn = (float)($dItem['carton_qty'] ?? 0);
+                            $rRate = (float)($dItem['rate'] ?? 0);
+                            $rAmount = (float)($dItem['amount'] ?? ($rCtn * $rRate));
+                            if ($rPid <= 0 || $rCtn <= 0) continue;
 
-                        record_stock_movement([
-                            'product_id'     => (int)$invItem['product_id'],
-                            'warehouse_id'   => 1,
-                            'movement_type'  => 'sales_return_saleable',
-                            'reference_type' => 'sales_return',
-                            'reference_id'   => $returnId,
-                            'qty_in'         => $piecesReturned,
-                            'qty_out'        => 0,
-                            'unit_cost'      => (float)$invItem['rate'],
-                            'remarks'        => "Stock returned from route settlement #{$settlementNumber}",
-                            'condition_type' => 'saleable'
-                        ]);
+                            $rProd = db_fetch_one("SELECT * FROM products WHERE id = ?", [$rPid]);
+                            if (!$rProd) continue;
+
+                            $rRatios = get_product_packaging_ratios($rProd);
+                            $rPieces = round($rCtn * $rRatios['pcs_per_ctn'], 4);
+
+                            $stmtReturnItem->execute([
+                                $returnId, $rPid, (int)$rProd['base_unit_id'],
+                                $rCtn,
+                                $rCtn, $rRate, $rAmount
+                            ]);
+
+                            record_stock_movement([
+                                'product_id'     => $rPid,
+                                'warehouse_id'   => 1,
+                                'movement_type'  => 'sales_return_saleable',
+                                'reference_type' => 'sales_return',
+                                'reference_id'   => $returnId,
+                                'qty_in'         => $rPieces,
+                                'qty_out'        => 0,
+                                'unit_cost'      => $rRate,
+                                'remarks'        => "Stock returned from route settlement #{$settlementNumber} for bill #{$vi['invoice_id']}",
+                                'condition_type' => 'saleable'
+                            ]);
+                        }
+                    } else {
+                        // Stock items not yet specified; fall back to first item estimation if single item invoice
+                        $invItem = db_fetch_one("SELECT product_id, rate FROM sales_invoice_items WHERE invoice_id = ? LIMIT 1", [$vi['invoice_id']]);
+                        if ($invItem) {
+                            $rate = (float)$invItem['rate'] > 0 ? (float)$invItem['rate'] : 1;
+                            $ctnReturned = $vi['return_amount'] / $rate;
+                            $ratios = get_product_packaging_ratios((int)$invItem['product_id']);
+                            $piecesReturned = round($ctnReturned * $ratios['pcs_per_ctn'], 4);
+
+                            $stmtReturnItem->execute([
+                                $returnId, (int)$invItem['product_id'], 1,
+                                $ctnReturned,
+                                $ctnReturned, $rate, $vi['return_amount']
+                            ]);
+
+                            record_stock_movement([
+                                'product_id'     => (int)$invItem['product_id'],
+                                'warehouse_id'   => 1,
+                                'movement_type'  => 'sales_return_saleable',
+                                'reference_type' => 'sales_return',
+                                'reference_id'   => $returnId,
+                                'qty_in'         => $piecesReturned,
+                                'qty_out'        => 0,
+                                'unit_cost'      => (float)$invItem['rate'],
+                                'remarks'        => "Stock returned from route settlement #{$settlementNumber} (Unverified item check-in)",
+                                'condition_type' => 'saleable'
+                            ]);
+                        }
                     }
                 }
             }
@@ -452,8 +508,171 @@ require_once INCLUDES_PATH . '/topbar.php';
     </div>
 </div>
 
+<!-- Modal: Select Return Items From Specific Bill -->
+<div class="modal fade" id="billReturnModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header py-2 bg-navy text-white">
+                <h6 class="modal-title fw-bold" id="billReturnModalTitle">
+                    <i class="bi bi-box-arrow-in-down-left me-1"></i> Select Return Items from Bill
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="alert alert-light border small py-2 px-3 mb-3 text-secondary">
+                    <i class="bi bi-info-circle me-1 text-primary"></i> Enter the exact quantities of items returned from this bill. The return rate is automatically matched to the billed rate.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0" id="billReturnItemsTable">
+                        <thead class="table-light small text-center text-uppercase">
+                            <tr>
+                                <th class="text-start ps-2">Product Description</th>
+                                <th style="width: 16%;">Billed Ctns</th>
+                                <th style="width: 22%;">Return Ctns</th>
+                                <th style="width: 18%;">Billed Rate</th>
+                                <th style="width: 22%;" class="text-end pe-2">Return Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="billReturnItemsTbody">
+                            <!-- Populated via openBillReturnModal -->
+                        </tbody>
+                        <tfoot class="table-light fw-bold fs-6">
+                            <tr>
+                                <td colspan="4" class="text-end text-uppercase">Total Return Amount:</td>
+                                <td class="text-end pe-2 text-danger" id="modalReturnTotalLabel">Rs. 0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="applyBillReturnItems()">
+                    <i class="bi bi-check2-circle me-1"></i> Apply Return to Bill
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let loadedBills = [];
+let currentReturnBillIndex = -1;
+let billReturnModalInstance = null;
+
+function openBillReturnModal(idx) {
+    currentReturnBillIndex = idx;
+    const b = loadedBills[idx];
+    if (!b) return;
+
+    document.getElementById('billReturnModalTitle').innerHTML = `<i class="bi bi-box-arrow-in-down-left me-1 text-warning"></i> Return Items - ${escapeHtml(b.customer_name)} (#${escapeHtml(b.invoice_number)})`;
+
+    const tbody = document.getElementById('billReturnItemsTbody');
+    const items = b.items || [];
+
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted">No line items found for this invoice.</td></tr>`;
+    } else {
+        let html = '';
+        items.forEach((item, itmIdx) => {
+            const billedQty = parseFloat(item.quantity) || 0;
+            const rate = parseFloat(item.rate) || 0;
+
+            html += `
+                <tr class="modal-return-row" data-product-id="${item.product_id}" data-rate="${rate}">
+                    <td class="ps-2 fw-bold text-dark">
+                        ${escapeHtml(item.product_name)}
+                    </td>
+                    <td class="text-center fw-semibold text-secondary">${billedQty.toFixed(2)}</td>
+                    <td class="text-center">
+                        <input type="number" step="0.01" min="0" max="${billedQty}" class="form-control form-control-sm text-center modal-ret-qty fw-bold text-danger" placeholder="0" oninput="recalcModalReturnTotal()">
+                    </td>
+                    <td class="text-center fw-semibold text-dark">Rs. ${rate.toFixed(2)}</td>
+                    <td class="text-end pe-2 fw-bold text-danger modal-line-return-total">Rs. 0.00</td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    recalcModalReturnTotal();
+
+    if (!billReturnModalInstance) {
+        billReturnModalInstance = new bootstrap.Modal(document.getElementById('billReturnModal'));
+    }
+    billReturnModalInstance.show();
+}
+
+function recalcModalReturnTotal() {
+    let totalAmt = 0;
+    document.querySelectorAll('#billReturnItemsTbody tr.modal-return-row').forEach(tr => {
+        const rate = parseFloat(tr.getAttribute('data-rate')) || 0;
+        const qtyInp = tr.querySelector('.modal-ret-qty');
+        const qty = parseFloat(qtyInp?.value) || 0;
+        const lineTotal = qty * rate;
+        totalAmt += lineTotal;
+
+        const lineLbl = tr.querySelector('.modal-line-return-total');
+        if (lineLbl) lineLbl.innerText = `Rs. ${lineTotal.toFixed(2)}`;
+    });
+
+    document.getElementById('modalReturnTotalLabel').innerText = `Rs. ${totalAmt.toFixed(2)}`;
+}
+
+function applyBillReturnItems() {
+    if (currentReturnBillIndex < 0 || !loadedBills[currentReturnBillIndex]) return;
+    const b = loadedBills[currentReturnBillIndex];
+
+    const selectedItems = [];
+    let totalReturnAmt = 0;
+
+    document.querySelectorAll('#billReturnItemsTbody tr.modal-return-row').forEach(tr => {
+        const prodId = parseInt(tr.getAttribute('data-product-id'), 10);
+        const rate = parseFloat(tr.getAttribute('data-rate')) || 0;
+        const qtyInp = tr.querySelector('.modal-ret-qty');
+        const qty = parseFloat(qtyInp?.value) || 0;
+
+        if (prodId > 0 && qty > 0) {
+            const lineAmt = qty * rate;
+            totalReturnAmt += lineAmt;
+            selectedItems.push({
+                product_id: prodId,
+                carton_qty: qty,
+                rate: rate,
+                amount: lineAmt
+            });
+        }
+    });
+
+    const retInp = document.getElementById(`return_inp_${b.invoice_id}`);
+    const jsonInp = document.getElementById(`return_items_json_${b.invoice_id}`);
+    const badge = document.getElementById(`return_badge_${b.invoice_id}`);
+
+    if (retInp) {
+        retInp.value = totalReturnAmt > 0 ? totalReturnAmt.toFixed(0) : '';
+    }
+    if (jsonInp) {
+        jsonInp.value = selectedItems.length > 0 ? JSON.stringify(selectedItems) : '';
+    }
+    if (badge) {
+        if (selectedItems.length > 0) {
+            badge.classList.remove('d-none');
+            badge.innerHTML = `<i class="bi bi-check2-circle"></i> ${selectedItems.length} item${selectedItems.length === 1 ? '' : 's'} selected`;
+        } else {
+            badge.classList.add('d-none');
+        }
+    }
+
+    // Trigger row input recalculation
+    const row = document.querySelector(`tr.settle-row[data-index="${currentReturnBillIndex}"]`);
+    if (row) {
+        handleRowInput(row, 'return');
+    }
+
+    if (billReturnModalInstance) {
+        billReturnModalInstance.hide();
+    }
+}
 
 function fetchRouteBills() {
     const sm = document.getElementById('salesmanSelect').value;
@@ -520,7 +739,16 @@ function renderSettlementTable() {
                     <input type="number" name="items[${b.invoice_id}][credit]" class="form-control form-control-sm text-center credit-inp" step="1" min="0" placeholder="0">
                 </td>
                 <td>
-                    <input type="number" name="items[${b.invoice_id}][return]" class="form-control form-control-sm text-center return-inp" step="1" min="0" placeholder="0">
+                    <div class="input-group input-group-sm">
+                        <input type="number" name="items[${b.invoice_id}][return]" id="return_inp_${b.invoice_id}" class="form-control form-control-sm text-center return-inp" step="1" min="0" placeholder="0">
+                        <button type="button" class="btn btn-outline-secondary btn-sm px-1 py-0" onclick="openBillReturnModal(${idx})" title="Select exact return items from this bill">
+                            <i class="bi bi-box-seam" style="font-size: 11px;"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" name="items[${b.invoice_id}][return_items_json]" id="return_items_json_${b.invoice_id}" value="">
+                    <div id="return_badge_${b.invoice_id}" class="text-success small fw-semibold mt-1 d-none" style="font-size: 10px;">
+                        <i class="bi bi-check2-circle"></i> Items selected
+                    </div>
                 </td>
                 <td>
                     <input type="number" name="items[${b.invoice_id}][cash]" class="form-control form-control-sm text-center cash-inp fw-bold text-success" step="1" min="0" placeholder="0">
