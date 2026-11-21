@@ -58,9 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     oi.product_id,
                     p.product_name,
                     p.carton_qty as ctn_ratio,
+                    p.pack_qty as pack_ratio,
                     p.base_unit_id,
                     oi.unit_id,
                     oi.carton_qty,
+                    oi.pack_qty,
                     oi.pcs_qty,
                     oi.quantity as base_qty,
                     oi.rate,
@@ -87,7 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'unit_id'      => (int)$item['base_unit_id'],
                         'product_name' => $item['product_name'],
                         'ctn_ratio'    => (float)$item['ctn_ratio'],
+                        'pack_ratio'   => (float)$item['pack_ratio'],
                         'carton_qty'   => 0.0,
+                        'pack_qty'     => 0.0,
                         'pcs_qty'      => 0.0,
                         'total_base_qty' => 0.0,
                         'rate'         => (float)$item['rate'],
@@ -95,7 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ];
                 }
                 $aggregated[$pid]['carton_qty'] += (float)$item['carton_qty'];
-                $aggregated[$pid]['pcs_qty'] += (float)$item['pcs_qty'];
+                $aggregated[$pid]['pack_qty']   += (float)$item['pack_qty'];
+                $aggregated[$pid]['pcs_qty']    += (float)$item['pcs_qty'];
                 $aggregated[$pid]['total_base_qty'] += (float)$item['base_qty'];
                 $aggregated[$pid]['total_amount'] += (float)$item['line_total'];
                 $totalLoadAmount += (float)$item['line_total'];
@@ -134,10 +139,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 3. Insert load_sheet_items & if issuing, execute stock movements
             $stmtLSI = db()->prepare("
                 INSERT INTO load_sheet_items (
-                    load_sheet_id, product_id, unit_id, ordered_qty, required_qty, 
+                    load_sheet_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, ordered_qty, required_qty, 
                     loaded_qty, short_qty, returned_qty, rate, total_amount, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, 
+                    ?, ?, ?, ?, ?, ?, ?, ?, 
                     ?, 0.00, 0.00, ?, ?, NOW()
                 )
             ");
@@ -148,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmtLSI->execute([
                     $loadSheetId, $agg['product_id'], $agg['unit_id'],
+                    $agg['carton_qty'], $agg['pack_qty'], $agg['pcs_qty'],
                     $reqQty, $reqQty, $loadedQty, $agg['rate'], $agg['total_amount']
                 ]);
 
@@ -192,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         invoice_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, 
                         quantity, rate, discount_percent, discount_amount, line_total, created_at
                     ) VALUES (
-                        ?, ?, ?, ?, 0.00, ?, 
+                        ?, ?, ?, ?, ?, ?, 
                         ?, ?, ?, ?, ?, NOW()
                     )
                 ");
@@ -216,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         foreach ($thisOrderItems as $toi) {
                             $stmtInvItem->execute([
                                 $invoiceId, $toi['product_id'], $toi['unit_id'],
-                                $toi['carton_qty'], $toi['pcs_qty'], $toi['quantity'],
+                                $toi['carton_qty'], (float)($toi['pack_qty'] ?? 0), $toi['pcs_qty'], $toi['quantity'],
                                 $toi['rate'], $toi['discount_percent'], $toi['discount_amount'],
                                 $toi['line_total']
                             ]);

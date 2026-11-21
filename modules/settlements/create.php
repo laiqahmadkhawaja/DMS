@@ -188,13 +188,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Fetch invoice items to record return into stock
                     $invItem = db_fetch_one("SELECT product_id, rate FROM sales_invoice_items WHERE invoice_id = ? LIMIT 1", [$vi['invoice_id']]);
                     if ($invItem) {
+                        $rate = (float)$invItem['rate'] > 0 ? (float)$invItem['rate'] : 1;
+                        $ctnReturned = $vi['return_amount'] / $rate;
+                        $ratios = get_product_packaging_ratios((int)$invItem['product_id']);
+                        $piecesReturned = round($ctnReturned * $ratios['pcs_per_ctn'], 4);
+
                         record_stock_movement([
                             'product_id'     => (int)$invItem['product_id'],
                             'warehouse_id'   => 1,
                             'movement_type'  => 'sales_return_saleable',
                             'reference_type' => 'sales_return',
                             'reference_id'   => $returnId,
-                            'qty_in'         => round($vi['return_amount'] / ((float)$invItem['rate'] > 0 ? (float)$invItem['rate'] : 1), 2),
+                            'qty_in'         => $piecesReturned,
                             'qty_out'        => 0,
                             'unit_cost'      => (float)$invItem['rate'],
                             'remarks'        => "Stock returned from route settlement #{$settlementNumber}",

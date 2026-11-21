@@ -87,7 +87,7 @@ try {
             invoice_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, 
             quantity, rate, discount_percent, discount_amount, line_total, created_at
         ) VALUES (
-            ?, ?, ?, ?, 0.00, ?, 
+            ?, ?, ?, ?, ?, ?, 
             ?, ?, ?, ?, ?, NOW()
         )
     ");
@@ -114,9 +114,9 @@ try {
                 foreach ($thisOrderItems as $toi) {
                     $stmtInvItem->execute([
                         $invoiceId, $toi['product_id'], $toi['unit_id'],
-                        $toi['carton_qty'], $toi['pcs_qty'], $toi['quantity'],
-                        $toi['rate'], $toi['discount_percent'], $toi['discount_amount'],
-                        $toi['line_total']
+                        $toi['carton_qty'], $toi['pack_qty'], $toi['pcs_qty'],
+                        $toi['quantity'], $toi['rate'], $toi['discount_percent'],
+                        $toi['discount_amount'], $toi['line_total']
                     ]);
                 }
             }

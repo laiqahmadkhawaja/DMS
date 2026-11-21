@@ -30,7 +30,7 @@ if (!$order) {
 $items = db_fetch_all("
     SELECT 
         oi.*,
-        p.product_name, p.product_code, p.carton_qty as product_ratio,
+        p.product_name, p.product_code, p.carton_qty as packs_per_ctn, p.pack_qty as pcs_per_pack,
         u.symbol as unit_symbol
     FROM order_items oi
     JOIN products p ON p.id = oi.product_id
@@ -40,6 +40,7 @@ $items = db_fetch_all("
 ", [$id]);
 
 $calcCartons = array_sum(array_column($items, 'carton_qty'));
+$calcPacks   = array_sum(array_column($items, 'pack_qty'));
 $calcUnits   = array_sum(array_column($items, 'quantity'));
 $totalCartons = (float)($order['total_cartons'] ?? 0) > 0 ? (float)$order['total_cartons'] : $calcCartons;
 $totalUnits   = (float)($order['total_units'] ?? 0) > 0 ? (float)$order['total_units'] : $calcUnits;
@@ -138,25 +139,30 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <tr>
                     <th style="width: 40px;" class="text-center">Sr.</th>
                     <th>Product Description</th>
-                    <th class="text-center" style="width: 120px;">Carton Qty</th>
-                    <th class="text-center" style="width: 120px;">Pcs Qty</th>
-                    <th class="text-end" style="width: 140px;">Wholesale Rate</th>
-                    <th class="text-end" style="width: 100px;">Disc %</th>
-                    <th class="text-end" style="width: 150px;">Line Total</th>
+                    <th class="text-center" style="width: 100px;">Carton Qty</th>
+                    <th class="text-center" style="width: 100px;">Pack Qty</th>
+                    <th class="text-center" style="width: 100px;">Pcs Qty</th>
+                    <th class="text-end" style="width: 130px;">Wholesale Rate</th>
+                    <th class="text-end" style="width: 90px;">Disc %</th>
+                    <th class="text-end" style="width: 140px;">Line Total</th>
                 </tr>
             </thead>
             <tbody>
                 <?php 
                 $sr = 1;
                 foreach ($items as $item): 
+                    $packsPerCtn = (float)$item['packs_per_ctn'] > 0 ? (float)$item['packs_per_ctn'] : 1;
+                    $pcsPerPack  = (float)$item['pcs_per_pack'] > 0 ? (float)$item['pcs_per_pack'] : 1;
+                    $packRatioText = $pcsPerPack > 1 ? "1*{$packsPerCtn}*{$pcsPerPack}" : "1*{$packsPerCtn}";
                 ?>
                     <tr>
                         <td class="text-center"><?= $sr++ ?></td>
                         <td>
                             <span class="fw-semibold text-dark"><?= e($item['product_name']) ?></span>
-                            <small class="text-muted font-monospace d-block"><?= e($item['product_code']) ?></small>
+                            <small class="text-muted font-monospace d-block"><?= e($item['product_code']) ?> &bull; Pack: <?= $packRatioText ?></small>
                         </td>
-                        <td class="text-center fw-semibold"><?= format_qty($item['carton_qty']) ?> Ctn</td>
+                        <td class="text-center fw-semibold"><?= (float)$item['carton_qty'] > 0 ? format_qty($item['carton_qty']) . ' Ctn' : '-' ?></td>
+                        <td class="text-center"><?= (float)$item['pack_qty'] > 0 ? format_qty($item['pack_qty']) . ' Pck' : '-' ?></td>
                         <td class="text-center"><?= (float)$item['pcs_qty'] > 0 ? format_qty($item['pcs_qty']) . ' Pcs' : '-' ?></td>
                         <td class="text-end"><?= format_currency($item['rate']) ?></td>
                         <td class="text-end"><?= (float)$item['discount_percent'] > 0 ? number_format((float)$item['discount_percent'], 1) . '%' : '-' ?></td>
@@ -168,7 +174,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <tr>
                     <th colspan="2" class="text-end">Order Totals:</th>
                     <th class="text-center"><?= format_qty($totalCartons) ?> Ctns</th>
-                    <th class="text-center"><?= format_qty($totalUnits) ?> Units</th>
+                    <th class="text-center"><?= $calcPacks > 0 ? format_qty($calcPacks) . ' Pck' : '-' ?></th>
+                    <th class="text-center"><?= format_qty($totalUnits) ?> Pcs</th>
                     <th class="text-end" colspan="2">Gross: <?= format_currency($order['gross_amount']) ?></th>
                     <th class="text-end fs-6"><?= format_currency($order['net_amount']) ?></th>
                 </tr>

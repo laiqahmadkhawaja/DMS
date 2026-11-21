@@ -43,6 +43,8 @@ $items = db_fetch_all("
         lsi.*,
         p.product_code,
         p.product_name,
+        p.carton_qty as packs_per_ctn,
+        p.pack_qty as pcs_per_pack,
         p.carton_qty as ctn_ratio,
         c.category_name,
         u.unit_code,

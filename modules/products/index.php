@@ -159,12 +159,16 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <td><span class="badge bg-secondary-subtle text-dark border"><?= e($p['category_name']) ?></span></td>
                             <td class="text-center small">
                                 <?php
-                                $unitLbl = e($p['unit_symbol'] ?: 'Pcs');
-                                if ($unitLbl === 'Ctn' && (float)$p['carton_qty'] > 1) {
-                                    $unitLbl = 'Pcs';
-                                }
+                                $packsPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
+                                $pcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
+                                $totalPcsPerCtn = $packsPerCtn * $pcsPerPack;
                                 ?>
-                                1 Ctn = <?= format_qty($p['carton_qty']) ?> <?= $unitLbl ?>
+                                <?php if ($pcsPerPack > 1): ?>
+                                    <div class="fw-semibold text-dark">1 Ctn = <?= format_qty($packsPerCtn) ?> Pck &times; <?= format_qty($pcsPerPack) ?> Pcs</div>
+                                    <small class="text-muted" style="font-size: 0.72rem;">(<?= number_format($totalPcsPerCtn) ?> Pcs / Ctn)</small>
+                                <?php else: ?>
+                                    <div class="fw-semibold text-dark">1 Ctn = <?= format_qty($packsPerCtn) ?> Pcs</div>
+                                <?php endif; ?>
                             </td>
                             <td class="text-end fw-semibold"><?= format_currency($p['wholesale_rate']) ?></td>
                             <td class="text-end text-primary"><?= format_currency($p['default_sale_rate']) ?></td>

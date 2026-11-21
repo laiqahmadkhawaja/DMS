@@ -55,23 +55,25 @@ if (!defined('DMS_RUNNING')) {
     <table class="table table-bordered table-sm load-items-table mb-1" style="border: 1px solid #000; font-size: 10px; color: #000; line-height: 1.2;">
         <thead>
             <tr style="background-color: #d1b80d; color: #000; border-bottom: 1px solid #000;" class="text-center fw-bold text-uppercase">
-                <th rowspan="2" style="width: 14%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Company / Area</th>
-                <th rowspan="2" style="width: 30%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;" class="text-start ps-1">Product</th>
-                <th rowspan="2" style="width: 8%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Ctn Qty</th>
-                <th rowspan="2" style="width: 8%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Pcs Qty</th>
-                <th rowspan="2" style="width: 10%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Rate</th>
-                <th rowspan="2" style="width: 12%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;" class="text-end pe-1">Total Amount</th>
-                <th colspan="2" style="width: 18%; border: 1px solid #000; padding: 1px 2px;">Return</th>
-                <th rowspan="2" style="width: 10%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Credit</th>
+                <th rowspan="2" style="width: 13%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Company / Area</th>
+                <th rowspan="2" style="width: 27%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;" class="text-start ps-1">Product</th>
+                <th rowspan="2" style="width: 7%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Ctn Qty</th>
+                <th rowspan="2" style="width: 7%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Pack Qty</th>
+                <th rowspan="2" style="width: 7%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Pcs Qty</th>
+                <th rowspan="2" style="width: 9%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Rate</th>
+                <th rowspan="2" style="width: 11%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;" class="text-end pe-1">Total Amount</th>
+                <th colspan="2" style="width: 11%; border: 1px solid #000; padding: 1px 2px;">Return</th>
+                <th rowspan="2" style="width: 8%; border: 1px solid #000; padding: 1px 3px; vertical-align: middle;">Credit</th>
             </tr>
             <tr style="background-color: #d1b80d; color: #000; border-bottom: 1.5px solid #000;" class="text-center fw-bold text-uppercase">
-                <th style="width: 7%; border: 1px solid #000; padding: 1px 2px; font-size: 9px;">Return</th>
-                <th style="width: 11%; border: 1px solid #000; padding: 1px 2px; font-size: 9px;">Amount</th>
+                <th style="width: 5%; border: 1px solid #000; padding: 1px 2px; font-size: 9px;">Return</th>
+                <th style="width: 6%; border: 1px solid #000; padding: 1px 2px; font-size: 9px; border-right: 1.5px solid #000 !important;">Amount</th>
             </tr>
         </thead>
         <tbody>
             <?php 
             $totalCtn = 0;
+            $totalPack = 0;
             $totalPcs = 0;
             $grandTotalAmount = 0;
             $grandTotalReturnAmt = 0;
@@ -79,14 +81,27 @@ if (!defined('DMS_RUNNING')) {
             $grandTotalCreditAmt = 0;
 
             foreach ($items as $item): 
-                $ctnRatio = (float)$item['ctn_ratio'] > 0 ? (float)$item['ctn_ratio'] : 1;
+                $packsPerCtn = (float)($item['packs_per_ctn'] ?? $item['ctn_ratio'] ?? 1);
+                $pcsPerPack  = (float)($item['pcs_per_pack'] ?? 1);
+                if ($packsPerCtn <= 0) $packsPerCtn = 1;
+                if ($pcsPerPack <= 0) $pcsPerPack = 1;
+
                 $baseQty = (float)$item['ordered_qty'];
                 
-                $ctnPart = floor($baseQty / $ctnRatio);
-                $pcsPart = fmod($baseQty, $ctnRatio);
+                if ((float)($item['carton_qty'] ?? 0) > 0 || (float)($item['pack_qty'] ?? 0) > 0 || (float)($item['pcs_qty'] ?? 0) > 0) {
+                    $ctnPart  = (float)($item['carton_qty'] ?? 0);
+                    $packPart = (float)($item['pack_qty'] ?? 0);
+                    $pcsPart  = (float)($item['pcs_qty'] ?? 0);
+                } else {
+                    $bk = breakdown_base_pieces($baseQty, $packsPerCtn, $pcsPerPack);
+                    $ctnPart  = $bk['cartons'];
+                    $packPart = $bk['packs'];
+                    $pcsPart  = $bk['pieces'];
+                }
                 
-                $totalCtn += $ctnPart;
-                $totalPcs += $pcsPart;
+                $totalCtn  += $ctnPart;
+                $totalPack += $packPart;
+                $totalPcs  += $pcsPart;
                 $grandTotalAmount += (float)$item['total_amount'];
 
                 $pid = (int)$item['product_id'];
@@ -109,6 +124,9 @@ if (!defined('DMS_RUNNING')) {
                         <?= $ctnPart > 0 ? $ctnPart : '' ?>
                     </td>
                     <td class="text-center" style="border: 1px solid #000; padding: 0px 3px;">
+                        <?= $packPart > 0 ? $packPart : '' ?>
+                    </td>
+                    <td class="text-center" style="border: 1px solid #000; padding: 0px 3px;">
                         <?= $pcsPart > 0 ? $pcsPart : '' ?>
                     </td>
                     <td class="text-center" style="border: 1px solid #000; padding: 0px 3px;">
@@ -122,7 +140,7 @@ if (!defined('DMS_RUNNING')) {
                         <td class="text-center fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
                             <?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?>
                         </td>
-                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
+                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px; border-right: 1.5px solid #000 !important;">
                             <?= number_format($itemReturnAmt, 0) ?>
                         </td>
                         <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;">
@@ -131,7 +149,7 @@ if (!defined('DMS_RUNNING')) {
                     <?php else: ?>
                         <!-- Salesman field handwriting columns -->
                         <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
-                        <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
+                        <td style="border: 1px solid #000; background-color: #fff; padding: 0px; border-right: 1.5px solid #000 !important;"></td>
                         <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
                     <?php endif; ?>
                 </tr>
@@ -141,6 +159,7 @@ if (!defined('DMS_RUNNING')) {
             <tr style="background-color: #c99c04; color: #000; border-top: 1.5px solid #000;" class="fw-bold">
                 <td colspan="2" class="text-end text-uppercase pe-2" style="padding: 1px 3px;">Total</td>
                 <td class="text-center" style="border: 1px solid #000; padding: 1px 3px;"><?= $totalCtn ?></td>
+                <td class="text-center" style="border: 1px solid #000; padding: 1px 3px;"><?= $totalPack ?></td>
                 <td class="text-center" style="border: 1px solid #000; padding: 1px 3px;"><?= $totalPcs ?></td>
                 <td style="border: 1px solid #000;"></td>
                 <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($grandTotalAmount, 0) ?></td>
@@ -148,13 +167,13 @@ if (!defined('DMS_RUNNING')) {
                     <td class="text-center fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 9px;">
                         <?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 0) : '0' ?>
                     </td>
-                    <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 9px;">
+                    <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 9px; border-right: 1.5px solid #000 !important;">
                         <?= number_format($grandTotalReturnAmt, 0) ?>
                     </td>
                     <td class="text-end pe-1" style="border: 1px solid #000; padding: 1px 3px;"><?= number_format($grandTotalCreditAmt, 0) ?></td>
                 <?php else: ?>
                     <td style="border: 1px solid #000;"></td>
-                    <td style="border: 1px solid #000;"></td>
+                    <td style="border: 1px solid #000; border-right: 1.5px solid #000 !important;"></td>
                     <td style="border: 1px solid #000;"></td>
                 <?php endif; ?>
             </tr>

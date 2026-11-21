@@ -79,6 +79,8 @@ $products = db_fetch_all("
         p.id,
         p.product_code,
         p.product_name,
+        p.carton_qty,
+        p.pack_qty,
         p.carton_qty as ctn_ratio,
         p.purchase_rate as cost_price,
         p.wholesale_rate,
@@ -227,7 +229,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th class="ps-3">SKU</th>
                                 <th>Product Description</th>
                                 <th>Category</th>
-                                <th class="text-center">Cartons + Pcs</th>
+                                <th class="text-center">Cartons / Packs / Pcs</th>
                                 <th class="text-center">Total Units</th>
                                 <th class="text-end">Cost Price</th>
                                 <th class="text-end">Wholesale Rate</th>
@@ -247,9 +249,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <?php else: ?>
                                 <?php foreach ($products as $p): 
                                     $saleable = (float)$p['saleable_qty'];
-                                    $ctnRatio = (float)$p['ctn_ratio'] > 0 ? (float)$p['ctn_ratio'] : 1;
-                                    $ctns = floor($saleable / $ctnRatio);
-                                    $pcs  = fmod($saleable, $ctnRatio);
+                                    $packsPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
+                                    $pcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
+                                    $breakdown = breakdown_base_pieces($saleable, $packsPerCtn, $pcsPerPack);
                                     $isLow = ($saleable <= (float)$p['min_stock_level']);
                                 ?>
                                     <tr>
@@ -258,11 +260,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td>
                                             <div class="fw-bold text-dark"><?= htmlspecialchars($p['product_name']) ?></div>
-                                            <small class="text-muted">Pack: 1*<?= (int)$ctnRatio ?></small>
+                                            <?php if ($pcsPerPack > 1): ?>
+                                                <small class="text-muted">Pack: 1*<?= (int)$packsPerCtn ?>*<?= (int)$pcsPerPack ?></small>
+                                            <?php else: ?>
+                                                <small class="text-muted">Pack: 1*<?= (int)$packsPerCtn ?></small>
+                                            <?php endif; ?>
                                         </td>
                                         <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($p['category_name']) ?></span></td>
                                         <td class="text-center fw-bold text-dark">
-                                            <?= $ctns ?> Ctns <?= $pcs > 0 ? "+ {$pcs} Pcs" : '' ?>
+                                            <?= $breakdown['formatted'] ?>
                                         </td>
                                         <td class="text-center fw-bold fs-6 <?= $saleable <= 0 ? 'text-danger' : 'text-success' ?>">
                                             <?= number_format($saleable) ?>

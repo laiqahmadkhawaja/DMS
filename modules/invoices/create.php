@@ -55,11 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($itemsData as $idx => $line) {
         $productId = (int)($line['product_id'] ?? 0);
         $ctnQty    = (float)($line['carton_qty'] ?? 0);
+        $packQty   = (float)($line['pack_qty'] ?? 0);
         $pcsQty    = (float)($line['pcs_qty'] ?? 0);
         $rate      = (float)($line['rate'] ?? 0);
         $discPct   = (float)($line['discount_percent'] ?? 0);
 
-        if ($productId <= 0 || ($ctnQty <= 0 && $pcsQty <= 0)) {
+        if ($productId <= 0 || ($ctnQty <= 0 && $packQty <= 0 && $pcsQty <= 0)) {
             continue;
         }
 
@@ -68,9 +69,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        $ctnRatio = (float)$prod['carton_qty'] > 0 ? (float)$prod['carton_qty'] : 1;
-        $totalBaseUnits = ($ctnQty * $ctnRatio) + $pcsQty;
-        $lineGross = ($ctnQty > 0 ? ($ctnQty * $rate) : (($pcsQty / $ctnRatio) * $rate));
+        $ratios = get_product_packaging_ratios($prod);
+        $packsPerCtn = $ratios['packs_per_ctn'];
+        $pcsPerPack  = $ratios['pcs_per_pack'];
+        $pcsPerCtn   = $ratios['pcs_per_ctn'];
+
+        $totalBaseUnits = calculate_base_pieces($ctnQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
+        $baseCartons = calculate_carton_equivalent($ctnQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
+        $lineGross = $baseCartons * $rate;
         $lineDisc = ($lineGross * $discPct) / 100.0;
         $lineNet = $lineGross - $lineDisc;
 
@@ -82,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'product_id'       => $productId,
             'unit_id'          => (int)$prod['base_unit_id'],
             'carton_qty'       => $ctnQty,
+            'pack_qty'         => $packQty,
             'pcs_qty'          => $pcsQty,
             'quantity'         => $totalBaseUnits,
             'rate'             => $rate,
@@ -134,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     invoice_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty,
                     quantity, rate, discount_percent, discount_amount, line_total, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, 0.00, ?,
+                    ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, NOW()
                 )
             ");
@@ -142,9 +149,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($validItems as $vi) {
                 $stmtItem->execute([
                     $invoiceId, $vi['product_id'], $vi['unit_id'],
-                    $vi['carton_qty'], $vi['pcs_qty'], $vi['quantity'],
-                    $vi['rate'], $vi['discount_percent'], $vi['discount_amount'],
-                    $vi['line_total']
+                    $vi['carton_qty'], $vi['pack_qty'], $vi['pcs_qty'],
+                    $vi['quantity'], $vi['rate'], $vi['discount_percent'],
+                    $vi['discount_amount'], $vi['line_total']
                 ]);
 
                 // Record stock movement (Direct spot sale dispatch)
@@ -244,7 +251,7 @@ $salesmen   = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_acti
 $categories = db_fetch_all("SELECT id, category_name FROM product_categories WHERE is_active = 1 ORDER BY category_name ASC");
 
 $products   = db_fetch_all("
-    SELECT p.id, p.product_code, p.product_name, p.category_id, cat.category_name, p.carton_qty, p.wholesale_rate,
+    SELECT p.id, p.product_code, p.product_name, p.category_id, cat.category_name, p.carton_qty, p.pack_qty, p.wholesale_rate,
            COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
     LEFT JOIN product_categories cat ON cat.id = p.category_id
@@ -367,9 +374,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <!-- Product Cards Grid -->
                         <div class="pos-product-grid" id="productCardsGrid">
                             <?php foreach ($products as $p): 
-                                $ctnRatio = (float)$p['carton_qty'] > 0 ? (int)$p['carton_qty'] : 1;
-                                $stockCtns = floor((float)$p['saleable_qty'] / $ctnRatio);
+                                $ratios = get_product_packaging_ratios($p);
+                                $packsPerCtn = $ratios['packs_per_ctn'];
+                                $pcsPerPack  = $ratios['pcs_per_pack'];
+                                $pcsPerCtn   = $ratios['pcs_per_ctn'];
+                                $stockBreakdown = breakdown_base_pieces((float)$p['saleable_qty'], $packsPerCtn, $pcsPerPack);
                                 $isOutOfStock = (float)$p['saleable_qty'] <= 0;
+                                $ratioText = $pcsPerPack > 1 ? "1*{$packsPerCtn}*{$pcsPerPack}" : "1*{$packsPerCtn}";
                             ?>
                                 <div class="pos-product-card <?= $isOutOfStock ? 'out-of-stock' : '' ?>" 
                                      id="card_prod_<?= $p['id'] ?>"
@@ -378,7 +389,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                      data-code="<?= htmlspecialchars($p['product_code']) ?>"
                                      data-cat="<?= $p['category_id'] ?>"
                                      data-rate="<?= (float)$p['wholesale_rate'] ?>"
-                                     data-ratio="<?= $ctnRatio ?>"
+                                     data-packs-per-ctn="<?= $packsPerCtn ?>"
+                                     data-pcs-per-pack="<?= $pcsPerPack ?>"
+                                     data-pcs-per-ctn="<?= $pcsPerCtn ?>"
                                      onclick="addProductToInvoice(<?= $p['id'] ?>)">
                                     
                                     <span class="card-badge-cart d-none" id="badge_cart_<?= $p['id'] ?>">0 in bill</span>
@@ -386,7 +399,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <div>
                                         <div class="prod-name"><?= htmlspecialchars($p['product_name']) ?></div>
                                         <div class="prod-meta">
-                                            <span>Pack: <strong>1*<?= $ctnRatio ?></strong></span> &bull; 
+                                            <span>Pack: <strong><?= $ratioText ?></strong></span> &bull; 
                                             <span><?= htmlspecialchars($p['product_code']) ?></span>
                                         </div>
                                     </div>
@@ -394,7 +407,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <div class="prod-price-stock">
                                         <div class="prod-price"><?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['wholesale_rate'], 0) ?></div>
                                         <div class="prod-stock">
-                                            <?= $isOutOfStock ? 'Out of stock' : "{$stockCtns} Ctns avail" ?>
+                                            <?= $isOutOfStock ? 'Out of stock' : htmlspecialchars($stockBreakdown['formatted']) . ' avail' ?>
                                         </div>
                                     </div>
                                 </div>
@@ -420,18 +433,19 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <table class="table pos-cart-table table-hover align-middle" id="invoiceTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 34%;">Product Description</th>
-                                        <th style="width: 13%;" class="text-center">Ctn Qty</th>
-                                        <th style="width: 13%;" class="text-center">Extra Pcs</th>
-                                        <th style="width: 16%;" class="text-end">Rate / Ctn</th>
-                                        <th style="width: 10%;" class="text-end">Disc %</th>
-                                        <th style="width: 14%;" class="text-end">Line Total</th>
-                                        <th style="width: 40px;" class="text-center"></th>
+                                        <th style="width: 28%;">Product Description</th>
+                                        <th style="width: 11%;" class="text-center">Ctn Qty</th>
+                                        <th style="width: 11%;" class="text-center">Packs</th>
+                                        <th style="width: 11%;" class="text-center">Extra Pcs</th>
+                                        <th style="width: 15%;" class="text-end">Rate / Ctn</th>
+                                        <th style="width: 9%;" class="text-end">Disc %</th>
+                                        <th style="width: 12%;" class="text-end">Line Total</th>
+                                        <th style="width: 30px;" class="text-center"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="invoiceItemsBody">
                                     <tr id="emptyInvoiceRow">
-                                        <td colspan="7" class="text-center py-5 text-muted">
+                                        <td colspan="8" class="text-center py-5 text-muted">
                                             <i class="bi bi-cart-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                             <div class="fw-semibold">No items added to invoice yet.</div>
                                             <small>Click on product cards on the left or search to add items.</small>
@@ -576,7 +590,9 @@ function addProductToInvoice(productId) {
         invoiceItems[productId].carton_qty += 1;
         updateInvoiceRow(productId);
     } else {
-        const ctnRatio = parseFloat(prod.carton_qty) > 0 ? parseFloat(prod.carton_qty) : 1;
+        const packsPerCtn = parseFloat(prod.carton_qty) > 0 ? parseFloat(prod.carton_qty) : 1;
+        const pcsPerPack  = parseFloat(prod.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
+        const pcsPerCtn   = packsPerCtn * pcsPerPack;
         const rate = parseFloat(prod.wholesale_rate) || 0;
         itemIdxCounter++;
 
@@ -585,8 +601,11 @@ function addProductToInvoice(productId) {
             product_id: productId,
             product_name: prod.product_name,
             product_code: prod.product_code,
-            carton_ratio: ctnRatio,
+            packs_per_ctn: packsPerCtn,
+            pcs_per_pack: pcsPerPack,
+            pcs_per_ctn: pcsPerCtn,
             carton_qty: 1,
+            pack_qty: 0,
             pcs_qty: 0,
             rate: rate,
             discount_percent: 0,
@@ -615,19 +634,29 @@ function renderNewInvoiceRow(productId) {
     const tbody = document.getElementById('invoiceItemsBody');
     const idx = item.index;
 
+    const ratioText = item.pcs_per_pack > 1 
+        ? `1*${item.packs_per_ctn}*${item.pcs_per_pack}` 
+        : `1*${item.packs_per_ctn}`;
+
     const tr = document.createElement('tr');
     tr.id = 'inv_row_' + productId;
     tr.innerHTML = `
         <td>
             <input type="hidden" name="items[${idx}][product_id]" value="${item.product_id}">
             <div class="fw-bold text-navy" style="font-size: 13px;">${item.product_name}</div>
-            <small class="text-muted">Pack: 1*${item.carton_ratio} &bull; ${item.product_code}</small>
+            <small class="text-muted">Pack: ${ratioText} &bull; ${item.product_code}</small>
         </td>
         <td class="text-center">
             <input type="number" step="0.01" name="items[${idx}][carton_qty]" id="inv_carton_${productId}" 
                    class="form-control form-control-sm text-center fw-bold pos-cart-input" 
                    value="${item.carton_qty}" 
                    oninput="onInvoiceRowChange(${productId})" required>
+        </td>
+        <td class="text-center">
+            <input type="number" step="1" name="items[${idx}][pack_qty]" id="inv_pack_${productId}" 
+                   class="form-control form-control-sm text-center pos-cart-input" 
+                   value="${item.pack_qty}" 
+                   oninput="onInvoiceRowChange(${productId})">
         </td>
         <td class="text-center">
             <input type="number" step="1" name="items[${idx}][pcs_qty]" id="inv_pcs_${productId}" 
@@ -664,17 +693,19 @@ function updateInvoiceRow(productId) {
     if (!item) return;
 
     const inputCarton = document.getElementById('inv_carton_' + productId);
+    const inputPack   = document.getElementById('inv_pack_' + productId);
     const inputPcs    = document.getElementById('inv_pcs_' + productId);
     const inputRate   = document.getElementById('inv_rate_' + productId);
     const inputDisc   = document.getElementById('inv_disc_' + productId);
     const lblTotal    = document.getElementById('inv_lbl_total_' + productId);
 
     if (inputCarton) inputCarton.value = item.carton_qty;
+    if (inputPack) inputPack.value = item.pack_qty;
     if (inputPcs) inputPcs.value = item.pcs_qty;
     if (inputRate) inputRate.value = item.rate.toFixed(2);
     if (inputDisc) inputDisc.value = item.discount_percent;
 
-    const baseCartons = item.carton_qty + (item.pcs_qty / item.carton_ratio);
+    const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
     const lineGross = baseCartons * item.rate;
     const lineDisc  = (lineGross * item.discount_percent) / 100.0;
     item.line_total = lineGross - lineDisc;
@@ -689,16 +720,18 @@ function onInvoiceRowChange(productId) {
     if (!item) return;
 
     const ctnVal  = parseFloat(document.getElementById('inv_carton_' + productId).value) || 0;
+    const packVal = parseFloat(document.getElementById('inv_pack_' + productId).value) || 0;
     const pcsVal  = parseFloat(document.getElementById('inv_pcs_' + productId).value) || 0;
     const rateVal = parseFloat(document.getElementById('inv_rate_' + productId).value) || 0;
     const discVal = parseFloat(document.getElementById('inv_disc_' + productId).value) || 0;
 
     item.carton_qty = ctnVal;
+    item.pack_qty = packVal;
     item.pcs_qty = pcsVal;
     item.rate = rateVal;
     item.discount_percent = discVal;
 
-    const baseCartons = item.carton_qty + (item.pcs_qty / item.carton_ratio);
+    const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
     const lineGross = baseCartons * item.rate;
     const lineDisc  = (lineGross * item.discount_percent) / 100.0;
     item.line_total = lineGross - lineDisc;
@@ -754,10 +787,13 @@ function updateCardBadge(productId) {
     const item  = invoiceItems[productId];
 
     if (card && badge) {
-        if (item && (item.carton_qty > 0 || item.pcs_qty > 0)) {
+        if (item && (item.carton_qty > 0 || item.pack_qty > 0 || item.pcs_qty > 0)) {
             card.classList.add('in-cart');
             badge.classList.remove('d-none');
-            badge.innerText = `${item.carton_qty} Ctn${item.pcs_qty > 0 ? ' +' + item.pcs_qty + 'p' : ''}`;
+            let badgeText = `${item.carton_qty} Ctn`;
+            if (item.pack_qty > 0) badgeText += ` +${item.pack_qty}k`;
+            if (item.pcs_qty > 0) badgeText += ` +${item.pcs_qty}p`;
+            badge.innerText = badgeText;
         } else {
             card.classList.remove('in-cart');
             badge.classList.add('d-none');
@@ -768,6 +804,7 @@ function updateCardBadge(productId) {
 
 function recalculateInvoiceSummary() {
     let totalCartons = 0;
+    let totalPacks   = 0;
     let totalPieces  = 0;
     let grossAmount  = 0;
     let discountAmt  = 0;
@@ -777,9 +814,10 @@ function recalculateInvoiceSummary() {
     Object.values(invoiceItems).forEach(item => {
         itemCount++;
         totalCartons += item.carton_qty;
+        totalPacks   += item.pack_qty;
         totalPieces  += item.pcs_qty;
 
-        const baseCartons = item.carton_qty + (item.pcs_qty / item.carton_ratio);
+        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
         const lineGross = baseCartons * item.rate;
         const lineDisc  = (lineGross * item.discount_percent) / 100.0;
 
@@ -789,7 +827,9 @@ function recalculateInvoiceSummary() {
     });
 
     document.getElementById('cartItemCount').innerText = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
-    document.getElementById('summaryTotalCartons').innerText = `${totalCartons.toLocaleString('en-US', {maximumFractionDigits:2})} Ctns`;
+    let ctnSummaryText = `${totalCartons.toLocaleString('en-US', {maximumFractionDigits:2})} Ctns`;
+    if (totalPacks > 0) ctnSummaryText += ` + ${totalPacks} Pck`;
+    document.getElementById('summaryTotalCartons').innerText = ctnSummaryText;
     document.getElementById('summaryTotalPieces').innerText = `${totalPieces} Pcs`;
     document.getElementById('summaryDiscountAmount').innerText = `<?= DEFAULT_CURRENCY ?> ${discountAmt.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     document.getElementById('summaryNetAmount').innerText = `<?= DEFAULT_CURRENCY ?> ${netAmount.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;

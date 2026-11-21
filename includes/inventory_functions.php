@@ -11,6 +11,71 @@ if (!defined('DMS_RUNNING')) {
 }
 
 /**
+ * Get standard packaging conversion ratios for a product
+ * 1 Carton = X Packs (carton_qty)
+ * 1 Pack = Y Pieces (pack_qty)
+ * 1 Carton = X * Y Pieces (pcs_per_ctn)
+ */
+function get_product_packaging_ratios($product): array {
+    if (!is_array($product)) {
+        $product = db_fetch_one("SELECT carton_qty, pack_qty FROM products WHERE id = ?", [(int)$product]) ?: [];
+    }
+    $packsPerCtn = (float)($product['carton_qty'] ?? 1) > 0 ? (float)$product['carton_qty'] : 1.0;
+    $pcsPerPack  = (float)($product['pack_qty'] ?? 1) > 0 ? (float)$product['pack_qty'] : 1.0;
+    $pcsPerCtn   = $packsPerCtn * $pcsPerPack;
+
+    return [
+        'packs_per_ctn' => $packsPerCtn,
+        'pcs_per_pack'  => $pcsPerPack,
+        'pcs_per_ctn'   => $pcsPerCtn
+    ];
+}
+
+/**
+ * Calculate total base pieces from cartons, packs, and loose pieces
+ */
+function calculate_base_pieces(float $cartons, float $packs, float $pieces, float $packsPerCtn, float $pcsPerPack): float {
+    $packsPerCtn = $packsPerCtn > 0 ? $packsPerCtn : 1.0;
+    $pcsPerPack  = $pcsPerPack > 0 ? $pcsPerPack : 1.0;
+    return round(($cartons * $packsPerCtn * $pcsPerPack) + ($packs * $pcsPerPack) + $pieces, 4);
+}
+
+/**
+ * Calculate carton equivalent from cartons, packs, and loose pieces
+ */
+function calculate_carton_equivalent(float $cartons, float $packs, float $pieces, float $packsPerCtn, float $pcsPerPack): float {
+    $packsPerCtn = $packsPerCtn > 0 ? $packsPerCtn : 1.0;
+    $pcsPerPack  = $pcsPerPack > 0 ? $pcsPerPack : 1.0;
+    return round($cartons + ($packs / $packsPerCtn) + ($pieces / ($packsPerCtn * $pcsPerPack)), 6);
+}
+
+/**
+ * Break down a total quantity in pieces into formatted Cartons, Packs, and Loose Pieces
+ */
+function breakdown_base_pieces(float $totalPieces, float $packsPerCtn, float $pcsPerPack): array {
+    $packsPerCtn = $packsPerCtn > 0 ? $packsPerCtn : 1.0;
+    $pcsPerPack  = $pcsPerPack > 0 ? $pcsPerPack : 1.0;
+    $pcsPerCtn   = $packsPerCtn * $pcsPerPack;
+
+    $cartons = floor($totalPieces / $pcsPerCtn);
+    $rem = fmod($totalPieces, $pcsPerCtn);
+    $packs = floor($rem / $pcsPerPack);
+    $pieces = fmod($rem, $pcsPerPack);
+
+    $parts = [];
+    if ($cartons > 0) $parts[] = "{$cartons} Ctn" . ($cartons != 1 ? 's' : '');
+    if ($packs > 0) $parts[] = "{$packs} Pck" . ($packs != 1 ? 's' : '');
+    if ($pieces > 0 || empty($parts)) $parts[] = "{$pieces} Pcs";
+
+    return [
+        'cartons'   => (float)$cartons,
+        'packs'     => (float)$packs,
+        'pieces'    => (float)$pieces,
+        'formatted' => implode(' + ', $parts)
+    ];
+}
+
+/**
  * Convert quantity from any packaging unit (Carton, Box, Pack) to product's base unit (Piece/Base)
  *
  * @param int $productId
@@ -40,13 +105,15 @@ function convert_to_base_unit(int $productId, int $unitId, float $quantity): flo
         return $quantity * (float)$conv;
     }
 
-    // Default fallback based on unit code
+    // Default fallback based on unit code with 3-tier hierarchy
     $unitCode = db_fetch_val("SELECT unit_code FROM units WHERE id = ?", [$unitId]);
-    if ($unitCode === 'CTN' && (float)$prod['carton_qty'] > 0) {
-        return $quantity * (float)$prod['carton_qty'];
+    $ratios = get_product_packaging_ratios($prod);
+
+    if ($unitCode === 'CTN') {
+        return $quantity * $ratios['pcs_per_ctn'];
     }
-    if ($unitCode === 'PCK' && (float)$prod['pack_qty'] > 0) {
-        return $quantity * (float)$prod['pack_qty'];
+    if ($unitCode === 'PCK' || $unitCode === 'BOX') {
+        return $quantity * $ratios['pcs_per_pack'];
     }
 
     return $quantity;

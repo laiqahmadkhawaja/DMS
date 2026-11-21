@@ -39,7 +39,7 @@ if (!$order) {
 $items = db_fetch_all("
     SELECT 
         oi.*,
-        p.product_name, p.product_code, p.carton_qty as product_ratio,
+        p.product_name, p.product_code, p.carton_qty as packs_per_ctn, p.pack_qty as pcs_per_pack,
         u.symbol as unit_symbol
     FROM order_items oi
     JOIN products p ON p.id = oi.product_id
@@ -49,6 +49,7 @@ $items = db_fetch_all("
 ", [$id]);
 
 $calcCartons = array_sum(array_column($items, 'carton_qty'));
+$calcPacks   = array_sum(array_column($items, 'pack_qty'));
 $calcUnits   = array_sum(array_column($items, 'quantity'));
 $totalCartons = (float)($order['total_cartons'] ?? 0) > 0 ? (float)$order['total_cartons'] : $calcCartons;
 $totalUnits   = (float)($order['total_units'] ?? 0) > 0 ? (float)$order['total_units'] : $calcUnits;
@@ -257,13 +258,14 @@ $padRows = max(8, count($items));
             <table class="table table-bordered table-sm mb-1" style="width: 100% !important; table-layout: fixed; border: 1.5px solid #000 !important; border-collapse: collapse !important; font-size: 11.5px; color: #000;">
                 <thead>
                     <tr style="background-color: #f8f9fa; border-bottom: 1.5px solid #000 !important;" class="text-center fw-bold">
-                        <th style="width: 6%; border: 1px solid #000 !important; padding: 3px 2px;">Sr.</th>
-                        <th style="width: 38%; border: 1px solid #000 !important; padding: 3px 5px; text-align: left;" class="text-start ps-1">Product Description</th>
+                        <th style="width: 5%; border: 1px solid #000 !important; padding: 3px 2px;">Sr.</th>
+                        <th style="width: 35%; border: 1px solid #000 !important; padding: 3px 5px; text-align: left;" class="text-start ps-1">Product Description</th>
                         <th style="width: 12%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Pack Ratio</th>
-                        <th style="width: 11%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Carton Qty</th>
-                        <th style="width: 11%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Pcs Qty</th>
-                        <th style="width: 11%; border: 1px solid #000 !important; padding: 3px 4px; text-align: right; padding-right: 5px;">Rate / Ctn</th>
-                        <th style="width: 11%; border: 1px solid #000 !important; padding: 3px 5px; text-align: right;" class="text-end pe-1">Total</th>
+                        <th style="width: 10%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Carton Qty</th>
+                        <th style="width: 9%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Pack Qty</th>
+                        <th style="width: 9%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Pcs Qty</th>
+                        <th style="width: 10%; border: 1px solid #000 !important; padding: 3px 4px; text-align: right; padding-right: 5px;">Rate / Ctn</th>
+                        <th style="width: 10%; border: 1px solid #000 !important; padding: 3px 5px; text-align: right;" class="text-end pe-1">Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -272,9 +274,12 @@ $padRows = max(8, count($items));
                     $printedRows = 0;
                     foreach ($items as $item): 
                         $printedRows++;
-                        $ctnQty = (float)($item['carton_qty'] ?? 0);
-                        $pcsQty = (float)($item['pcs_qty'] ?? 0);
-                        $ratio = (float)$item['product_ratio'] > 0 ? (int)$item['product_ratio'] : 1;
+                        $ctnQty  = (float)($item['carton_qty'] ?? 0);
+                        $packQty = (float)($item['pack_qty'] ?? 0);
+                        $pcsQty  = (float)($item['pcs_qty'] ?? 0);
+                        $packsPerCtn = (float)$item['packs_per_ctn'] > 0 ? (int)$item['packs_per_ctn'] : 1;
+                        $pcsPerPack  = (float)$item['pcs_per_pack'] > 0 ? (int)$item['pcs_per_pack'] : 1;
+                        $ratioText = $pcsPerPack > 1 ? "1*{$packsPerCtn}*{$pcsPerPack}" : "1*{$packsPerCtn}";
                     ?>
                         <tr style="height: 23px;">
                             <td class="text-center" style="border: 1px solid #000 !important; padding: 1px 2px;"><?= $sr++ ?></td>
@@ -282,10 +287,13 @@ $padRows = max(8, count($items));
                                 <?= htmlspecialchars($item['product_name']) ?>
                             </td>
                             <td class="text-center" style="border: 1px solid #000 !important; padding: 1px 2px; text-align: center;">
-                                1*<?= $ratio ?>
+                                <?= $ratioText ?>
                             </td>
                             <td class="text-center fw-bold" style="border: 1px solid #000 !important; padding: 1px 2px; text-align: center;">
                                 <?= $ctnQty > 0 ? format_qty($ctnQty) : '' ?>
+                            </td>
+                            <td class="text-center" style="border: 1px solid #000 !important; padding: 1px 2px; text-align: center;">
+                                <?= $packQty > 0 ? format_qty($packQty) : '-' ?>
                             </td>
                             <td class="text-center" style="border: 1px solid #000 !important; padding: 1px 2px; text-align: center;">
                                 <?= $pcsQty > 0 ? format_qty($pcsQty) : '-' ?>
@@ -307,6 +315,7 @@ $padRows = max(8, count($items));
                             <td style="border: 1px solid #000 !important; padding: 1px 2px;"></td>
                             <td style="border: 1px solid #000 !important; padding: 1px 2px;"></td>
                             <td style="border: 1px solid #000 !important; padding: 1px 2px;"></td>
+                            <td style="border: 1px solid #000 !important; padding: 1px 2px;"></td>
                             <td style="border: 1px solid #000 !important; padding: 1px 5px;"></td>
                             <td style="border: 1px solid #000 !important; padding: 1px 5px;"></td>
                         </tr>
@@ -321,7 +330,10 @@ $padRows = max(8, count($items));
                             <?= format_qty($totalCartons) ?> Ctns
                         </td>
                         <td class="text-center" style="border: 1px solid #000 !important; padding: 2px 2px;">
-                            <?= format_qty($totalUnits) ?> Units
+                            <?= $calcPacks > 0 ? format_qty($calcPacks) . ' Pck' : '-' ?>
+                        </td>
+                        <td class="text-center" style="border: 1px solid #000 !important; padding: 2px 2px;">
+                            <?= format_qty($totalUnits) ?> Pcs
                         </td>
                         <td class="text-end pe-1" style="border: 1px solid #000 !important; padding: 2px 5px;">
                             Gross: <?= number_format((float)$order['gross_amount'], 0) ?>

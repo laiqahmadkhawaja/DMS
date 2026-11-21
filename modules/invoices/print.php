@@ -48,6 +48,7 @@ $invoiceItems = db_fetch_all("
         p.product_code,
         p.product_name,
         p.carton_qty as ctn_ratio,
+        p.pack_qty as pack_ratio,
         u.unit_code,
         u.unit_name
     FROM sales_invoice_items sii

@@ -53,7 +53,8 @@ $items = db_fetch_all("
         sii.*,
         p.product_code,
         p.product_name,
-        p.carton_qty as ctn_ratio,
+        p.carton_qty as packs_per_ctn,
+        p.pack_qty as pcs_per_pack,
         u.unit_code,
         u.unit_name
     FROM sales_invoice_items sii
@@ -175,20 +176,22 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <tr>
                                         <th style="width: 40px;">#</th>
                                         <th class="text-start ps-3">Product Description</th>
-                                        <th style="width: 100px;">Carton</th>
+                                        <th style="width: 90px;">Carton</th>
                                         <th style="width: 100px;">Con. Pkng</th>
-                                        <th style="width: 90px;">Pcs</th>
-                                        <th style="width: 110px;">Total Qty</th>
-                                        <th style="width: 120px;">Unit Rate</th>
-                                        <th style="width: 130px;" class="text-end pe-3">Line Total</th>
+                                        <th style="width: 80px;">Packs</th>
+                                        <th style="width: 80px;">Pcs</th>
+                                        <th style="width: 100px;">Total Base</th>
+                                        <th style="width: 110px;">Unit Rate</th>
+                                        <th style="width: 120px;" class="text-end pe-3">Line Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php 
                                     $sr = 1;
                                     foreach ($items as $item): 
-                                        $ctnRatio = (float)$item['ctn_ratio'] > 0 ? (float)$item['ctn_ratio'] : 1;
-                                        $conPkg = '1*' . (int)$ctnRatio;
+                                        $packsPerCtn = (float)$item['packs_per_ctn'] > 0 ? (float)$item['packs_per_ctn'] : 1;
+                                        $pcsPerPack  = (float)$item['pcs_per_pack'] > 0 ? (float)$item['pcs_per_pack'] : 1;
+                                        $conPkg = $pcsPerPack > 1 ? "1*{$packsPerCtn}*{$pcsPerPack}" : "1*{$packsPerCtn}";
                                     ?>
                                         <tr>
                                             <td class="text-center text-muted small"><?= $sr++ ?></td>
@@ -197,6 +200,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             </td>
                                             <td class="text-center fw-semibold"><?= (float)$item['carton_qty'] > 0 ? (float)$item['carton_qty'] : '-' ?></td>
                                             <td class="text-center small text-muted"><?= htmlspecialchars($conPkg) ?></td>
+                                            <td class="text-center"><?= (float)$item['pack_qty'] > 0 ? (float)$item['pack_qty'] : '-' ?></td>
                                             <td class="text-center"><?= (float)$item['pcs_qty'] > 0 ? (float)$item['pcs_qty'] : '-' ?></td>
                                             <td class="text-center fw-semibold text-navy"><?= (float)$item['quantity'] ?></td>
                                             <td class="text-center"><?= format_currency((float)$item['rate']) ?></td>

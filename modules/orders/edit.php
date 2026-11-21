@@ -24,7 +24,7 @@ if ($order['status'] === 'delivered') {
 $orderItems = db_fetch_all("
     SELECT 
         oi.*,
-        p.product_name, p.product_code, p.carton_qty as ctn_ratio
+        p.product_name, p.product_code, p.carton_qty as ctn_ratio, p.pack_qty as pack_ratio
     FROM order_items oi
     JOIN products p ON oi.product_id = p.id
     WHERE oi.order_id = ?
@@ -40,7 +40,7 @@ $customers = db_fetch_all("
 ");
 
 $products = db_fetch_all("
-    SELECT p.id, p.product_name, p.product_code, p.wholesale_rate, p.carton_qty, p.base_unit_id
+    SELECT p.id, p.product_name, p.product_code, p.wholesale_rate, p.carton_qty, p.pack_qty, p.base_unit_id
     FROM products p
     WHERE p.is_deleted = 0 AND p.is_active = 1
     ORDER BY p.product_name ASC
@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $itemProductIds = $_POST['item_product_id'] ?? [];
     $itemCartonQtys = $_POST['item_carton_qty'] ?? [];
+    $itemPackQtys   = $_POST['item_pack_qty'] ?? [];
     $itemPcsQtys    = $_POST['item_pcs_qty'] ?? [];
     $itemRates      = $_POST['item_rate'] ?? [];
     $itemDiscounts  = $_POST['item_discount_percent'] ?? [];
@@ -75,20 +76,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($itemProductIds as $idx => $pid) {
         $prodId = (int)$pid;
         $cartonQty = (float)($itemCartonQtys[$idx] ?? 0);
-        $pcsQty = (float)($itemPcsQtys[$idx] ?? 0);
+        $packQty   = (float)($itemPackQtys[$idx] ?? 0);
+        $pcsQty    = (float)($itemPcsQtys[$idx] ?? 0);
         $rate = (float)($itemRates[$idx] ?? 0);
         $discPercent = (float)($itemDiscounts[$idx] ?? 0);
 
-        if ($prodId <= 0 || ($cartonQty <= 0 && $pcsQty <= 0)) {
+        if ($prodId <= 0 || ($cartonQty <= 0 && $packQty <= 0 && $pcsQty <= 0)) {
             continue;
         }
 
         $prod = db_fetch_one("SELECT * FROM products WHERE id = ?", [$prodId]);
         if (!$prod) continue;
 
-        $cartonRatio = (float)$prod['carton_qty'] > 0 ? (float)$prod['carton_qty'] : 1;
-        $totalQuantityInBaseUnits = ($cartonQty * $cartonRatio) + $pcsQty;
-        $baseCartons = $cartonQty + ($pcsQty / $cartonRatio);
+        $ratios = get_product_packaging_ratios($prod);
+        $packsPerCtn = $ratios['packs_per_ctn'];
+        $pcsPerPack  = $ratios['pcs_per_pack'];
+        $pcsPerCtn   = $ratios['pcs_per_ctn'];
+
+        $totalQuantityInBaseUnits = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
+        $baseCartons = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
         $lineGross = $baseCartons * $rate;
         $lineDiscount = ($lineGross * $discPercent) / 100.0;
         $lineTotal = $lineGross - $lineDiscount;
@@ -103,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'product_id'       => $prodId,
             'unit_id'          => $prod['base_unit_id'],
             'carton_qty'       => $cartonQty,
-            'pack_qty'         => 0,
+            'pack_qty'         => $packQty,
             'pcs_qty'          => $pcsQty,
             'quantity'         => $totalQuantityInBaseUnits,
             'rate'             => $rate,
@@ -143,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     order_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, 
                     quantity, rate, discount_percent, discount_amount, line_total, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, 0.00, ?, 
+                    ?, ?, ?, ?, ?, ?, 
                     ?, ?, ?, ?, ?, NOW()
                 )
             ");
@@ -151,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($validItems as $vi) {
                 $stmtItem->execute([
                     $id, $vi['product_id'], $vi['unit_id'], $vi['carton_qty'],
-                    $vi['pcs_qty'], $vi['quantity'], $vi['rate'], $vi['discount_percent'],
+                    $vi['pack_qty'], $vi['pcs_qty'], $vi['quantity'], $vi['rate'], $vi['discount_percent'],
                     $vi['discount_amount'], $vi['line_total']
                 ]);
             }
@@ -259,21 +265,28 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <thead class="bg-light small text-uppercase">
                                 <tr>
                                     <th>Product Description</th>
-                                    <th style="width: 120px;" class="text-center">Cartons</th>
-                                    <th style="width: 120px;" class="text-center">Loose Pcs</th>
-                                    <th style="width: 140px;" class="text-end">Rate (Rs.)</th>
-                                    <th style="width: 110px;" class="text-center">Disc %</th>
-                                    <th style="width: 160px;" class="text-end pe-3">Line Total (Rs.)</th>
-                                    <th style="width: 50px;"></th>
+                                    <th style="width: 100px;" class="text-center">Cartons</th>
+                                    <th style="width: 100px;" class="text-center">Packs</th>
+                                    <th style="width: 100px;" class="text-center">Loose Pcs</th>
+                                    <th style="width: 130px;" class="text-end">Rate (Rs.)</th>
+                                    <th style="width: 90px;" class="text-center">Disc %</th>
+                                    <th style="width: 140px;" class="text-end pe-3">Line Total (Rs.)</th>
+                                    <th style="width: 45px;"></th>
                                 </tr>
                             </thead>
                             <tbody id="orderItemsTbody">
-                                <?php foreach ($orderItems as $idx => $item): ?>
-                                    <tr class="item-row" data-ratio="<?= (float)$item['ctn_ratio'] ?>">
+                                <?php foreach ($orderItems as $idx => $item): 
+                                    $packsPerCtn = (float)$item['ctn_ratio'] > 0 ? (float)$item['ctn_ratio'] : 1;
+                                    $pcsPerPack  = (float)$item['pack_ratio'] > 0 ? (float)$item['pack_ratio'] : 1;
+                                ?>
+                                    <tr class="item-row" data-ratio="<?= $packsPerCtn ?>" data-pack-ratio="<?= $pcsPerPack ?>">
                                         <td>
                                             <select name="item_product_id[]" class="form-select form-select-sm prod-select" onchange="onProductChange(this)">
-                                                <?php foreach ($products as $p): ?>
-                                                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $p['carton_qty'] ?>" <?= $p['id'] == $item['product_id'] ? 'selected' : '' ?>>
+                                                <?php foreach ($products as $p): 
+                                                    $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
+                                                    $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
+                                                ?>
+                                                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $pPacksPerCtn ?>" data-pack-ratio="<?= $pPcsPerPack ?>" <?= $p['id'] == $item['product_id'] ? 'selected' : '' ?>>
                                                         <?= e($p['product_name']) ?> (<?= e($p['product_code']) ?>)
                                                     </option>
                                                 <?php endforeach; ?>
@@ -281,6 +294,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td>
                                             <input type="number" step="1" min="0" name="item_carton_qty[]" class="form-control form-control-sm text-center ctn-inp" value="<?= (float)$item['carton_qty'] ?>" oninput="recalcOrderLine(this)">
+                                        </td>
+                                        <td>
+                                            <input type="number" step="1" min="0" name="item_pack_qty[]" class="form-control form-control-sm text-center pack-inp" value="<?= (float)($item['pack_qty'] ?? 0) ?>" oninput="recalcOrderLine(this)">
                                         </td>
                                         <td>
                                             <input type="number" step="1" min="0" name="item_pcs_qty[]" class="form-control form-control-sm text-center pcs-inp" value="<?= (float)$item['pcs_qty'] ?>" oninput="recalcOrderLine(this)">
@@ -304,6 +320,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <tr>
                                     <td class="text-end text-uppercase">Totals:</td>
                                     <td class="text-center" id="footCtn">0</td>
+                                    <td class="text-center" id="footPack">0</td>
                                     <td class="text-center" id="footPcs">0</td>
                                     <td colspan="2" class="text-end">Order Net:</td>
                                     <td class="text-end pe-3 text-navy fs-6" id="footNet">Rs. 0.00</td>
@@ -330,12 +347,15 @@ require_once INCLUDES_PATH . '/topbar.php';
 </div>
 
 <template id="orderRowTpl">
-    <tr class="item-row" data-ratio="1">
+    <tr class="item-row" data-ratio="1" data-pack-ratio="1">
         <td>
             <select name="item_product_id[]" class="form-select form-select-sm prod-select" onchange="onProductChange(this)">
                 <option value="">-- Select Product --</option>
-                <?php foreach ($products as $p): ?>
-                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $p['carton_qty'] ?>">
+                <?php foreach ($products as $p): 
+                    $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
+                    $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
+                ?>
+                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $pPacksPerCtn ?>" data-pack-ratio="<?= $pPcsPerPack ?>">
                         <?= e($p['product_name']) ?> (<?= e($p['product_code']) ?>)
                     </option>
                 <?php endforeach; ?>
@@ -343,6 +363,9 @@ require_once INCLUDES_PATH . '/topbar.php';
         </td>
         <td>
             <input type="number" step="1" min="0" name="item_carton_qty[]" class="form-control form-control-sm text-center ctn-inp" value="1" oninput="recalcOrderLine(this)">
+        </td>
+        <td>
+            <input type="number" step="1" min="0" name="item_pack_qty[]" class="form-control form-control-sm text-center pack-inp" value="0" oninput="recalcOrderLine(this)">
         </td>
         <td>
             <input type="number" step="1" min="0" name="item_pcs_qty[]" class="form-control form-control-sm text-center pcs-inp" value="0" oninput="recalcOrderLine(this)">
@@ -385,21 +408,27 @@ function onProductChange(sel) {
     if (opt && opt.value) {
         const rate = parseFloat(opt.getAttribute('data-rate')) || 0;
         const ratio = parseFloat(opt.getAttribute('data-ratio')) || 1;
+        const packRatio = parseFloat(opt.getAttribute('data-pack-ratio')) || 1;
         row.querySelector('.rate-inp').value = rate.toFixed(2);
         row.setAttribute('data-ratio', ratio);
+        row.setAttribute('data-pack-ratio', packRatio);
         recalcOrderLine(sel);
     }
 }
 
 function recalcOrderLine(el) {
     const row = el.closest('tr');
-    const ratio = parseFloat(row.getAttribute('data-ratio')) || 1;
-    const ctn = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-    const pcs = parseFloat(row.querySelector('.pcs-inp').value) || 0;
+    const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+    const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+    const pcsPerCtn   = packsPerCtn * pcsPerPack;
+
+    const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
+    const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
+    const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
     const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
     const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
 
-    const baseCartons = ctn + (pcs / ratio);
+    const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
     const gross = baseCartons * rate;
     const discAmt = (gross * disc) / 100;
     const net = gross - discAmt;
@@ -410,27 +439,34 @@ function recalcOrderLine(el) {
 
 function recalcOrderTotals() {
     let totCtn = 0;
+    let totPack = 0;
     let totPcs = 0;
     let totNet = 0;
 
     document.querySelectorAll('.item-row').forEach(row => {
-        const ratio = parseFloat(row.getAttribute('data-ratio')) || 1;
-        const ctn = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-        const pcs = parseFloat(row.querySelector('.pcs-inp').value) || 0;
+        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+        const pcsPerCtn   = packsPerCtn * pcsPerPack;
+
+        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
+        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
+        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
         const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
         const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
 
-        const baseCartons = ctn + (pcs / ratio);
+        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
         const gross = baseCartons * rate;
         const discAmt = (gross * disc) / 100;
         const net = gross - discAmt;
 
         totCtn += ctn;
+        totPack += pack;
         totPcs += pcs;
         totNet += net;
     });
 
     document.getElementById('footCtn').innerText = totCtn;
+    if (document.getElementById('footPack')) document.getElementById('footPack').innerText = totPack;
     document.getElementById('footPcs').innerText = totPcs;
     document.getElementById('footNet').innerText = 'Rs. ' + totNet.toLocaleString('en-US', {minimumFractionDigits: 2});
 }

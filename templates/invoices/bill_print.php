@@ -91,9 +91,12 @@ $lineHeight = $compactMode ? '21px' : '24px';
             $printedRows = 0;
             foreach ($invoiceItems as $item): 
                 $printedRows++;
-                $ctnQty = (float)($item['carton_qty'] ?? 0);
-                $pcsQty = (float)($item['pcs_qty'] ?? 0);
-                $conPkg = !empty($item['ctn_ratio']) ? '1*' . (int)$item['ctn_ratio'] : '';
+                $ctnQty  = (float)($item['carton_qty'] ?? 0);
+                $packQty = (float)($item['pack_qty'] ?? 0);
+                $pcsQty  = (float)($item['pcs_qty'] ?? 0);
+                $packsPerCtn = (float)($item['ctn_ratio'] ?? 1) > 0 ? (int)$item['ctn_ratio'] : 1;
+                $pcsPerPack  = (float)($item['pack_ratio'] ?? 1) > 0 ? (int)$item['pack_ratio'] : 1;
+                $conPkg = $pcsPerPack > 1 ? "1*{$packsPerCtn}*{$pcsPerPack}" : "1*{$packsPerCtn}";
             ?>
                 <tr style="height: <?= $lineHeight ?>;">
                     <td class="text-start ps-1 fw-semibold text-truncate" style="border: 1px solid #000 !important; padding: 1px 5px; text-align: left;">
@@ -106,10 +109,10 @@ $lineHeight = $compactMode ? '21px' : '24px';
                         <?= htmlspecialchars($conPkg) ?>
                     </td>
                     <td class="text-center" style="border: 1px solid #000 !important; padding: 1px 2px; text-align: center;">
-                        <?= !empty($item['pack_code']) ? htmlspecialchars($item['pack_code']) : ($pcsQty > 0 ? (float)$pcsQty : '') ?>
+                        <?= $packQty > 0 ? (float)$packQty : (!empty($item['pack_code']) ? htmlspecialchars($item['pack_code']) : '') ?>
                     </td>
                     <td class="text-center fw-semibold" style="border: 1px solid #000 !important; padding: 1px 2px; text-align: center;">
-                        <?= (float)$item['quantity'] ?>
+                        <?= $pcsQty > 0 ? (float)$pcsQty : ((float)$item['quantity'] > 0 ? (float)$item['quantity'] : '') ?>
                     </td>
                     <td class="text-end pe-1" style="border: 1px solid #000 !important; padding: 1px 5px; text-align: right;">
                         <?= number_format((float)$item['rate'], 0) ?>

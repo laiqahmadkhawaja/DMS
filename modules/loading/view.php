@@ -46,7 +46,8 @@ $items = db_fetch_all("
         lsi.*,
         p.product_code,
         p.product_name,
-        p.carton_qty as ctn_ratio,
+        p.carton_qty as packs_per_ctn,
+        p.pack_qty as pcs_per_pack,
         c.category_name,
         u.unit_code,
         u.unit_name
@@ -327,23 +328,25 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <table class="table table-bordered print-table align-middle mb-0" style="border: 2px solid #000;">
                         <thead>
                             <tr style="background-color: #d1b80d; color: #000;" class="print-yellow-header text-center small text-uppercase">
-                                <th rowspan="2" style="width: 14%; border: 1px solid #000; vertical-align: middle;">Company / Area</th>
-                                <th rowspan="2" style="width: 30%; border: 1px solid #000; vertical-align: middle;" class="text-start">Product</th>
-                                <th rowspan="2" style="width: 8%; border: 1px solid #000; vertical-align: middle;">Ctn Qty</th>
-                                <th rowspan="2" style="width: 8%; border: 1px solid #000; vertical-align: middle;">Pcs Qty</th>
-                                <th rowspan="2" style="width: 10%; border: 1px solid #000; vertical-align: middle;">Rate</th>
-                                <th rowspan="2" style="width: 12%; border: 1px solid #000; vertical-align: middle;">Total Amount</th>
-                                <th colspan="2" style="width: 12%; border: 1px solid #000; padding: 2px;">Return</th>
-                                <th rowspan="2" style="width: 10%; border: 1px solid #000; vertical-align: middle;">Credit</th>
+                                <th rowspan="2" style="width: 13%; border: 1px solid #000; vertical-align: middle;">Company / Area</th>
+                                <th rowspan="2" style="width: 27%; border: 1px solid #000; vertical-align: middle;" class="text-start">Product</th>
+                                <th rowspan="2" style="width: 7%; border: 1px solid #000; vertical-align: middle;">Ctn Qty</th>
+                                <th rowspan="2" style="width: 7%; border: 1px solid #000; vertical-align: middle;">Pack Qty</th>
+                                <th rowspan="2" style="width: 7%; border: 1px solid #000; vertical-align: middle;">Pcs Qty</th>
+                                <th rowspan="2" style="width: 9%; border: 1px solid #000; vertical-align: middle;">Rate</th>
+                                <th rowspan="2" style="width: 11%; border: 1px solid #000; vertical-align: middle;">Total Amount</th>
+                                <th colspan="2" style="width: 11%; border: 1px solid #000; padding: 2px;">Return</th>
+                                <th rowspan="2" style="width: 8%; border: 1px solid #000; vertical-align: middle;">Credit</th>
                             </tr>
                             <tr style="background-color: #d1b80d; color: #000;" class="print-yellow-header text-center small text-uppercase">
                                 <th style="width: 5%; border: 1px solid #000; font-size: 0.72rem; padding: 2px;">Return</th>
-                                <th style="width: 7%; border: 1px solid #000; font-size: 0.72rem; padding: 2px;">Amount</th>
+                                <th style="width: 6%; border: 1px solid #000; font-size: 0.72rem; padding: 2px;">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
                             $totalCtn = 0;
+                            $totalPack = 0;
                             $totalPcs = 0;
                             $grandTotalAmount = 0;
                             $grandTotalReturnAmt = 0;
@@ -351,15 +354,24 @@ require_once INCLUDES_PATH . '/topbar.php';
                             $grandTotalCreditAmt = 0;
 
                             foreach ($items as $item): 
-                                $ctnRatio = (float)$item['ctn_ratio'] > 0 ? (float)$item['ctn_ratio'] : 1;
-                                $baseQty = (float)$item['ordered_qty'];
+                                $packsPerCtn = (float)$item['packs_per_ctn'] > 0 ? (float)$item['packs_per_ctn'] : 1;
+                                $pcsPerPack  = (float)$item['pcs_per_pack'] > 0 ? (float)$item['pcs_per_pack'] : 1;
+                                $baseQty     = (float)$item['ordered_qty'];
                                 
-                                // Calculate Ctn and Pcs display
-                                $ctnPart = floor($baseQty / $ctnRatio);
-                                $pcsPart = fmod($baseQty, $ctnRatio);
+                                if ((float)($item['carton_qty'] ?? 0) > 0 || (float)($item['pack_qty'] ?? 0) > 0 || (float)($item['pcs_qty'] ?? 0) > 0) {
+                                    $ctnPart  = (float)($item['carton_qty'] ?? 0);
+                                    $packPart = (float)($item['pack_qty'] ?? 0);
+                                    $pcsPart  = (float)($item['pcs_qty'] ?? 0);
+                                } else {
+                                    $bk = breakdown_base_pieces($baseQty, $packsPerCtn, $pcsPerPack);
+                                    $ctnPart  = $bk['cartons'];
+                                    $packPart = $bk['packs'];
+                                    $pcsPart  = $bk['pieces'];
+                                }
                                 
-                                $totalCtn += $ctnPart;
-                                $totalPcs += $pcsPart;
+                                $totalCtn  += $ctnPart;
+                                $totalPack += $packPart;
+                                $totalPcs  += $pcsPart;
                                 $grandTotalAmount += (float)$item['total_amount'];
 
                                 $pid = (int)$item['product_id'];
@@ -375,6 +387,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="small fw-semibold"><?= htmlspecialchars($item['category_name'] ?: 'General') ?></td>
                                     <td class="fw-bold text-dark"><?= htmlspecialchars($item['product_name']) ?></td>
                                     <td class="text-center fw-bold"><?= $ctnPart > 0 ? $ctnPart : '' ?></td>
+                                    <td class="text-center"><?= $packPart > 0 ? $packPart : '' ?></td>
                                     <td class="text-center"><?= $pcsPart > 0 ? $pcsPart : '' ?></td>
                                     <td class="text-center"><?= number_format((float)$item['rate'], 2) ?></td>
                                     <td class="text-end pe-2 fw-bold"><?= number_format((float)$item['total_amount'], 2) ?></td>
@@ -402,6 +415,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <tr style="background-color: #c99c04; color: #000;" class="print-yellow-total fw-bold">
                                 <td colspan="2" class="text-end text-uppercase pe-3">Total:</td>
                                 <td class="text-center"><?= $totalCtn ?></td>
+                                <td class="text-center"><?= $totalPack > 0 ? $totalPack : '' ?></td>
                                 <td class="text-center"><?= $totalPcs ?></td>
                                 <td></td>
                                 <td class="text-end pe-2"><?= number_format($grandTotalAmount, 2) ?></td>

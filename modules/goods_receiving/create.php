@@ -36,6 +36,8 @@ if ($prePoId > 0) {
                 poi.*,
                 p.product_code,
                 p.product_name,
+                p.carton_qty as packs_per_ctn,
+                p.pack_qty as pcs_per_pack,
                 (poi.quantity - poi.received_quantity) as remaining_qty
             FROM purchase_order_items poi
             JOIN products p ON poi.product_id = p.id
@@ -69,30 +71,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($itemsData as $idx => $row) {
         $productId   = (int)($row['product_id'] ?? 0);
         $orderedQty  = (float)($row['ordered_qty'] ?? 0);
-        $receivedQty = (float)($row['received_qty'] ?? 0);
+        $ctnQty      = (float)($row['carton_qty'] ?? 0);
+        $packQty     = (float)($row['pack_qty'] ?? 0);
+        $pcsQty      = (float)($row['pcs_qty'] ?? 0);
+        $recvQty     = (float)($row['received_qty'] ?? 0);
         $shortQty    = (float)($row['short_qty'] ?? 0);
         $damagedQty  = (float)($row['damaged_qty'] ?? 0);
         $rate        = (float)($row['unit_rate'] ?? 0);
 
-        if ($productId <= 0 || ($receivedQty <= 0 && $damagedQty <= 0)) {
+        if ($productId <= 0 || ($ctnQty <= 0 && $packQty <= 0 && $pcsQty <= 0 && $recvQty <= 0 && $damagedQty <= 0)) {
             continue;
         }
 
         $prod = db_fetch_one("SELECT * FROM products WHERE id = ?", [$productId]);
         if (!$prod) continue;
 
-        $lineTotal = round($receivedQty * $rate, 2);
+        $ratios = get_product_packaging_ratios($prod);
+
+        if ($ctnQty > 0 || $packQty > 0 || $pcsQty > 0) {
+            $equivCartons = calculate_carton_equivalent($ctnQty, $packQty, $pcsQty, $ratios['packs_per_ctn'], $ratios['pcs_per_pack']);
+            $basePieces   = calculate_base_pieces($ctnQty, $packQty, $pcsQty, $ratios['packs_per_ctn'], $ratios['pcs_per_pack']);
+        } else {
+            $equivCartons = $recvQty;
+            $basePieces   = $recvQty * $ratios['pcs_per_ctn'];
+            $bk = breakdown_base_pieces($basePieces, $ratios['packs_per_ctn'], $ratios['pcs_per_pack']);
+            $ctnQty  = $bk['cartons'];
+            $packQty = $bk['packs'];
+            $pcsQty  = $bk['pieces'];
+        }
+
+        $lineTotal = round($equivCartons * $rate, 2);
         $totalAmount += $lineTotal;
 
         $validItems[] = [
-            'product_id'   => $productId,
-            'unit_id'      => (int)$prod['base_unit_id'],
-            'ordered_qty'  => $orderedQty,
-            'received_qty' => $receivedQty,
-            'short_qty'    => $shortQty,
-            'damaged_qty'  => $damagedQty,
-            'unit_rate'    => $rate,
-            'line_total'   => $lineTotal
+            'product_id'    => $productId,
+            'unit_id'       => (int)$prod['base_unit_id'],
+            'carton_qty'    => $ctnQty,
+            'pack_qty'      => $packQty,
+            'pcs_qty'       => $pcsQty,
+            'ordered_qty'   => $orderedQty,
+            'received_qty'  => $equivCartons,
+            'base_pieces'   => $basePieces,
+            'short_qty'     => $shortQty,
+            'damaged_qty'   => $damagedQty,
+            'unit_rate'     => $rate,
+            'line_total'    => $lineTotal
         ];
     }
 
@@ -125,10 +148,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 2. Insert items, update inventory movements & balances
             $stmtItem = db()->prepare("
                 INSERT INTO goods_receipt_items (
-                    goods_receipt_id, product_id, unit_id, ordered_qty, received_qty, 
+                    goods_receipt_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, ordered_qty, received_qty, 
                     short_qty, damaged_qty, unit_rate, line_total, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, 
+                    ?, ?, ?, ?, ?, ?, ?, ?, 
                     ?, ?, ?, ?, NOW()
                 )
             ");
@@ -142,20 +165,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($validItems as $vi) {
                 $stmtItem->execute([
                     $grnId, $vi['product_id'], $vi['unit_id'],
+                    $vi['carton_qty'], $vi['pack_qty'], $vi['pcs_qty'],
                     $vi['ordered_qty'], $vi['received_qty'],
                     $vi['short_qty'], $vi['damaged_qty'],
                     $vi['unit_rate'], $vi['line_total']
                 ]);
 
                 // Record atomic stock addition into warehouse
-                if ($vi['received_qty'] > 0) {
+                if ($vi['base_pieces'] > 0) {
                     record_stock_movement([
                         'product_id'     => $vi['product_id'],
                         'warehouse_id'   => $warehouseId,
                         'movement_type'  => 'purchase_grn',
                         'reference_type' => 'grn',
                         'reference_id'   => $grnId,
-                        'qty_in'         => $vi['received_qty'],
+                        'qty_in'         => $vi['base_pieces'],
                         'qty_out'        => 0,
                         'unit_cost'      => $vi['unit_rate'],
                         'remarks'        => "Stock received via GRN #{$grnNumber}",
@@ -229,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $suppliers  = db_fetch_all("SELECT id, supplier_name FROM suppliers WHERE is_deleted = 0 ORDER BY supplier_name ASC");
 $warehouses = db_fetch_all("SELECT id, warehouse_name FROM warehouses WHERE is_active = 1 ORDER BY id ASC");
 $pos        = db_fetch_all("SELECT id, purchase_number, supplier_id, order_date FROM purchase_orders WHERE status IN ('ordered', 'partially_received') ORDER BY id DESC");
-$products   = db_fetch_all("SELECT id, product_code, product_name, purchase_rate as cost_price, carton_qty FROM products WHERE is_active = 1 AND is_deleted = 0 ORDER BY product_name ASC");
+$products   = db_fetch_all("SELECT id, product_code, product_name, purchase_rate as cost_price, carton_qty, pack_qty FROM products WHERE is_active = 1 AND is_deleted = 0 ORDER BY product_name ASC");
 
 require_once INCLUDES_PATH . '/header.php';
 require_once INCLUDES_PATH . '/sidebar.php';
@@ -328,32 +352,55 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <thead class="table-light text-muted small text-uppercase text-center">
                                 <tr>
                                     <th style="width: 40px;">#</th>
-                                    <th style="width: 34%;" class="text-start ps-3">Product Description</th>
-                                    <th style="width: 12%;">Ordered Qty</th>
-                                    <th style="width: 14%;">Received Qty</th>
-                                    <th style="width: 12%;">Damaged Qty</th>
-                                    <th style="width: 14%;">Unit Cost (Rs.)</th>
+                                    <th style="width: 30%;" class="text-start ps-3">Product Description</th>
+                                    <th style="width: 9%;">Ordered (Ctn)</th>
+                                    <th style="width: 8%;">Recv Ctn</th>
+                                    <th style="width: 8%;">Recv Pack</th>
+                                    <th style="width: 8%;">Recv Pcs</th>
+                                    <th style="width: 9%;">Damaged (Pcs)</th>
+                                    <th style="width: 12%;">Cost / Ctn (Rs.)</th>
                                     <th style="width: 14%;" class="text-end pe-3">Line Total (Rs.)</th>
                                     <th style="width: 40px;"></th>
                                 </tr>
                             </thead>
                             <tbody id="grnItemsTbody">
                                 <?php if (!empty($preItems)): ?>
-                                    <?php foreach ($preItems as $idx => $pi): ?>
+                                    <?php foreach ($preItems as $idx => $pi): 
+                                        $cQty = (float)($pi['carton_qty'] ?? 0);
+                                        $pkQty = (float)($pi['pack_qty'] ?? 0);
+                                        $pQty = (float)($pi['pcs_qty'] ?? 0);
+                                        if ($cQty == 0 && $pkQty == 0 && $pQty == 0) {
+                                            $cQty = (float)$pi['remaining_qty'];
+                                        }
+                                    ?>
                                         <tr class="item-row">
                                             <td class="text-center row-number text-muted small"><?= $idx + 1 ?></td>
                                             <td class="ps-3">
                                                 <select name="items[<?= $idx ?>][product_id]" class="form-select form-select-sm product-select" required>
-                                                    <option value="<?= $pi['product_id'] ?>" selected>
+                                                    <option value="<?= $pi['product_id'] ?>" 
+                                                            data-cost="<?= $pi['rate'] ?>"
+                                                            data-ctn="<?= (float)$pi['packs_per_ctn'] > 0 ? (float)$pi['packs_per_ctn'] : 1 ?>"
+                                                            data-pack="<?= (float)$pi['pcs_per_pack'] > 0 ? (float)$pi['pcs_per_pack'] : 1 ?>"
+                                                            selected>
                                                         <?= htmlspecialchars($pi['product_name']) ?> (<?= htmlspecialchars($pi['product_code']) ?>)
                                                     </option>
                                                 </select>
+                                                <small class="text-muted ratio-label d-block mt-1" style="font-size: 0.72rem;">
+                                                    1 Ctn = <?= (int)$pi['packs_per_ctn'] ?> Pck &times; <?= (int)$pi['pcs_per_pack'] ?> Pcs
+                                                </small>
+                                                <input type="hidden" name="items[<?= $idx ?>][received_qty]" class="equiv-recv-input" value="<?= (float)$pi['remaining_qty'] ?>">
                                             </td>
                                             <td>
                                                 <input type="number" name="items[<?= $idx ?>][ordered_qty]" class="form-control form-control-sm text-center bg-light" value="<?= (float)$pi['remaining_qty'] ?>" readonly>
                                             </td>
                                             <td>
-                                                <input type="number" name="items[<?= $idx ?>][received_qty]" class="form-control form-control-sm text-center recv-input fw-bold" step="1" min="0" value="<?= (float)$pi['remaining_qty'] ?>" required>
+                                                <input type="number" name="items[<?= $idx ?>][carton_qty]" class="form-control form-control-sm text-center ctn-input fw-bold" step="1" min="0" value="<?= $cQty ?>">
+                                            </td>
+                                            <td>
+                                                <input type="number" name="items[<?= $idx ?>][pack_qty]" class="form-control form-control-sm text-center pack-input" step="1" min="0" value="<?= $pkQty ?>">
+                                            </td>
+                                            <td>
+                                                <input type="number" name="items[<?= $idx ?>][pcs_qty]" class="form-control form-control-sm text-center pcs-input" step="1" min="0" value="<?= $pQty ?>">
                                             </td>
                                             <td>
                                                 <input type="number" name="items[<?= $idx ?>][damaged_qty]" class="form-control form-control-sm text-center dmg-input text-danger" step="1" min="0" value="0">
@@ -375,7 +422,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </tbody>
                             <tfoot class="table-light fw-bold fs-6">
                                 <tr>
-                                    <td colspan="6" class="text-end text-uppercase">Total Received Value:</td>
+                                    <td colspan="8" class="text-end text-uppercase">Total Received Value:</td>
                                     <td class="text-end pe-3 text-navy" id="totalGrnLabel">Rs. 0.00</td>
                                     <td></td>
                                 </tr>
@@ -412,17 +459,28 @@ require_once INCLUDES_PATH . '/topbar.php';
             <select name="items[INDEX][product_id]" class="form-select form-select-sm product-select" required>
                 <option value="">-- Select Product --</option>
                 <?php foreach ($products as $p): ?>
-                    <option value="<?= $p['id'] ?>" data-cost="<?= $p['cost_price'] ?>">
+                    <option value="<?= $p['id'] ?>" 
+                            data-cost="<?= $p['cost_price'] ?>"
+                            data-ctn="<?= (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1 ?>"
+                            data-pack="<?= (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1 ?>">
                         <?= htmlspecialchars($p['product_name']) ?> (<?= htmlspecialchars($p['product_code']) ?>)
                     </option>
                 <?php endforeach; ?>
             </select>
+            <small class="text-muted ratio-label d-block mt-1" style="font-size: 0.72rem;"></small>
+            <input type="hidden" name="items[INDEX][received_qty]" class="equiv-recv-input" value="0">
         </td>
         <td>
             <input type="number" name="items[INDEX][ordered_qty]" class="form-control form-control-sm text-center bg-light" value="0" readonly>
         </td>
         <td>
-            <input type="number" name="items[INDEX][received_qty]" class="form-control form-control-sm text-center recv-input fw-bold" step="1" min="0" placeholder="0" required>
+            <input type="number" name="items[INDEX][carton_qty]" class="form-control form-control-sm text-center ctn-input fw-bold" step="1" min="0" placeholder="0">
+        </td>
+        <td>
+            <input type="number" name="items[INDEX][pack_qty]" class="form-control form-control-sm text-center pack-input" step="1" min="0" placeholder="0">
+        </td>
+        <td>
+            <input type="number" name="items[INDEX][pcs_qty]" class="form-control form-control-sm text-center pcs-input" step="1" min="0" placeholder="0">
         </td>
         <td>
             <input type="number" name="items[INDEX][damaged_qty]" class="form-control form-control-sm text-center dmg-input text-danger" step="1" min="0" placeholder="0">
@@ -459,24 +517,38 @@ function addNewRow() {
 
 function attachRowEvents(row) {
     const prodSelect = row.querySelector('.product-select');
-    const recvInput  = row.querySelector('.recv-input');
+    const ctnInput   = row.querySelector('.ctn-input');
+    const packInput  = row.querySelector('.pack-input');
+    const pcsInput   = row.querySelector('.pcs-input');
     const dmgInput   = row.querySelector('.dmg-input');
     const rateInput  = row.querySelector('.rate-input');
     const btnRemove  = row.querySelector('.btn-remove-row');
+    const ratioLabel = row.querySelector('.ratio-label');
 
     if (prodSelect) {
         prodSelect.addEventListener('change', function() {
             const opt = this.options[this.selectedIndex];
             if (opt && opt.value) {
                 rateInput.value = parseFloat(opt.getAttribute('data-cost') || 0).toFixed(2);
-                if (!recvInput.value) recvInput.value = 10;
+                const packsPerCtn = parseFloat(opt.getAttribute('data-ctn')) || 1;
+                const pcsPerPack  = parseFloat(opt.getAttribute('data-pack')) || 1;
+                if (pcsPerPack > 1) {
+                    ratioLabel.innerText = `1 Ctn = ${packsPerCtn} Pck × ${pcsPerPack} Pcs (${(packsPerCtn * pcsPerPack).toLocaleString()} Pcs)`;
+                } else {
+                    ratioLabel.innerText = `1 Ctn = ${packsPerCtn} Pcs`;
+                }
+                if (!ctnInput.value && !packInput.value && !pcsInput.value) {
+                    ctnInput.value = 10;
+                }
+            } else if (ratioLabel) {
+                ratioLabel.innerText = '';
             }
             calculateRowTotal(row);
         });
     }
 
-    [recvInput, dmgInput, rateInput].forEach(inp => {
-        inp.addEventListener('input', () => calculateRowTotal(row));
+    [ctnInput, packInput, pcsInput, dmgInput, rateInput].forEach(inp => {
+        if (inp) inp.addEventListener('input', () => calculateRowTotal(row));
     });
 
     btnRemove.addEventListener('click', function() {
@@ -489,9 +561,21 @@ function attachRowEvents(row) {
 }
 
 function calculateRowTotal(row) {
-    const recv = parseFloat(row.querySelector('.recv-input').value) || 0;
-    const rate = parseFloat(row.querySelector('.rate-input').value) || 0;
-    const total = recv * rate;
+    const prodSelect = row.querySelector('.product-select');
+    const opt = prodSelect ? prodSelect.options[prodSelect.selectedIndex] : null;
+    const packsPerCtn = opt && opt.value ? (parseFloat(opt.getAttribute('data-ctn')) || 1) : 1;
+    const pcsPerPack  = opt && opt.value ? (parseFloat(opt.getAttribute('data-pack')) || 1) : 1;
+
+    const ctn  = parseFloat(row.querySelector('.ctn-input')?.value || 0);
+    const pack = parseFloat(row.querySelector('.pack-input')?.value || 0);
+    const pcs  = parseFloat(row.querySelector('.pcs-input')?.value || 0);
+    const rate = parseFloat(row.querySelector('.rate-input')?.value || 0);
+
+    const totalCartons = ctn + (pack / packsPerCtn) + (pcs / (packsPerCtn * pcsPerPack));
+    const equivInput = row.querySelector('.equiv-recv-input');
+    if (equivInput) equivInput.value = totalCartons.toFixed(4);
+
+    const total = totalCartons * rate;
     row.querySelector('.line-total-cell').innerText = total.toFixed(2);
     calculateGrandTotal();
 }
@@ -499,9 +583,18 @@ function calculateRowTotal(row) {
 function calculateGrandTotal() {
     let grand = 0;
     document.querySelectorAll('.item-row').forEach(row => {
-        const recv = parseFloat(row.querySelector('.recv-input').value) || 0;
-        const rate = parseFloat(row.querySelector('.rate-input').value) || 0;
-        grand += (recv * rate);
+        const prodSelect = row.querySelector('.product-select');
+        const opt = prodSelect ? prodSelect.options[prodSelect.selectedIndex] : null;
+        const packsPerCtn = opt && opt.value ? (parseFloat(opt.getAttribute('data-ctn')) || 1) : 1;
+        const pcsPerPack  = opt && opt.value ? (parseFloat(opt.getAttribute('data-pack')) || 1) : 1;
+
+        const ctn  = parseFloat(row.querySelector('.ctn-input')?.value || 0);
+        const pack = parseFloat(row.querySelector('.pack-input')?.value || 0);
+        const pcs  = parseFloat(row.querySelector('.pcs-input')?.value || 0);
+        const rate = parseFloat(row.querySelector('.rate-input')?.value || 0);
+
+        const totalCartons = ctn + (pack / packsPerCtn) + (pcs / (packsPerCtn * pcsPerPack));
+        grand += (totalCartons * rate);
     });
     document.getElementById('totalGrnLabel').innerText = 'Rs. ' + grand.toLocaleString('en-US', {minimumFractionDigits: 2});
 }

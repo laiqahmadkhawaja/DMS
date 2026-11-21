@@ -45,6 +45,8 @@ $items = db_fetch_all("
         sri.*,
         p.product_code,
         p.product_name,
+        p.carton_qty as packs_per_ctn,
+        p.pack_qty as pcs_per_pack,
         u.unit_code,
         u.unit_name
     FROM sales_return_items sri
@@ -131,20 +133,38 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <tr>
                                 <th style="width: 40px;">#</th>
                                 <th class="text-start ps-3">Product Description</th>
-                                <th style="width: 15%;">Quantity</th>
-                                <th style="width: 15%;">Rate</th>
-                                <th style="width: 20%;" class="text-end pe-3">Credit Amount</th>
+                                <th style="width: 10%;">Ctn</th>
+                                <th style="width: 10%;">Pack</th>
+                                <th style="width: 10%;">Pcs</th>
+                                <th style="width: 13%;">Total Cartons</th>
+                                <th style="width: 14%;">Rate / Ctn</th>
+                                <th style="width: 18%;" class="text-end pe-3">Credit Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
                             $sr = 1;
+                            $totCtn = 0; $totPack = 0; $totPcs = 0;
                             foreach ($items as $item): 
+                                $cQty = (float)($item['carton_qty'] ?? 0);
+                                $pkQty = (float)($item['pack_qty'] ?? 0);
+                                $pQty = (float)($item['pcs_qty'] ?? 0);
+                                $totCtn += $cQty; $totPack += $pkQty; $totPcs += $pQty;
                             ?>
                                 <tr>
                                     <td class="text-center text-muted small"><?= $sr++ ?></td>
-                                    <td class="ps-3 fw-bold text-dark"><?= htmlspecialchars($item['product_name']) ?></td>
-                                    <td class="text-center fw-semibold"><?= (float)$item['quantity'] ?> <?= htmlspecialchars($item['unit_code']) ?></td>
+                                    <td class="ps-3 fw-bold text-dark">
+                                        <?= htmlspecialchars($item['product_name']) ?>
+                                        <?php if ((float)$item['pcs_per_pack'] > 1): ?>
+                                            <span class="badge bg-light text-secondary border ms-1" style="font-size: 0.7rem;">
+                                                1*<?= (int)$item['packs_per_ctn'] ?>*<?= (int)$item['pcs_per_pack'] ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center fw-bold text-dark"><?= $cQty > 0 ? number_format($cQty) : '-' ?></td>
+                                    <td class="text-center fw-bold text-dark"><?= $pkQty > 0 ? number_format($pkQty) : '-' ?></td>
+                                    <td class="text-center fw-bold text-dark"><?= $pQty > 0 ? number_format($pQty) : '-' ?></td>
+                                    <td class="text-center fw-semibold text-primary"><?= number_format((float)$item['quantity'], 2) ?> Ctn</td>
                                     <td class="text-center"><?= format_currency((float)$item['rate']) ?></td>
                                     <td class="text-end pe-3 fw-bold text-navy"><?= format_currency((float)$item['amount']) ?></td>
                                 </tr>
@@ -152,7 +172,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </tbody>
                         <tfoot class="table-light fw-bold fs-6">
                             <tr>
-                                <td colspan="4" class="text-end text-uppercase">Total Credit:</td>
+                                <td colspan="2" class="text-end text-uppercase">Totals:</td>
+                                <td class="text-center"><?= number_format($totCtn) ?></td>
+                                <td class="text-center"><?= number_format($totPack) ?></td>
+                                <td class="text-center"><?= number_format($totPcs) ?></td>
+                                <td colspan="2" class="text-end text-uppercase">Total Credit:</td>
                                 <td class="text-end pe-3 text-navy"><?= format_currency((float)$ret['total_amount']) ?></td>
                             </tr>
                         </tfoot>

@@ -35,7 +35,7 @@ if (!$invoice) {
 }
 
 $items = db_fetch_all("
-    SELECT sii.*, p.product_name, p.product_code, p.carton_qty as ctn_ratio
+    SELECT sii.*, p.product_name, p.product_code, p.carton_qty as ctn_ratio, p.pack_qty as pack_ratio
     FROM sales_invoice_items sii
     JOIN products p ON sii.product_id = p.id
     WHERE sii.invoice_id = ?
@@ -43,7 +43,7 @@ $items = db_fetch_all("
 ", [$id]);
 
 $products = db_fetch_all("
-    SELECT id, product_name, product_code, wholesale_rate, carton_qty, base_unit_id 
+    SELECT id, product_name, product_code, wholesale_rate, carton_qty, pack_qty, base_unit_id 
     FROM products 
     WHERE is_deleted = 0 AND is_active = 1 
     ORDER BY product_name ASC
@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $itemIds     = $_POST['item_product_id'] ?? [];
     $ctnQtys     = $_POST['item_carton_qty'] ?? [];
+    $packQtys    = $_POST['item_pack_qty'] ?? [];
     $pcsQtys     = $_POST['item_pcs_qty'] ?? [];
     $rates       = $_POST['item_rate'] ?? [];
     $discounts   = $_POST['item_discount_percent'] ?? [];
@@ -68,19 +69,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     foreach ($itemIds as $idx => $pid) {
         $prodId = (int)$pid;
-        $ctn = (float)($ctnQtys[$idx] ?? 0);
-        $pcs = (float)($pcsQtys[$idx] ?? 0);
+        $ctn  = (float)($ctnQtys[$idx] ?? 0);
+        $pack = (float)($packQtys[$idx] ?? 0);
+        $pcs  = (float)($pcsQtys[$idx] ?? 0);
         $rate = (float)($rates[$idx] ?? 0);
         $disc = (float)($discounts[$idx] ?? 0);
 
-        if ($prodId <= 0 || ($ctn <= 0 && $pcs <= 0)) continue;
+        if ($prodId <= 0 || ($ctn <= 0 && $pack <= 0 && $pcs <= 0)) continue;
 
         $prod = db_fetch_one("SELECT * FROM products WHERE id = ?", [$prodId]);
         if (!$prod) continue;
 
-        $ratio = (float)$prod['carton_qty'] > 0 ? (float)$prod['carton_qty'] : 1;
-        $baseQty = ($ctn * $ratio) + $pcs;
-        $lineGross = ($ctn > 0 ? ($ctn * $rate) : (($pcs / $ratio) * $rate));
+        $ratios = get_product_packaging_ratios($prod);
+        $packsPerCtn = $ratios['packs_per_ctn'];
+        $pcsPerPack  = $ratios['pcs_per_pack'];
+        $pcsPerCtn   = $ratios['pcs_per_ctn'];
+
+        $baseQty = calculate_base_pieces($ctn, $pack, $pcs, $packsPerCtn, $pcsPerPack);
+        $baseCartons = calculate_carton_equivalent($ctn, $pack, $pcs, $packsPerCtn, $pcsPerPack);
+        $lineGross = $baseCartons * $rate;
         $lineDisc = ($lineGross * $disc) / 100.0;
         $lineNet = $lineGross - $lineDisc;
 
@@ -91,6 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'product_id'       => $prodId,
             'unit_id'          => (int)$prod['base_unit_id'],
             'carton_qty'       => $ctn,
+            'pack_qty'         => $pack,
             'pcs_qty'          => $pcs,
             'quantity'         => $baseQty,
             'rate'             => $rate,
@@ -122,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     invoice_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty,
                     quantity, rate, discount_percent, discount_amount, line_total, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, 0.00, ?,
+                    ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, NOW()
                 )
             ");
@@ -130,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($validItems as $vi) {
                 $stmtItem->execute([
                     $id, $vi['product_id'], $vi['unit_id'], $vi['carton_qty'],
-                    $vi['pcs_qty'], $vi['quantity'], $vi['rate'], $vi['discount_percent'],
+                    $vi['pack_qty'], $vi['pcs_qty'], $vi['quantity'], $vi['rate'], $vi['discount_percent'],
                     $vi['discount_amount'], $vi['line_total']
                 ]);
             }
@@ -249,21 +257,28 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <thead class="bg-light small text-uppercase">
                                 <tr>
                                     <th>Product Description</th>
-                                    <th style="width: 120px;" class="text-center">Cartons</th>
-                                    <th style="width: 120px;" class="text-center">Pieces</th>
-                                    <th style="width: 140px;" class="text-end">Wholesale Rate</th>
-                                    <th style="width: 110px;" class="text-center">Disc %</th>
-                                    <th style="width: 160px;" class="text-end pe-3">Line Total (Rs.)</th>
-                                    <th style="width: 50px;"></th>
+                                    <th style="width: 100px;" class="text-center">Cartons</th>
+                                    <th style="width: 100px;" class="text-center">Packs</th>
+                                    <th style="width: 100px;" class="text-center">Pieces</th>
+                                    <th style="width: 130px;" class="text-end">Wholesale Rate</th>
+                                    <th style="width: 90px;" class="text-center">Disc %</th>
+                                    <th style="width: 140px;" class="text-end pe-3">Line Total (Rs.)</th>
+                                    <th style="width: 45px;"></th>
                                 </tr>
                             </thead>
                             <tbody id="invItemsTbody">
-                                <?php foreach ($items as $it): ?>
-                                    <tr class="inv-row" data-ratio="<?= (float)$it['ctn_ratio'] ?>">
+                                <?php foreach ($items as $it): 
+                                    $packsPerCtn = (float)$it['ctn_ratio'] > 0 ? (float)$it['ctn_ratio'] : 1;
+                                    $pcsPerPack  = (float)$it['pack_ratio'] > 0 ? (float)$it['pack_ratio'] : 1;
+                                ?>
+                                    <tr class="inv-row" data-ratio="<?= $packsPerCtn ?>" data-pack-ratio="<?= $pcsPerPack ?>">
                                         <td>
                                             <select name="item_product_id[]" class="form-select form-select-sm prod-select" onchange="onInvProdChange(this)">
-                                                <?php foreach ($products as $p): ?>
-                                                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $p['carton_qty'] ?>" <?= $p['id'] == $it['product_id'] ? 'selected' : '' ?>>
+                                                <?php foreach ($products as $p): 
+                                                    $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
+                                                    $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
+                                                ?>
+                                                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $pPacksPerCtn ?>" data-pack-ratio="<?= $pPcsPerPack ?>" <?= $p['id'] == $it['product_id'] ? 'selected' : '' ?>>
                                                         <?= htmlspecialchars($p['product_name']) ?> (<?= htmlspecialchars($p['product_code']) ?>)
                                                     </option>
                                                 <?php endforeach; ?>
@@ -271,6 +286,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td>
                                             <input type="number" step="1" min="0" name="item_carton_qty[]" class="form-control form-control-sm text-center ctn-inp" value="<?= (float)$it['carton_qty'] ?>" oninput="recalcInvLine(this)">
+                                        </td>
+                                        <td>
+                                            <input type="number" step="1" min="0" name="item_pack_qty[]" class="form-control form-control-sm text-center pack-inp" value="<?= (float)($it['pack_qty'] ?? 0) ?>" oninput="recalcInvLine(this)">
                                         </td>
                                         <td>
                                             <input type="number" step="1" min="0" name="item_pcs_qty[]" class="form-control form-control-sm text-center pcs-inp" value="<?= (float)$it['pcs_qty'] ?>" oninput="recalcInvLine(this)">
@@ -292,7 +310,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </tbody>
                             <tfoot class="table-light fw-bold fs-6">
                                 <tr>
-                                    <td colspan="5" class="text-end text-uppercase">Net Invoice Total:</td>
+                                    <td colspan="6" class="text-end text-uppercase">Net Invoice Total:</td>
                                     <td class="text-end pe-3 text-navy" id="footInvNet">Rs. 0.00</td>
                                     <td></td>
                                 </tr>
@@ -317,12 +335,15 @@ require_once INCLUDES_PATH . '/topbar.php';
 </div>
 
 <template id="invRowTpl">
-    <tr class="inv-row" data-ratio="1">
+    <tr class="inv-row" data-ratio="1" data-pack-ratio="1">
         <td>
             <select name="item_product_id[]" class="form-select form-select-sm prod-select" onchange="onInvProdChange(this)">
                 <option value="">-- Select Product --</option>
-                <?php foreach ($products as $p): ?>
-                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $p['carton_qty'] ?>">
+                <?php foreach ($products as $p): 
+                    $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
+                    $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
+                ?>
+                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $pPacksPerCtn ?>" data-pack-ratio="<?= $pPcsPerPack ?>">
                         <?= htmlspecialchars($p['product_name']) ?> (<?= htmlspecialchars($p['product_code']) ?>)
                     </option>
                 <?php endforeach; ?>
@@ -330,6 +351,9 @@ require_once INCLUDES_PATH . '/topbar.php';
         </td>
         <td>
             <input type="number" step="1" min="0" name="item_carton_qty[]" class="form-control form-control-sm text-center ctn-inp" value="1" oninput="recalcInvLine(this)">
+        </td>
+        <td>
+            <input type="number" step="1" min="0" name="item_pack_qty[]" class="form-control form-control-sm text-center pack-inp" value="0" oninput="recalcInvLine(this)">
         </td>
         <td>
             <input type="number" step="1" min="0" name="item_pcs_qty[]" class="form-control form-control-sm text-center pcs-inp" value="0" oninput="recalcInvLine(this)">
@@ -372,21 +396,28 @@ function onInvProdChange(sel) {
     if (opt && opt.value) {
         const rate = parseFloat(opt.getAttribute('data-rate')) || 0;
         const ratio = parseFloat(opt.getAttribute('data-ratio')) || 1;
+        const packRatio = parseFloat(opt.getAttribute('data-pack-ratio')) || 1;
         row.querySelector('.rate-inp').value = rate.toFixed(2);
         row.setAttribute('data-ratio', ratio);
+        row.setAttribute('data-pack-ratio', packRatio);
         recalcInvLine(sel);
     }
 }
 
 function recalcInvLine(el) {
     const row = el.closest('tr');
-    const ratio = parseFloat(row.getAttribute('data-ratio')) || 1;
-    const ctn = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-    const pcs = parseFloat(row.querySelector('.pcs-inp').value) || 0;
+    const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+    const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+    const pcsPerCtn   = packsPerCtn * pcsPerPack;
+
+    const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
+    const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
+    const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
     const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
     const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
 
-    const lineGross = (ctn > 0 ? (ctn * rate) : ((pcs / ratio) * rate));
+    const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
+    const lineGross = baseCartons * rate;
     const lineDisc = (lineGross * disc) / 100.0;
     const lineNet = lineGross - lineDisc;
 
@@ -397,13 +428,18 @@ function recalcInvLine(el) {
 function recalcInvTotals() {
     let totNet = 0;
     document.querySelectorAll('.inv-row').forEach(row => {
-        const ratio = parseFloat(row.getAttribute('data-ratio')) || 1;
-        const ctn = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-        const pcs = parseFloat(row.querySelector('.pcs-inp').value) || 0;
+        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+        const pcsPerCtn   = packsPerCtn * pcsPerPack;
+
+        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
+        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
+        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
         const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
         const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
 
-        const lineGross = (ctn > 0 ? (ctn * rate) : ((pcs / ratio) * rate));
+        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
+        const lineGross = baseCartons * rate;
         const lineDisc = (lineGross * disc) / 100.0;
         const lineNet = lineGross - lineDisc;
 

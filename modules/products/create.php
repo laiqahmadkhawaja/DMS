@@ -203,21 +203,25 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <small class="text-muted d-block mt-1">Base accounting unit for stock balances</small>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Carton Packing (1 Ctn = ?)</label>
+                            <label class="form-label small fw-semibold">Carton Packing (1 Ctn = ? Packs)</label>
                             <div class="input-group input-group-sm">
-                                <input type="number" step="0.01" name="carton_qty" class="form-control" value="24.00" required>
-                                <span class="input-group-text">Pieces</span>
+                                <input type="number" step="0.01" name="carton_qty" id="input_carton_qty" class="form-control" value="10.00" required oninput="updateConversionPreview()">
+                                <span class="input-group-text">Packs</span>
                             </div>
-                            <small class="text-muted d-block mt-1">e.g. 24 or 36 packs/pieces per carton</small>
+                            <small class="text-muted d-block mt-1">Number of packs per carton (e.g. 10)</small>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Pack Packing (1 Pack = ?)</label>
+                            <label class="form-label small fw-semibold">Pack Packing (1 Pack = ? Pieces)</label>
                             <div class="input-group input-group-sm">
-                                <input type="number" step="0.01" name="pack_qty" class="form-control" value="1.00">
+                                <input type="number" step="0.01" name="pack_qty" id="input_pack_qty" class="form-control" value="200.00" oninput="updateConversionPreview()">
                                 <span class="input-group-text">Pieces</span>
                             </div>
-                            <small class="text-muted d-block mt-1">For multi-pack items</small>
+                            <small class="text-muted d-block mt-1">Number of pieces per pack (e.g. 200)</small>
                         </div>
+                    </div>
+                    <div class="alert alert-info py-1 px-3 mt-2 mb-0 small d-flex align-items-center" id="conversionPreviewBox">
+                        <i class="bi bi-info-circle-fill text-primary me-2"></i>
+                        <span><strong>Conversion:</strong> 1 Carton = <strong id="previewPacks">10</strong> Packs = <strong id="previewPieces">2,000</strong> Pieces</span>
                     </div>
                 </div>
             </div>
@@ -449,6 +453,21 @@ async function handleQuickAddBrand(e) {
         btn.innerHTML = '<i class="bi bi-check2 me-1"></i> Save & Select';
     }
 }
+
+function updateConversionPreview() {
+    const packsInput = document.getElementById('input_carton_qty');
+    const pcsInput = document.getElementById('input_pack_qty');
+    const prevPacks = document.getElementById('previewPacks');
+    const prevPieces = document.getElementById('previewPieces');
+
+    const packs = parseFloat(packsInput ? packsInput.value : 10) || 1;
+    const pcs = parseFloat(pcsInput ? pcsInput.value : 1) || 1;
+    const totalPcs = packs * pcs;
+
+    if (prevPacks) prevPacks.textContent = packs.toLocaleString();
+    if (prevPieces) prevPieces.textContent = totalPcs.toLocaleString();
+}
+document.addEventListener('DOMContentLoaded', updateConversionPreview);
 </script>
 
 <?php
