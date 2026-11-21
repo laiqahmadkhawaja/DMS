@@ -38,6 +38,7 @@ $products = db_fetch_all("
 
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_deleted = 0 AND is_active = 1 ORDER BY booker_name ASC");
 $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 AND is_active = 1 ORDER BY area_name ASC");
+$preselectedCustomerId = isset($_GET['customer_id']) ? (int)$_GET['customer_id'] : 0;
 
 $nextOrderNumber = generate_document_number(PREFIX_ORDER, 'orders', 'order_number');
 
@@ -273,7 +274,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
                                 <option value="">-- Choose Retailer --</option>
                                 <?php foreach ($customers as $c): ?>
-                                    <option value="<?= $c['id'] ?>" 
+                                    <option value="<?= $c['id'] ?>" <?= ($preselectedCustomerId === (int)$c['id']) ? 'selected' : '' ?> 
                                         data-area="<?= $c['area_id'] ?>" 
                                         data-booker="<?= $c['booker_id'] ?>" 
                                         data-discount="<?= $c['default_discount_percent'] ?>"
@@ -535,6 +536,10 @@ document.addEventListener('DOMContentLoaded', function () {
         creditAlert.style.display = 'block';
         creditInfo.innerHTML = `<i class="bi bi-wallet2 me-1"></i> Outstanding Balance: <strong><?= DEFAULT_CURRENCY ?> ${balance.toLocaleString('en-US', {minimumFractionDigits:2})}</strong> | Credit Limit: <?= DEFAULT_CURRENCY ?> ${limit.toLocaleString('en-US', {minimumFractionDigits:2})} ${balance > limit && limit > 0 ? '<span class="badge bg-danger ms-2">Limit Exceeded</span>' : ''}`;
     });
+
+    if (customerSelect.value) {
+        customerSelect.dispatchEvent(new Event('change'));
+    }
 
     // Real-time Product Search Filter
     productSearch.addEventListener('input', function () {

@@ -136,7 +136,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <?php foreach ($suppliers as $s): ?>
                         <tr>
                             <td><span class="badge bg-light text-dark border font-monospace"><?= e($s['supplier_code']) ?></span></td>
-                            <td class="fw-semibold text-dark"><?= e($s['supplier_name']) ?></td>
+                            <td>
+                                <a href="<?= APP_URL ?>/modules/suppliers/view.php?id=<?= $s['id'] ?>" class="fw-semibold text-primary text-decoration-none">
+                                    <?= e($s['supplier_name']) ?>
+                                </a>
+                            </td>
                             <td><?= e($s['company_name'] ?? '-') ?></td>
                             <td><?= e($s['contact_person'] ?? '-') ?></td>
                             <td><i class="bi bi-telephone text-muted me-1"></i><?= e($s['phone']) ?></td>
@@ -150,6 +154,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 </span>
                             </td>
                             <td class="text-end">
+                                <a href="<?= APP_URL ?>/modules/suppliers/view.php?id=<?= $s['id'] ?>" class="btn btn-xs btn-outline-primary py-0 px-2" title="Supplier 360° Profile Hub">
+                                    <i class="bi bi-person-bounding-box"></i>
+                                </a>
                                 <a href="<?= APP_URL ?>/modules/suppliers/ledger.php?id=<?= $s['id'] ?>" class="btn btn-xs btn-outline-info py-0 px-2" title="Supplier Ledger">
                                     <i class="bi bi-journal-text"></i>
                                 </a>

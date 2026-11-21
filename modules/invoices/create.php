@@ -282,6 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Master lists
+$preselectedCustomerId = isset($_GET['customer_id']) ? (int)$_GET['customer_id'] : 0;
 $customers  = db_fetch_all("SELECT id, customer_code, shop_name, address, area_id, booker_id, current_balance, credit_limit FROM customers WHERE is_deleted = 0 ORDER BY shop_name ASC");
 $areas      = db_fetch_all("SELECT id, area_name FROM areas WHERE is_active = 1 ORDER BY area_name ASC");
 $bookers    = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_active = 1 ORDER BY booker_name ASC");
@@ -341,7 +342,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
                                 <option value="">-- Select Retail Customer --</option>
                                 <?php foreach ($customers as $c): ?>
-                                    <option value="<?= $c['id'] ?>" 
+                                    <option value="<?= $c['id'] ?>" <?= ($preselectedCustomerId === (int)$c['id']) ? 'selected' : '' ?> 
                                             data-area="<?= $c['area_id'] ?>" 
                                             data-booker="<?= $c['booker_id'] ?>"
                                             data-balance="<?= $c['current_balance'] ?>"
@@ -593,6 +594,10 @@ document.addEventListener('DOMContentLoaded', function () {
         creditAlert.style.display = 'block';
         creditText.innerHTML = `<i class="bi bi-wallet2 me-1"></i> Customer Balance: <strong><?= DEFAULT_CURRENCY ?> ${balance.toLocaleString('en-US', {minimumFractionDigits:2})}</strong> | Credit Limit: <?= DEFAULT_CURRENCY ?> ${limit.toLocaleString('en-US', {minimumFractionDigits:2})} ${balance > limit && limit > 0 ? '<span class="badge bg-danger ms-2">Limit Exceeded</span>' : ''}`;
     });
+
+    if (customerSelect.value) {
+        customerSelect.dispatchEvent(new Event('change'));
+    }
 
     // Real-time Product Search Filter
     productSearch.addEventListener('input', function () {

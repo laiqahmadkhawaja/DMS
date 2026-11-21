@@ -20,6 +20,8 @@ $suppliers = db_fetch_all("
     ORDER BY s.supplier_name ASC
 ");
 
+$preselectedSupplierId = isset($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
+
 $categories = db_fetch_all("
     SELECT id, category_name 
     FROM product_categories 
@@ -280,7 +282,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <select name="supplier_id" id="supplierSelect" class="form-select form-select-sm" required autofocus>
                                 <option value="">-- Select Supplier --</option>
                                 <?php foreach ($suppliers as $s): ?>
-                                    <option value="<?= $s['id'] ?>"
+                                    <option value="<?= $s['id'] ?>" <?= ($preselectedSupplierId === (int)$s['id']) ? 'selected' : '' ?>
                                             data-balance="<?= (float)$s['current_balance'] ?>"
                                             data-phone="<?= htmlspecialchars($s['phone'] ?? '') ?>"
                                             data-city="<?= htmlspecialchars($s['city'] ?? '') ?>">
@@ -528,6 +530,10 @@ document.addEventListener('DOMContentLoaded', function () {
         supplierAlert.style.display = 'block';
         supplierInfo.innerHTML = `<i class="bi bi-wallet2 me-1"></i> Current Payable Balance: <strong><?= DEFAULT_CURRENCY ?> ${balance.toLocaleString('en-US', {minimumFractionDigits:2})}</strong> | Phone: ${phone} ${city ? `| City: <strong>${city}</strong>` : ''}`;
     });
+
+    if (supplierSelect.value) {
+        supplierSelect.dispatchEvent(new Event('change'));
+    }
 
     // Real-time Product Search Filter
     productSearch.addEventListener('input', function () {

@@ -23,6 +23,7 @@ $breadcrumbs = [
 ];
 
 $prePoId = isset($_GET['po_id']) ? (int)$_GET['po_id'] : 0;
+$preSupplierId = isset($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
 $errors = [];
 
 // Pre-fill from PO if given
@@ -301,7 +302,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <select name="supplier_id" id="supplierSelect" class="form-select" required autofocus>
                                 <option value="">-- Select Supplier --</option>
                                 <?php foreach ($suppliers as $s): ?>
-                                    <option value="<?= $s['id'] ?>" <?= ($prePo && (int)$prePo['supplier_id'] === (int)$s['id']) ? 'selected' : '' ?>>
+                                    <option value="<?= $s['id'] ?>" <?= (($preSupplierId === (int)$s['id']) || ($prePo && (int)$prePo['supplier_id'] === (int)$s['id'])) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($s['supplier_name']) ?>
                                     </option>
                                 <?php endforeach; ?>

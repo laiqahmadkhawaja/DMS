@@ -193,8 +193,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <tr>
                             <td><span class="badge bg-light text-dark border font-monospace"><?= e($c['customer_code']) ?></span></td>
                             <td>
-                                <div class="fw-semibold text-dark"><?= e($c['shop_name']) ?></div>
-                                <small class="text-muted"><?= e($c['owner_name'] ?? '-') ?></small>
+                                <a href="<?= APP_URL ?>/modules/customers/view.php?id=<?= $c['id'] ?>" class="fw-semibold text-primary text-decoration-none">
+                                    <?= e($c['shop_name']) ?>
+                                </a>
+                                <small class="text-muted d-block"><?= e($c['owner_name'] ?? '-') ?></small>
                             </td>
                             <td><?= e($c['area_name']) ?></td>
                             <td><?= !empty($c['booker_name']) ? e($c['booker_name']) : '<span class="text-muted">-</span>' ?></td>
@@ -216,6 +218,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 </span>
                             </td>
                             <td class="text-end">
+                                <a href="<?= APP_URL ?>/modules/customers/view.php?id=<?= $c['id'] ?>" class="btn btn-xs btn-outline-primary py-0 px-2" title="Customer 360° Profile Hub">
+                                    <i class="bi bi-person-bounding-box"></i>
+                                </a>
                                 <a href="<?= APP_URL ?>/modules/customers/statement.php?id=<?= $c['id'] ?>" class="btn btn-xs btn-outline-info py-0 px-2" title="Customer Statement / Ledger">
                                     <i class="bi bi-journal-text"></i>
                                 </a>
