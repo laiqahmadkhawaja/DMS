@@ -55,6 +55,7 @@ $bills = db_fetch_all("
         COALESCE(si.credit_amount, inv.credit_amount) as credit_amount,
         COALESCE(si.return_amount, inv.return_amount) as return_amount,
         c.shop_name,
+        c.current_balance as customer_current_balance,
         c.phone as customer_phone,
         c.address as customer_address,
         a.area_name,

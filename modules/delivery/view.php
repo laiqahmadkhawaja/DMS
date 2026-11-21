@@ -57,6 +57,7 @@ $bills = db_fetch_all("
         si.credit_amount as settled_credit,
         si.return_amount as settled_return,
         c.shop_name,
+        c.current_balance as customer_current_balance,
         c.phone as customer_phone,
         c.address as customer_address,
         a.area_name,
@@ -186,53 +187,79 @@ require_once INCLUDES_PATH . '/topbar.php';
                     </div>
                 </div>
 
-                <!-- Table (Columns matching Photo 8: Sr. | Shop Name | Bill No. | Total Amount | Credit | Return | Cash) -->
+                <!-- Table (Columns matching Photo 8 Enhanced: Sr. | Shop Name | Bill No. | Prev Bal | Bill Amt | Total Due | Cash | Return | Net Bal) -->
                 <div class="table-responsive">
                     <table class="table table-bordered recovery-table align-middle mb-0" style="border: 2px solid #000; font-size: 13px; color: #000;">
                         <thead>
-                            <tr style="background-color: #d1b80d; color: #000;" class="yellow-header text-center small">
-                                <th style="width: 5%; border: 1px solid #000;">Sr.</th>
-                                <th style="width: 35%; border: 1px solid #000;" class="text-start ps-2">Shop Name</th>
-                                <th style="width: 12%; border: 1px solid #000;">Bill No.</th>
-                                <th style="width: 14%; border: 1px solid #000;">Total Amount</th>
-                                <th style="width: 11%; border: 1px solid #000;">Credit</th>
-                                <th style="width: 11%; border: 1px solid #000;">Return</th>
-                                <th style="width: 12%; border: 1px solid #000;">Cash</th>
+                            <tr style="background-color: #d1b80d; color: #000;" class="yellow-header text-center small fw-bold">
+                                <th style="width: 4%; border: 1px solid #000;">Sr.</th>
+                                <th style="width: 25%; border: 1px solid #000;" class="text-start ps-2">Shop Name & Route</th>
+                                <th style="width: 10%; border: 1px solid #000;">Bill No.</th>
+                                <th style="width: 11%; border: 1px solid #000;">Prev Bal (سابقہ)</th>
+                                <th style="width: 11%; border: 1px solid #000;">Bill Amt (بل)</th>
+                                <th style="width: 12%; border: 1px solid #000; background-color: #c4ab0c;">Total Due (کل واجب)</th>
+                                <th style="width: 10%; border: 1px solid #000;">Cash Recv (نقد)</th>
+                                <th style="width: 8%; border: 1px solid #000;">Return (واپسی)</th>
+                                <th style="width: 9%; border: 1px solid #000;">Net Bal (بقایا)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
                             $sr = 1;
-                            $totalDispatched = 0;
-                            $totalCredit = 0;
-                            $totalReturn = 0;
-                            $totalCash = 0;
+                            $totalPrevBal    = 0;
+                            $totalBillAmount = 0;
+                            $totalDueAmount  = 0;
+                            $totalCredit     = 0;
+                            $totalReturn     = 0;
+                            $totalCash       = 0;
+                            $totalNetBal     = 0;
 
                             foreach ($bills as $b): 
-                                $totalDispatched += (float)$b['net_amount'];
+                                $billAmount = (float)$b['net_amount'];
                                 $cashVal   = $b['settled_cash'] !== null ? (float)$b['settled_cash'] : (float)$b['paid_amount'];
                                 $creditVal = $b['settled_credit'] !== null ? (float)$b['settled_credit'] : (float)$b['credit_amount'];
                                 $returnVal = $b['settled_return'] !== null ? (float)$b['settled_return'] : (float)$b['return_amount'];
 
-                                $totalCredit += $creditVal;
-                                $totalReturn += $returnVal;
-                                $totalCash   += $cashVal;
+                                $custBal = (float)($b['customer_current_balance'] ?? 0);
+                                if ($isSettled) {
+                                    $prevBal = max(0, $custBal - $creditVal);
+                                    $remainingBal = max(0, $prevBal + $billAmount - ($cashVal + $returnVal));
+                                } else {
+                                    $prevBal = $custBal;
+                                    $remainingBal = $prevBal + $billAmount;
+                                }
+                                $totalDue = $prevBal + $billAmount;
+
+                                $totalPrevBal    += $prevBal;
+                                $totalBillAmount += $billAmount;
+                                $totalDueAmount  += $totalDue;
+                                $totalCredit     += $creditVal;
+                                $totalReturn     += $returnVal;
+                                $totalCash       += $cashVal;
+                                $totalNetBal     += $remainingBal;
                             ?>
                                 <tr style="height: 32px;">
                                     <td class="text-center" style="border: 1px solid #000;"><?= $sr++ ?></td>
-                                    <td class="ps-2 fw-bold" style="border: 1px solid #000;"><?= htmlspecialchars($b['shop_name']) ?></td>
-                                    <td class="text-center" style="border: 1px solid #000;"><?= htmlspecialchars($b['invoice_number']) ?></td>
-                                    <td class="text-center fw-bold" style="border: 1px solid #000;"><?= number_format((float)$b['net_amount'], 0) ?></td>
+                                    <td class="ps-2 fw-bold" style="border: 1px solid #000;">
+                                        <?= htmlspecialchars($b['shop_name']) ?>
+                                        <?php if (!empty($b['area_name'])): ?>
+                                            <small class="text-muted fw-normal">(<?= htmlspecialchars($b['area_name']) ?>)</small>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center font-monospace fw-semibold" style="border: 1px solid #000;"><?= htmlspecialchars($b['invoice_number']) ?></td>
+                                    <td class="text-end pe-2" style="border: 1px solid #000;"><?= $prevBal > 0 ? number_format($prevBal, 0) : '0' ?></td>
+                                    <td class="text-end pe-2 fw-semibold" style="border: 1px solid #000;"><?= number_format($billAmount, 0) ?></td>
+                                    <td class="text-end pe-2 fw-bold text-dark" style="border: 1px solid #000; background-color: #fcf9ea;"><?= number_format($totalDue, 0) ?></td>
                                     
                                     <?php if ($showFilled): ?>
-                                        <td class="text-end pe-2 fw-bold text-danger" style="border: 1px solid #000; background-color: #fff;">
-                                            <?= $creditVal > 0 ? number_format($creditVal, 0) : '0' ?>
-                                        </td>
-                                        <td class="text-end pe-2 fw-bold text-warning" style="border: 1px solid #000; background-color: #fff;">
-                                            <?= $returnVal > 0 ? number_format($returnVal, 0) : '0' ?>
-                                        </td>
                                         <td class="text-end pe-2 fw-bold text-success" style="border: 1px solid #000; background-color: #fff;">
                                             <?= $cashVal > 0 ? number_format($cashVal, 0) : '0' ?>
+                                        </td>
+                                        <td class="text-end pe-2 fw-bold text-danger" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= $returnVal > 0 ? number_format($returnVal, 0) : '0' ?>
+                                        </td>
+                                        <td class="text-end pe-2 fw-bold text-navy" style="border: 1px solid #000; background-color: #fff;">
+                                            <?= number_format($remainingBal, 0) ?>
                                         </td>
                                     <?php else: ?>
                                         <!-- Blank columns for salesman to write with pen on delivery -->
@@ -244,12 +271,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <?php endforeach; ?>
 
                             <!-- Blank padding rows if few bills -->
-                            <?php for ($i = count($bills); $i < 12; $i++): ?>
+                            <?php for ($i = count($bills); $i < 10; $i++): ?>
                                 <tr style="height: 32px;">
                                     <td class="text-center" style="border: 1px solid #000;"><?= $sr++ ?></td>
                                     <td style="border: 1px solid #000;"></td>
                                     <td style="border: 1px solid #000;"></td>
                                     <td style="border: 1px solid #000;"></td>
+                                    <td style="border: 1px solid #000;"></td>
+                                    <td style="border: 1px solid #000; background-color: #fcf9ea;"></td>
                                     <td style="border: 1px solid #000;"></td>
                                     <td style="border: 1px solid #000;"></td>
                                     <td style="border: 1px solid #000;"></td>
@@ -258,12 +287,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </tbody>
                         <tfoot>
                             <tr style="background-color: #c99c04; color: #000;" class="yellow-total fw-bold">
-                                <td colspan="3" class="text-center text-uppercase">Total</td>
-                                <td class="text-center"><?= number_format($totalDispatched, 0) ?></td>
+                                <td colspan="3" class="text-center text-uppercase">Total Summary</td>
+                                <td class="text-end pe-2"><?= number_format($totalPrevBal, 0) ?></td>
+                                <td class="text-end pe-2"><?= number_format($totalBillAmount, 0) ?></td>
+                                <td class="text-end pe-2 fw-bold"><?= number_format($totalDueAmount, 0) ?></td>
                                 <?php if ($showFilled): ?>
-                                    <td class="text-end pe-2 fw-bold text-danger"><?= number_format($totalCredit, 0) ?></td>
-                                    <td class="text-end pe-2 fw-bold text-warning"><?= number_format($totalReturn, 0) ?></td>
                                     <td class="text-end pe-2 fw-bold text-success"><?= number_format($totalCash, 0) ?></td>
+                                    <td class="text-end pe-2 fw-bold text-danger"><?= number_format($totalReturn, 0) ?></td>
+                                    <td class="text-end pe-2 fw-bold text-navy"><?= number_format($totalNetBal, 0) ?></td>
                                 <?php else: ?>
                                     <td></td>
                                     <td></td>
