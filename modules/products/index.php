@@ -158,7 +158,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </td>
                             <td><span class="badge bg-secondary-subtle text-dark border"><?= e($p['category_name']) ?></span></td>
                             <td class="text-center small">
-                                1 Ctn = <?= format_qty($p['carton_qty']) ?> <?= e($p['unit_symbol']) ?>
+                                <?php
+                                $unitLbl = e($p['unit_symbol'] ?: 'Pcs');
+                                if ($unitLbl === 'Ctn' && (float)$p['carton_qty'] > 1) {
+                                    $unitLbl = 'Pcs';
+                                }
+                                ?>
+                                1 Ctn = <?= format_qty($p['carton_qty']) ?> <?= $unitLbl ?>
                             </td>
                             <td class="text-end fw-semibold"><?= format_currency($p['wholesale_rate']) ?></td>
                             <td class="text-end text-primary"><?= format_currency($p['default_sale_rate']) ?></td>

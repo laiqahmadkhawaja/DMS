@@ -139,7 +139,10 @@ $productsData = [
     ]
 ];
 
-$unitCtn = (int)db_fetch_val("SELECT id FROM units WHERE unit_code = 'CTN'");
+$unitPcs = (int)db_fetch_val("SELECT id FROM units WHERE unit_code = 'PCS'");
+if (!$unitPcs) {
+    $unitPcs = (int)db_fetch_val("SELECT id FROM units WHERE unit_code = 'CTN'");
+}
 
 foreach ($productsData as $pd) {
     $existing = db_fetch_val("SELECT id FROM products WHERE product_code = ?", [$pd['product_code']]);
@@ -176,7 +179,7 @@ foreach ($productsData as $pd) {
             )
         ");
         $stmt->execute([
-            $pd['product_code'], $pd['product_name'], $catIdMap[$pd['cat_code']], $unitCtn,
+            $pd['product_code'], $pd['product_name'], $catIdMap[$pd['cat_code']], $unitPcs,
             $pd['purchase_rate'], $pd['default_sale_rate'], $pd['wholesale_rate'], $pd['default_sale_rate'],
             $pd['carton_qty']
         ]);

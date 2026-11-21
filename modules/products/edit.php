@@ -177,14 +177,23 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <small class="text-muted d-block mt-1">Base accounting unit for stock balances</small>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Carton Packing (Pieces/Ctn)</label>
-                            <input type="number" step="0.01" name="carton_qty" class="form-control form-control-sm" value="<?= e($product['carton_qty']) ?>" required>
+                            <label class="form-label small fw-semibold">Carton Packing (1 Ctn = ?)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" step="0.01" name="carton_qty" class="form-control" value="<?= e($product['carton_qty']) ?>" required>
+                                <span class="input-group-text">Pieces</span>
+                            </div>
+                            <small class="text-muted d-block mt-1">e.g. 10, 24, or 36 pieces per carton</small>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-semibold">Pack Packing</label>
-                            <input type="number" step="0.01" name="pack_qty" class="form-control form-control-sm" value="<?= e($product['pack_qty']) ?>">
+                            <label class="form-label small fw-semibold">Pack Packing (1 Pack = ?)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" step="0.01" name="pack_qty" class="form-control" value="<?= e($product['pack_qty']) ?>">
+                                <span class="input-group-text">Pieces</span>
+                            </div>
+                            <small class="text-muted d-block mt-1">For multi-pack items</small>
                         </div>
                     </div>
                 </div>
