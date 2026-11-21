@@ -31,7 +31,7 @@ $categories = db_fetch_all("
 
 $products = db_fetch_all("
     SELECT 
-        p.id, p.product_name, p.product_code, p.category_id, cat.category_name,
+        p.id, p.product_name, p.product_code, p.category_id, p.supplier_id, cat.category_name,
         p.purchase_rate as cost_price, p.wholesale_rate, p.carton_qty, p.pack_qty, p.base_unit_id, u.symbol as unit_symbol,
         COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
@@ -299,7 +299,7 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                         <div class="col-md-2">
                             <label class="form-label small fw-bold mb-1">Expected Delivery</label>
-                            <input type="date" name="expected_delivery_date" class="form-control form-control-sm" value="<?= date('Y-m-d', strtotime('+3 days')) ?>">
+                            <input type="date" name="expected_delivery_date" class="form-control form-control-sm" value="">
                         </div>
 
                         <div class="col-md-2">
@@ -366,6 +366,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                      data-name="<?= htmlspecialchars($p['product_name']) ?>"
                                      data-code="<?= htmlspecialchars($p['product_code']) ?>"
                                      data-cat="<?= $p['category_id'] ?>"
+                                     data-supplier-id="<?= (int)($p['supplier_id'] ?? 0) ?>"
                                      data-rate="<?= $costPrice ?>"
                                      data-packs-per-ctn="<?= $packsPerCtn ?>"
                                      data-pcs-per-pack="<?= $pcsPerPack ?>"
@@ -515,20 +516,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const supplierInfo   = document.getElementById('supplierInfo');
     const productSearch  = document.getElementById('productSearch');
 
-    // Supplier selection updates financial balance & contact banner
+    // Supplier selection updates financial balance & contact banner, and filters products
     supplierSelect.addEventListener('change', function () {
         const opt = this.options[this.selectedIndex];
         if (!opt || !opt.value) {
             supplierAlert.style.display = 'none';
-            return;
+        } else {
+            const balance = parseFloat(opt.getAttribute('data-balance') || 0);
+            const phone = opt.getAttribute('data-phone') || 'N/A';
+            const city  = opt.getAttribute('data-city') || '';
+
+            supplierAlert.style.display = 'block';
+            supplierInfo.innerHTML = `<i class="bi bi-wallet2 me-1"></i> Current Payable Balance: <strong><?= DEFAULT_CURRENCY ?> ${balance.toLocaleString('en-US', {minimumFractionDigits:2})}</strong> | Phone: ${phone} ${city ? `| City: <strong>${city}</strong>` : ''}`;
         }
-
-        const balance = parseFloat(opt.getAttribute('data-balance') || 0);
-        const phone = opt.getAttribute('data-phone') || 'N/A';
-        const city  = opt.getAttribute('data-city') || '';
-
-        supplierAlert.style.display = 'block';
-        supplierInfo.innerHTML = `<i class="bi bi-wallet2 me-1"></i> Current Payable Balance: <strong><?= DEFAULT_CURRENCY ?> ${balance.toLocaleString('en-US', {minimumFractionDigits:2})}</strong> | Phone: ${phone} ${city ? `| City: <strong>${city}</strong>` : ''}`;
+        filterProductCards();
     });
 
     if (supplierSelect.value) {
@@ -655,22 +656,50 @@ function filterProductCards() {
     const query = productSearch ? productSearch.value.trim().toLowerCase() : '';
     const activeCatEl = document.querySelector('.pos-category-pill.active');
     const activeCat = activeCatEl ? activeCatEl.getAttribute('data-cat') : '';
+    const supplierSelect = document.getElementById('supplierSelect');
+    const selectedSupplier = supplierSelect ? supplierSelect.value : '';
 
+    let visibleCount = 0;
     document.querySelectorAll('.pos-product-card').forEach(card => {
         const name = (card.getAttribute('data-name') || '').toLowerCase();
         const code = (card.getAttribute('data-code') || '').toLowerCase();
         const cat  = card.getAttribute('data-cat');
+        const sup  = card.getAttribute('data-supplier-id');
 
         const matchQuery = !query || name.includes(query) || code.includes(query);
         const matchCat   = !activeCat || cat === activeCat;
+        const matchSup   = !selectedSupplier || sup === selectedSupplier;
 
-        if (matchQuery && matchCat) {
+        if (matchQuery && matchCat && matchSup) {
             card.classList.remove('d-none');
+            visibleCount++;
         } else {
             card.classList.add('d-none');
             card.classList.remove('active-selected');
         }
     });
+
+    // Check empty state
+    let emptyNotice = document.getElementById('noProductsSupplierNotice');
+    if (visibleCount === 0) {
+        if (!emptyNotice) {
+            emptyNotice = document.createElement('div');
+            emptyNotice.id = 'noProductsSupplierNotice';
+            emptyNotice.className = 'col-12 text-center py-5 text-muted';
+            const grid = document.getElementById('productCardsGrid');
+            if (grid) grid.appendChild(emptyNotice);
+        }
+        if (emptyNotice) {
+            emptyNotice.innerHTML = `
+                <i class="bi bi-box-seam fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                <div class="fw-semibold">No products found for this selection.</div>
+                <small class="text-muted">${selectedSupplier ? 'This supplier has no products linked under this filter.' : 'Try selecting another supplier or clearing filters.'}</small>
+            `;
+            emptyNotice.classList.remove('d-none');
+        }
+    } else if (emptyNotice) {
+        emptyNotice.classList.add('d-none');
+    }
 
     const visible = getVisibleCards();
     if (visible.length > 0) {

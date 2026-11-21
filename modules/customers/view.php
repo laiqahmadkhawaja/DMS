@@ -441,7 +441,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 </a>
                                             </td>
                                             <td><?= date('d-M-Y', strtotime($ord['order_date'])) ?></td>
-                                            <td><?= date('d-M-Y', strtotime($ord['delivery_date'])) ?></td>
+                                            <td><?= !empty($ord['delivery_date']) ? date('d-M-Y', strtotime($ord['delivery_date'])) : '<span class="text-muted">-</span>' ?></td>
                                             <td><?= htmlspecialchars($ord['booker_name'] ?: 'N/A') ?></td>
                                             <td class="text-center fw-semibold"><?= (float)$ord['total_cartons'] ?> Ctns</td>
                                             <td class="text-end"><?= number_format((float)$ord['gross_amount'], 2) ?></td>

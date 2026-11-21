@@ -25,7 +25,7 @@ $categories = db_fetch_all("
 
 $products = db_fetch_all("
     SELECT 
-        p.id, p.product_name, p.product_code, p.category_id, cat.category_name,
+        p.id, p.product_name, p.product_code, p.category_id, p.supplier_id, cat.category_name,
         p.wholesale_rate, p.carton_qty, p.pack_qty, p.base_unit_id, u.symbol as unit_symbol,
         COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
@@ -36,6 +36,7 @@ $products = db_fetch_all("
     ORDER BY p.product_name ASC
 ");
 
+$suppliers = db_fetch_all("SELECT id, supplier_name, company_name FROM suppliers WHERE is_deleted = 0 AND is_active = 1 ORDER BY supplier_name ASC");
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_deleted = 0 AND is_active = 1 ORDER BY booker_name ASC");
 $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 AND is_active = 1 ORDER BY area_name ASC");
 $preselectedCustomerId = isset($_GET['customer_id']) ? (int)$_GET['customer_id'] : 0;
@@ -45,7 +46,7 @@ $nextOrderNumber = generate_document_number(PREFIX_ORDER, 'orders', 'order_numbe
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $orderNumber  = clean_input($_POST['order_number'] ?? $nextOrderNumber);
     $orderDate    = clean_input($_POST['order_date'] ?? date('Y-m-d'));
-    $deliveryDate = clean_input($_POST['delivery_date'] ?? date('Y-m-d', strtotime('+1 day')));
+    $deliveryDate = !empty($_POST['delivery_date']) ? clean_input($_POST['delivery_date']) : null;
     $customerId   = (int)($_POST['customer_id'] ?? 0);
     $bookerId     = (int)($_POST['booker_id'] ?? 0);
     $areaId       = (int)($_POST['area_id'] ?? 0);
@@ -73,8 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               ->exists('booker_id', $bookerId, 'bookers', 'id')
               ->required('area_id', $areaId)
               ->exists('area_id', $areaId, 'areas', 'id')
-              ->date('order_date', $orderDate)
-              ->date('delivery_date', $deliveryDate);
+              ->date('order_date', $orderDate);
+
+    if (!empty($deliveryDate)) {
+        $validator->date('delivery_date', $deliveryDate);
+    }
 
     if (empty($itemProductIds)) {
         $validator->addError('items', 'Please add at least one product to the order cart.');
@@ -326,8 +330,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
 
                         <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Delivery Date</label>
-                            <input type="date" name="delivery_date" class="form-control form-control-sm" value="<?= date('Y-m-d', strtotime('+1 day')) ?>" required>
+                            <label class="form-label small fw-bold mb-1">Delivery Date (Optional)</label>
+                            <input type="date" name="delivery_date" class="form-control form-control-sm" value="">
                         </div>
 
                         <div class="col-md-1 text-end">
@@ -353,10 +357,21 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <input type="text" id="productSearch" class="form-control form-control-sm pos-search-input" 
                                        placeholder="Search product name, code, packing... (Press / or F2)" autocomplete="off">
                             </div>
+
+                            <!-- Company / Supplier Filter -->
+                            <div class="d-flex align-items-center gap-2 mb-2 px-1">
+                                <span class="small fw-bold text-secondary text-nowrap"><i class="bi bi-building me-1 text-primary"></i>Company:</span>
+                                <select id="companyFilter" class="form-select form-select-sm py-0" style="font-size:12px; height:28px;">
+                                    <option value="">-- All Companies / Suppliers --</option>
+                                    <?php foreach ($suppliers as $sup): ?>
+                                        <option value="<?= $sup['id'] ?>"><?= e($sup['supplier_name']) ?><?= !empty($sup['company_name']) ? ' (' . e($sup['company_name']) . ')' : '' ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                             
                             <!-- Category Filter Pills -->
                             <div class="pos-category-pills">
-                                <button type="button" class="pos-category-pill active" data-cat="">All Products</button>
+                                <button type="button" class="pos-category-pill active" data-cat="">All Categories</button>
                                 <?php foreach ($categories as $cat): ?>
                                     <button type="button" class="pos-category-pill" data-cat="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['category_name']) ?></button>
                                 <?php endforeach; ?>
@@ -380,6 +395,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                      data-name="<?= htmlspecialchars($p['product_name']) ?>"
                                      data-code="<?= htmlspecialchars($p['product_code']) ?>"
                                      data-cat="<?= $p['category_id'] ?>"
+                                     data-supplier-id="<?= (int)($p['supplier_id'] ?? 0) ?>"
                                      data-rate="<?= (float)$p['wholesale_rate'] ?>"
                                      data-packs-per-ctn="<?= $packsPerCtn ?>"
                                      data-pcs-per-pack="<?= $pcsPerPack ?>"
@@ -560,6 +576,13 @@ document.addEventListener('DOMContentLoaded', function () {
         filterProductCards();
     });
 
+    const companyFilter = document.getElementById('companyFilter');
+    if (companyFilter) {
+        companyFilter.addEventListener('change', function () {
+            filterProductCards();
+        });
+    }
+
     // Category Filter Pills
     document.querySelectorAll('.pos-category-pill').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -675,17 +698,23 @@ function filterProductCards() {
     const query = productSearch ? productSearch.value.trim().toLowerCase() : '';
     const activeCatEl = document.querySelector('.pos-category-pill.active');
     const activeCat = activeCatEl ? activeCatEl.getAttribute('data-cat') : '';
+    const companyFilter = document.getElementById('companyFilter');
+    const activeSup = companyFilter ? companyFilter.value : '';
 
+    let visibleCount = 0;
     document.querySelectorAll('.pos-product-card').forEach(card => {
         const name = (card.getAttribute('data-name') || '').toLowerCase();
         const code = (card.getAttribute('data-code') || '').toLowerCase();
         const cat  = card.getAttribute('data-cat');
+        const sup  = card.getAttribute('data-supplier-id');
 
         const matchQuery = !query || name.includes(query) || code.includes(query);
         const matchCat   = !activeCat || cat === activeCat;
+        const matchSup   = !activeSup || sup === activeSup;
 
-        if (matchQuery && matchCat) {
+        if (matchQuery && matchCat && matchSup) {
             card.classList.remove('d-none');
+            visibleCount++;
         } else {
             card.classList.add('d-none');
             card.classList.remove('active-selected');

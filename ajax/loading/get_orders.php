@@ -48,13 +48,14 @@ if ($bookerId > 0) {
 
 // Delivery date filtering:
 // If empty, 'all', or 'any', do not restrict by delivery date (returns all confirmed orders ready for loading)
+// Also include orders with NULL delivery_date when filtering by date so they are never missed
 if (!empty($deliveryDate) && !in_array($deliveryDate, ['all', 'any', 'all_dates'], true)) {
     if ($deliveryDate === 'today') {
-        $where[] = "o.delivery_date = CURDATE()";
+        $where[] = "(o.delivery_date = CURDATE() OR o.delivery_date IS NULL)";
     } elseif ($deliveryDate === 'tomorrow') {
-        $where[] = "o.delivery_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
+        $where[] = "(o.delivery_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY) OR o.delivery_date IS NULL)";
     } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate)) {
-        $where[] = "o.delivery_date = ?";
+        $where[] = "(o.delivery_date = ? OR o.delivery_date IS NULL)";
         $params[] = $deliveryDate;
     }
 }

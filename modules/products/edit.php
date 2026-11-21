@@ -17,12 +17,14 @@ if (!$product) {
 $categories = db_fetch_all("SELECT id, category_name FROM product_categories WHERE is_deleted = 0 AND is_active = 1 ORDER BY category_name ASC");
 $units = db_fetch_all("SELECT id, unit_name, symbol FROM units WHERE is_deleted = 0 AND is_active = 1 ORDER BY id ASC");
 $brands = db_fetch_all("SELECT id, brand_name FROM brands WHERE is_deleted = 0 AND is_active = 1 ORDER BY brand_name ASC");
+$suppliers = db_fetch_all("SELECT id, supplier_code, supplier_name, company_name FROM suppliers WHERE is_deleted = 0 AND is_active = 1 ORDER BY supplier_name ASC");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $productCode     = clean_input($_POST['product_code'] ?? '');
     $barcode         = clean_input($_POST['barcode'] ?? '');
     $productName     = clean_input($_POST['product_name'] ?? '');
     $categoryId      = (int)($_POST['category_id'] ?? 0);
+    $supplierId      = !empty($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : null;
     $brandId         = !empty($_POST['brand_id']) ? (int)$_POST['brand_id'] : null;
     $baseUnitId      = (int)($_POST['base_unit_id'] ?? 0);
     $purchaseRate    = (float)($_POST['purchase_rate'] ?? 0);
@@ -50,13 +52,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $stmt = db()->prepare("
                 UPDATE products 
-                SET product_code = ?, barcode = ?, product_name = ?, category_id = ?, brand_id = ?, base_unit_id = ?,
+                SET product_code = ?, barcode = ?, product_name = ?, category_id = ?, supplier_id = ?, brand_id = ?, base_unit_id = ?,
                     purchase_rate = ?, default_sale_rate = ?, wholesale_rate = ?, retail_rate = ?,
                     carton_qty = ?, pack_qty = ?, min_stock_level = ?, description = ?, is_active = ?, updated_at = NOW()
                 WHERE id = ?
             ");
             $stmt->execute([
-                $productCode, $barcode, $productName, $categoryId, $brandId, $baseUnitId,
+                $productCode, $barcode, $productName, $categoryId, $supplierId, $brandId, $baseUnitId,
                 $purchaseRate, $defaultSaleRate, $wholesaleRate, $retailRate,
                 $cartonQty, $packQty, $minStockLevel, $description, $isActive, $id
             ]);
@@ -117,7 +119,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                     </div>
 
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label small fw-semibold mb-0">Category <span class="text-danger">*</span></label>
                                 <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" onclick="openDrawer('drawer-quick-add-category')">
@@ -132,7 +134,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold mb-1">Supplier / Company</label>
+                            <select name="supplier_id" id="productSupplierId" class="form-select form-select-sm">
+                                <option value="">-- Select Supplier Company --</option>
+                                <?php foreach ($suppliers as $sup): ?>
+                                    <option value="<?= $sup['id'] ?>" <?= (int)($product['supplier_id'] ?? 0) === (int)$sup['id'] ? 'selected' : '' ?>>
+                                        <?= e($sup['supplier_name']) ?><?= !empty($sup['company_name']) ? ' (' . e($sup['company_name']) . ')' : '' ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <label class="form-label small fw-semibold mb-0">Brand / Manufacturer</label>
                                 <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-semibold" onclick="openDrawer('drawer-quick-add-brand')">

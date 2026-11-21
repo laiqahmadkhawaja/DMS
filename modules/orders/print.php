@@ -243,7 +243,7 @@ $padRows = max(8, count($items));
                             <td style="padding: 1px 3px;"><?= htmlspecialchars($order['area_name']) ?> (<?= htmlspecialchars($order['city']) ?>)</td>
                             <td style="padding: 1px 3px;" class="text-end">Delivery Date:</td>
                             <td style="padding: 1px 3px;">
-                                <span class="fw-bold"><?= date('d-m-Y', strtotime($order['delivery_date'])) ?></span>
+                                <span class="fw-bold"><?= !empty($order['delivery_date']) ? date('d-m-Y', strtotime($order['delivery_date'])) : 'Standard' ?></span>
                             </td>
                         </tr>
                         <tr>

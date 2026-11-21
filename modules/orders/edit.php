@@ -52,7 +52,7 @@ $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 AND 
 // Handle POST Edit
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $orderDate    = clean_input($_POST['order_date'] ?? $order['order_date']);
-    $deliveryDate = clean_input($_POST['delivery_date'] ?? $order['delivery_date']);
+    $deliveryDate = !empty($_POST['delivery_date']) ? clean_input($_POST['delivery_date']) : null;
     $customerId   = (int)($_POST['customer_id'] ?? $order['customer_id']);
     $bookerId     = (int)($_POST['booker_id'] ?? $order['booker_id']);
     $areaId       = (int)($_POST['area_id'] ?? $order['area_id']);
@@ -270,8 +270,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <input type="date" name="order_date" class="form-control form-control-sm" value="<?= e($order['order_date']) ?>" required>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Delivery Date</label>
-                            <input type="date" name="delivery_date" class="form-control form-control-sm" value="<?= e($order['delivery_date']) ?>" required>
+                            <label class="form-label small fw-bold mb-1">Delivery Date (Optional)</label>
+                            <input type="date" name="delivery_date" class="form-control form-control-sm" value="<?= e($order['delivery_date'] ?? '') ?>">
                         </div>
                         <div class="col-md-1">
                             <label class="form-label small fw-bold mb-1">Status</label>

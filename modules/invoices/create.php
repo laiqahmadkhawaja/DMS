@@ -288,9 +288,10 @@ $areas      = db_fetch_all("SELECT id, area_name FROM areas WHERE is_active = 1 
 $bookers    = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_active = 1 ORDER BY booker_name ASC");
 $salesmen   = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_active = 1 ORDER BY salesman_name ASC");
 $categories = db_fetch_all("SELECT id, category_name FROM product_categories WHERE is_active = 1 ORDER BY category_name ASC");
+$suppliers  = db_fetch_all("SELECT id, supplier_name, company_name FROM suppliers WHERE is_deleted = 0 AND is_active = 1 ORDER BY supplier_name ASC");
 
 $products   = db_fetch_all("
-    SELECT p.id, p.product_code, p.product_name, p.category_id, cat.category_name, p.carton_qty, p.pack_qty, p.wholesale_rate,
+    SELECT p.id, p.product_code, p.product_name, p.category_id, p.supplier_id, cat.category_name, p.carton_qty, p.pack_qty, p.wholesale_rate,
            COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
     LEFT JOIN product_categories cat ON cat.id = p.category_id
@@ -414,6 +415,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <input type="text" id="productSearch" class="form-control form-control-sm pos-search-input" 
                                        placeholder="Search product name, code, packing... (Press / or F2)" autocomplete="off">
                             </div>
+
+                            <!-- Company / Supplier Filter -->
+                            <div class="d-flex align-items-center gap-2 mb-2 px-1">
+                                <span class="small fw-bold text-secondary text-nowrap"><i class="bi bi-building me-1 text-primary"></i>Company:</span>
+                                <select id="companyFilter" class="form-select form-select-sm py-0" style="font-size:12px; height:28px;">
+                                    <option value="">-- All Companies / Suppliers --</option>
+                                    <?php foreach ($suppliers as $sup): ?>
+                                        <option value="<?= $sup['id'] ?>"><?= htmlspecialchars($sup['supplier_name']) ?><?= !empty($sup['company_name']) ? ' (' . htmlspecialchars($sup['company_name']) . ')' : '' ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                             
                             <!-- Category Filter Pills -->
                             <div class="pos-category-pills">
@@ -441,6 +453,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                      data-name="<?= htmlspecialchars($p['product_name']) ?>"
                                      data-code="<?= htmlspecialchars($p['product_code']) ?>"
                                      data-cat="<?= $p['category_id'] ?>"
+                                     data-supplier-id="<?= (int)($p['supplier_id'] ?? 0) ?>"
                                      data-rate="<?= (float)$p['wholesale_rate'] ?>"
                                      data-packs-per-ctn="<?= $packsPerCtn ?>"
                                      data-pcs-per-pack="<?= $pcsPerPack ?>"
@@ -618,6 +631,13 @@ document.addEventListener('DOMContentLoaded', function () {
         filterProductCards();
     });
 
+    const companyFilter = document.getElementById('companyFilter');
+    if (companyFilter) {
+        companyFilter.addEventListener('change', function () {
+            filterProductCards();
+        });
+    }
+
     // Category Filter Pills
     document.querySelectorAll('.pos-category-pill').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -629,17 +649,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function filterProductCards() {
         const query = productSearch.value.trim().toLowerCase();
-        const activeCat = document.querySelector('.pos-category-pill.active').getAttribute('data-cat');
+        const activeCatEl = document.querySelector('.pos-category-pill.active');
+        const activeCat = activeCatEl ? activeCatEl.getAttribute('data-cat') : '';
+        const companyFilter = document.getElementById('companyFilter');
+        const activeSup = companyFilter ? companyFilter.value : '';
 
         document.querySelectorAll('.pos-product-card').forEach(card => {
             const name = card.getAttribute('data-name').toLowerCase();
             const code = card.getAttribute('data-code').toLowerCase();
             const cat  = card.getAttribute('data-cat');
+            const sup  = card.getAttribute('data-supplier-id');
 
             const matchQuery = !query || name.includes(query) || code.includes(query);
             const matchCat   = !activeCat || cat === activeCat;
+            const matchSup   = !activeSup || sup === activeSup;
 
-            if (matchQuery && matchCat) {
+            if (matchQuery && matchCat && matchSup) {
                 card.classList.remove('d-none');
             } else {
                 card.classList.add('d-none');
