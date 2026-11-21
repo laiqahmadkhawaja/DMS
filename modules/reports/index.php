@@ -111,6 +111,37 @@ require_once INCLUDES_PATH . '/topbar.php';
             </div>
         </div>
 
+        <!-- Featured Master Closing Sheet Banner -->
+        <div class="card border-0 shadow-sm mb-4 bg-gradient bg-navy text-white">
+            <div class="card-body p-4">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-warning text-dark fw-bold text-uppercase px-2 py-1">Master Closing Sheet</span>
+                            <span class="text-light small"><i class="bi bi-clock me-1"></i> End of Day Settlement</span>
+                        </div>
+                        <h4 class="fw-bold mb-2 text-white">Daily Business Closing Sheet & Roznamcha (یومیہ کلوزنگ شیٹ)</h4>
+                        <p class="text-light mb-0 small opacity-75">
+                            Unified executive audit: Today's sales revenue, gross profit & margins, cash recoveries, customer udhaar extended, sales returns, and cash in hand closing balance.
+                        </p>
+                    </div>
+                    <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                        <div class="d-flex flex-wrap justify-content-lg-end gap-2">
+                            <a href="daily_closing.php?period=today" class="btn btn-warning text-dark fw-bold px-3 shadow-sm">
+                                <i class="bi bi-journal-bookmark-fill me-1"></i> Today's Closing
+                            </a>
+                            <a href="daily_closing.php?period=week" class="btn btn-outline-light px-3">
+                                <i class="bi bi-calendar-week me-1"></i> This Week
+                            </a>
+                            <a href="daily_closing.php?period=month" class="btn btn-outline-light px-3">
+                                <i class="bi bi-calendar-month me-1"></i> This Month
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Report Categories Grid -->
         <div class="row g-4">
             
@@ -127,6 +158,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <div class="card-body p-0">
                         <div class="list-group list-group-flush">
                             
+                            <a href="daily_closing.php?period=today" class="list-group-item list-group-item-action p-3 d-flex justify-content-between align-items-center bg-primary-subtle bg-opacity-25">
+                                <div>
+                                    <div class="fw-bold text-navy mb-1">
+                                        <i class="bi bi-journal-bookmark-fill text-primary me-2"></i>Daily Closing Sheet & Roznamcha
+                                        <span class="badge bg-danger ms-2">Featured Master Sheet</span>
+                                    </div>
+                                    <div class="text-muted small">All-in-one day closing: Sales, Gross Profit, Cash in hand, Udhaar, Returns & Expenses.</div>
+                                </div>
+                                <i class="bi bi-chevron-right text-primary fw-bold"></i>
+                            </a>
+
                             <a href="daily_sales.php" class="list-group-item list-group-item-action p-3 d-flex justify-content-between align-items-center">
                                 <div>
                                     <div class="fw-bold text-navy mb-1">

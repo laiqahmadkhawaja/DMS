@@ -22,7 +22,7 @@ $isPurchasesActive  = in_array($activeMenu, ['suppliers', 'purchases', 'goods_re
 $isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'categories', 'brands', 'warehouses']);
 $isAccountsActive   = in_array($activeMenu, ['accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger']);
 $isOperationsActive = in_array($activeMenu, ['areas', 'bookers', 'salesmen']);
-$isReportsActive    = in_array($activeMenu, ['reports', 'rpt_daily', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
+$isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
 $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
 ?>
 <aside class="dms-sidebar">
@@ -336,6 +336,11 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
             <div class="collapse <?= $isReportsActive ? 'show' : '' ?>" id="sec-reports">
                 <ul class="dms-submenu">
                     <?php if (has_permission('reports_daily')): ?>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/reports/daily_closing.php" class="dms-menu-item <?= $activeMenu === 'rpt_closing' ? 'active' : '' ?>">
+                            <i class="bi bi-journal-bookmark-fill text-warning"></i> Daily Closing (Roznamcha)
+                        </a>
+                    </li>
                     <li>
                         <a href="<?= APP_URL ?>/modules/reports/index.php" class="dms-menu-item <?= $activeMenu === 'reports' ? 'active' : '' ?>">
                             <i class="bi bi-bar-chart-line"></i> Reports Center Hub

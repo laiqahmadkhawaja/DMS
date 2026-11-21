@@ -284,6 +284,7 @@ function get_active_menu(): string {
     if (strpos($script, 'modules/accounts/ledger.php') !== false) return 'general_ledger';
     if (strpos($script, 'modules/accounts/journal_') !== false) return 'journal_entries';
     if (strpos($script, 'modules/goods_receiving/') !== false) return 'goods_receiving';
+    if (strpos($script, 'modules/reports/daily_closing.php') !== false) return 'rpt_closing';
     if (strpos($script, 'modules/reports/customer_aging.php') !== false) return 'rpt_aging';
     if (strpos($script, 'modules/reports/trial_balance.php') !== false) return 'rpt_tb';
     if (strpos($script, 'modules/reports/profit_loss.php') !== false) return 'rpt_pl';
