@@ -31,6 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $salesmanId  = !empty($_POST['salesman_id']) ? (int)$_POST['salesman_id'] : null;
     $areaId      = (int)($_POST['area_id'] ?? 0);
     $paymentType = sanitize_input($_POST['payment_type'] ?? 'credit'); // 'cash' or 'credit'
+    $depositAccountId = (int)($_POST['deposit_account_id'] ?? 1001);
+    if ($depositAccountId <= 0) {
+        $depositAccountId = 1001;
+    }
     $remarks     = sanitize_input($_POST['remarks'] ?? '');
     $itemsData   = $_POST['items'] ?? [];
 
@@ -240,27 +244,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ], $glLines);
 
             } else {
-                // Spot cash sale: Debit Cash in Hand (1010), Credit Sales Revenue (4010)
+                // Spot payment sale: Debit Chosen Liquid Account (Cash, Bank, Wallet), Credit Sales Revenue (4010)
                 $glLines = [
                     [
-                        'account_id' => 1010, // Cash in Hand
-                        'debit'      => $netTotal,
-                        'credit'     => 0,
-                        'memo'       => "Cash received for invoice #{$invoiceNumber}"
+                        'account_id'  => $depositAccountId,
+                        'debit'       => $netTotal,
+                        'credit'      => 0,
+                        'description' => "Spot payment received for invoice #{$invoiceNumber}"
                     ],
                     [
-                        'account_id' => 4010, // Sales Revenue
-                        'debit'      => 0,
-                        'credit'     => $netTotal,
-                        'memo'       => "Direct spot cash sale #{$invoiceNumber}"
+                        'account_id'  => 4010, // Sales Revenue
+                        'debit'       => 0,
+                        'credit'      => $netTotal,
+                        'description' => "Direct spot sale #{$invoiceNumber}"
                     ]
                 ];
                 post_journal_entry([
                     'entry_date'     => $invoiceDate,
-                    'reference_type' => 'invoice',
+                    'reference_type' => 'sales_invoice',
                     'reference_id'   => $invoiceId,
-                    'description'    => "Direct Spot Cash Invoice #{$invoiceNumber}",
-                    'created_by'     => $userId
+                    'narration'      => "Direct Spot Sale Invoice #{$invoiceNumber}"
                 ], $glLines);
             }
 
@@ -289,6 +292,19 @@ $bookers    = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_active 
 $salesmen   = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_active = 1 ORDER BY salesman_name ASC");
 $categories = db_fetch_all("SELECT id, category_name FROM product_categories WHERE is_active = 1 ORDER BY category_name ASC");
 $suppliers  = db_fetch_all("SELECT id, supplier_name, company_name FROM suppliers WHERE is_deleted = 0 AND is_active = 1 ORDER BY supplier_name ASC");
+$liquidAccounts = db_fetch_all("
+    SELECT id, account_code, account_name, sub_type, bank_name, account_number, current_balance 
+    FROM accounts 
+    WHERE sub_type IN ('cash', 'bank', 'wallet') AND is_active = 1 
+    ORDER BY 
+        CASE sub_type 
+            WHEN 'cash' THEN 1 
+            WHEN 'bank' THEN 2 
+            WHEN 'wallet' THEN 3 
+            ELSE 4 
+        END,
+        account_code ASC
+");
 
 $products   = db_fetch_all("
     SELECT p.id, p.product_code, p.product_name, p.category_id, p.supplier_id, cat.category_name, p.carton_qty, p.pack_qty, p.wholesale_rate,
@@ -390,11 +406,44 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-bold mb-1">Payment Method <span class="text-danger">*</span></label>
-                            <select name="payment_type" class="form-select form-select-sm fw-bold">
-                                <option value="credit">Credit Sale (Post to Party Ledger)</option>
-                                <option value="cash">Spot Cash Sale (Office Cash Drawer)</option>
-                            </select>
+                            <label class="form-label small fw-bold mb-1">Payment Method & Account <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-1">
+                                <select name="payment_type" id="paymentTypeSelect" class="form-select form-select-sm fw-bold" style="max-width: 120px;">
+                                    <option value="credit">Credit Sale</option>
+                                    <option value="cash">Spot Paid</option>
+                                </select>
+                                <div id="depositAccWrapper" style="display: none; flex-grow: 1;">
+                                    <?php
+                                        $groupedLiq = ['cash' => [], 'bank' => [], 'wallet' => []];
+                                        foreach ($liquidAccounts as $la) {
+                                            $groupedLiq[$la['sub_type']][] = $la;
+                                        }
+                                    ?>
+                                    <select name="deposit_account_id" class="form-select form-select-sm">
+                                        <?php if (!empty($groupedLiq['cash'])): ?>
+                                            <optgroup label="💵 Cash">
+                                                <?php foreach ($groupedLiq['cash'] as $la): ?>
+                                                    <option value="<?= $la['id'] ?>"><?= htmlspecialchars($la['account_name']) ?></option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
+                                        <?php if (!empty($groupedLiq['bank'])): ?>
+                                            <optgroup label="🏦 Bank">
+                                                <?php foreach ($groupedLiq['bank'] as $la): ?>
+                                                    <option value="<?= $la['id'] ?>"><?= htmlspecialchars($la['account_name']) ?></option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
+                                        <?php if (!empty($groupedLiq['wallet'])): ?>
+                                            <optgroup label="📱 Wallets">
+                                                <?php foreach ($groupedLiq['wallet'] as $la): ?>
+                                                    <option value="<?= $la['id'] ?>"><?= htmlspecialchars($la['account_name']) ?></option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1077,6 +1126,13 @@ function recalculateInvoiceSummary() {
     document.getElementById('summaryTotalPieces').innerText = `${totalPieces} Pcs`;
     document.getElementById('summaryDiscountAmount').innerText = `<?= DEFAULT_CURRENCY ?> ${discountAmt.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     document.getElementById('summaryNetAmount').innerText = `<?= DEFAULT_CURRENCY ?> ${netAmount.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    const payTypeSel = document.getElementById('paymentTypeSelect');
+    const depAccWrap = document.getElementById('depositAccWrapper');
+    if (payTypeSel && depAccWrap) {
+        payTypeSel.addEventListener('change', function() {
+            depAccWrap.style.display = (this.value === 'cash') ? 'block' : 'none';
+        });
+    }
 }
 </script>
 

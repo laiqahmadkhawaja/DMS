@@ -218,6 +218,12 @@ $expensesList = db_fetch_all("
 $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 ORDER BY area_name ASC");
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_deleted = 0 AND is_active = 1 ORDER BY booker_name ASC");
 $salesmen = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_active = 1 ORDER BY salesman_name ASC");
+$closingLiquidAccounts = db_fetch_all("
+    SELECT account_code, account_name, sub_type, bank_name, current_balance 
+    FROM accounts 
+    WHERE sub_type IN ('cash', 'bank', 'wallet') AND is_active = 1 
+    ORDER BY CASE sub_type WHEN 'cash' THEN 1 WHEN 'bank' THEN 2 WHEN 'wallet' THEN 3 END, account_code ASC
+");
 
 $pageTitle = 'Daily Closing Sheet & Roznamcha — ' . APP_NAME;
 $activeMenu = 'reports';
@@ -495,6 +501,31 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </tr>
                                     </tbody>
                                 </table>
+                            </div>
+
+                            <!-- Live Liquid Accounts Balance Position -->
+                            <div class="mt-4 pt-3 border-top">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="fw-bold text-navy mb-0"><i class="bi bi-wallet2 me-2"></i>Current Liquid Position (موجودہ کیش، بینک اور والٹس پوزیشن)</h6>
+                                    <a href="<?= APP_URL ?>/modules/accounts/manage_accounts.php" class="small text-decoration-none fw-semibold no-print">
+                                        Manage Accounts <i class="bi bi-arrow-right"></i>
+                                    </a>
+                                </div>
+                                <div class="row g-2">
+                                    <?php foreach ($closingLiquidAccounts as $cla): ?>
+                                        <div class="col-md-3 col-sm-6">
+                                            <div class="p-2 border rounded bg-light">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <span class="small fw-semibold text-truncate"><?= htmlspecialchars($cla['account_name']) ?></span>
+                                                    <span class="badge bg-secondary-subtle text-secondary font-monospace"><?= htmlspecialchars($cla['account_code']) ?></span>
+                                                </div>
+                                                <div class="h6 fw-bold mb-0 mt-1 <?= (float)$cla['current_balance'] >= 0 ? 'text-success' : 'text-danger' ?>">
+                                                    <?= format_currency((float)$cla['current_balance']) ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
                         </div>
                     </div>

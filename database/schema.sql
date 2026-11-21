@@ -1027,6 +1027,7 @@ CREATE TABLE `accounts` (
   `sub_type` ENUM(
     'cash',
     'bank',
+    'wallet',
     'accounts_receivable',
     'accounts_payable',
     'inventory',
@@ -1037,6 +1038,10 @@ CREATE TABLE `accounts` (
     'expense',
     'equity'
   ) NOT NULL,
+  `bank_name` VARCHAR(100) DEFAULT NULL,
+  `account_number` VARCHAR(100) DEFAULT NULL,
+  `branch_code` VARCHAR(50) DEFAULT NULL,
+  `notes` TEXT DEFAULT NULL,
   `opening_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `current_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `is_system` TINYINT(1) NOT NULL DEFAULT 0,

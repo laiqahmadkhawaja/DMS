@@ -67,6 +67,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <p class="text-muted small mb-0">Double-entry General Ledger structure, real-time balances, and account audit ledgers.</p>
             </div>
             <div class="d-flex gap-2">
+                <a href="manage_accounts.php" class="btn btn-outline-info btn-sm fw-semibold">
+                    <i class="bi bi-wallet2 me-1"></i> Cash, Banks & Wallets
+                </a>
                 <a href="customer_payments.php" class="btn btn-outline-success btn-sm">
                     <i class="bi bi-cash-stack me-1"></i> Customer Receipts
                 </a>

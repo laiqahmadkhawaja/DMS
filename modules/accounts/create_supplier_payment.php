@@ -17,6 +17,7 @@ $activeMenu = "supplier_payments";
 $errors = [];
 
 $preselectedSupplierId = !empty($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
+$preselectedAccountId  = !empty($_GET['account_id']) ? (int)$_GET['account_id'] : 0;
 
 // Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -128,12 +129,19 @@ $suppliers = db_fetch_all("
     ORDER BY supplier_name ASC
 ");
 
-// Fetch Accounts (Cash & Bank)
+// Fetch Payment Source Accounts (Cash, Bank & Digital Wallets)
 $accounts = db_fetch_all("
-    SELECT id, account_code, account_name, current_balance 
+    SELECT id, account_code, account_name, sub_type, bank_name, account_number, current_balance 
     FROM accounts 
-    WHERE sub_type IN ('cash', 'bank') AND is_active = 1 
-    ORDER BY account_code ASC
+    WHERE sub_type IN ('cash', 'bank', 'wallet') AND is_active = 1 
+    ORDER BY 
+        CASE sub_type 
+            WHEN 'bank' THEN 1 
+            WHEN 'cash' THEN 2 
+            WHEN 'wallet' THEN 3 
+            ELSE 4 
+        END,
+        account_code ASC
 ");
 
 require_once __DIR__ . '/../../includes/header.php';
@@ -217,7 +225,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <option value="bank_transfer" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'bank_transfer') ? 'selected' : '' ?>>Bank Transfer (Online / RTGS / IBFT)</option>
                                         <option value="cheque" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'cheque') ? 'selected' : '' ?>>Cheque (Bank Cheque)</option>
                                         <option value="cash" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'cash') ? 'selected' : '' ?>>Cash (Drawer Handover)</option>
-                                        <option value="online" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'online') ? 'selected' : '' ?>>Online Transfer</option>
+                                        <option value="online" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'online') ? 'selected' : '' ?>>Digital Wallet / Online (JazzCash / EasyPaisa / Raast)</option>
                                     </select>
                                 </div>
                             </div>
@@ -225,12 +233,40 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">Paid From Account <span class="text-danger">*</span></label>
+                                    <?php
+                                        $groupedAccounts = ['bank' => [], 'cash' => [], 'wallet' => []];
+                                        foreach ($accounts as $acc) {
+                                            $groupedAccounts[$acc['sub_type']][] = $acc;
+                                        }
+                                    ?>
                                     <select name="account_id" class="form-select" required>
-                                        <?php foreach ($accounts as $acc): ?>
-                                            <option value="<?= $acc['id'] ?>" <?= (isset($_POST['account_id']) && (int)$_POST['account_id'] === (int)$acc['id']) ? 'selected' : ($acc['id'] == ACC_BANK_MAIN ? 'selected' : '') ?>>
-                                                <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
-                                            </option>
-                                        <?php endforeach; ?>
+                                        <?php if (!empty($groupedAccounts['bank'])): ?>
+                                            <optgroup label="🏦 Commercial Bank Accounts">
+                                                <?php foreach ($groupedAccounts['bank'] as $acc): ?>
+                                                    <option value="<?= $acc['id'] ?>" <?= ((int)($_POST['account_id'] ?? $preselectedAccountId) === (int)$acc['id']) ? 'selected' : ($acc['id'] == ACC_BANK_MAIN && empty($preselectedAccountId) ? 'selected' : '') ?>>
+                                                        <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> <?= $acc['bank_name'] ? "({$acc['bank_name']})" : "" ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
+                                        <?php if (!empty($groupedAccounts['cash'])): ?>
+                                            <optgroup label="💵 Cash in Hand / Drawers">
+                                                <?php foreach ($groupedAccounts['cash'] as $acc): ?>
+                                                    <option value="<?= $acc['id'] ?>" <?= ((int)($_POST['account_id'] ?? $preselectedAccountId) === (int)$acc['id']) ? 'selected' : '' ?>>
+                                                        <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
+                                        <?php if (!empty($groupedAccounts['wallet'])): ?>
+                                            <optgroup label="📱 Digital Wallets (JazzCash / EasyPaisa / Raast)">
+                                                <?php foreach ($groupedAccounts['wallet'] as $acc): ?>
+                                                    <option value="<?= $acc['id'] ?>" <?= ((int)($_POST['account_id'] ?? $preselectedAccountId) === (int)$acc['id']) ? 'selected' : '' ?>>
+                                                        <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> <?= $acc['account_number'] ? "({$acc['account_number']})" : "" ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
                                     </select>
                                 </div>
                                 <div class="col-md-6">

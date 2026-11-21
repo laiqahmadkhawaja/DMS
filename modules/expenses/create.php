@@ -123,10 +123,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Fetch categories and payment accounts
 $categories = get_expense_categories();
 $paymentAccounts = db_fetch_all("
-    SELECT id, account_code, account_name, current_balance 
+    SELECT id, account_code, account_name, sub_type, bank_name, account_number, current_balance 
     FROM accounts 
-    WHERE sub_type IN ('cash', 'bank') AND is_active = 1 
-    ORDER BY account_code ASC
+    WHERE sub_type IN ('cash', 'bank', 'wallet') AND is_active = 1 
+    ORDER BY 
+        CASE sub_type 
+            WHEN 'cash' THEN 1 
+            WHEN 'bank' THEN 2 
+            WHEN 'wallet' THEN 3 
+            ELSE 4 
+        END,
+        account_code ASC
 ");
 
 require_once INCLUDES_PATH . '/header.php';
@@ -188,12 +195,40 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">Paid From Account <span class="text-danger">*</span></label>
+                                    <?php
+                                        $groupedAccs = ['cash' => [], 'bank' => [], 'wallet' => []];
+                                        foreach ($paymentAccounts as $pa) {
+                                            $groupedAccs[$pa['sub_type']][] = $pa;
+                                        }
+                                    ?>
                                     <select name="paid_from_account_id" class="form-select" required>
-                                        <?php foreach ($paymentAccounts as $acc): ?>
-                                            <option value="<?= $acc['id'] ?>" <?= (isset($_POST['paid_from_account_id']) && (int)$_POST['paid_from_account_id'] === (int)$acc['id']) ? 'selected' : ($acc['id'] == ACC_CASH_MAIN ? 'selected' : '') ?>>
-                                                <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
-                                            </option>
-                                        <?php endforeach; ?>
+                                        <?php if (!empty($groupedAccs['cash'])): ?>
+                                            <optgroup label="💵 Cash in Hand / Drawers">
+                                                <?php foreach ($groupedAccs['cash'] as $acc): ?>
+                                                    <option value="<?= $acc['id'] ?>" <?= (isset($_POST['paid_from_account_id']) && (int)$_POST['paid_from_account_id'] === (int)$acc['id']) ? 'selected' : ($acc['id'] == ACC_CASH_MAIN ? 'selected' : '') ?>>
+                                                        <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
+                                        <?php if (!empty($groupedAccs['bank'])): ?>
+                                            <optgroup label="🏦 Commercial Bank Accounts">
+                                                <?php foreach ($groupedAccs['bank'] as $acc): ?>
+                                                    <option value="<?= $acc['id'] ?>" <?= (isset($_POST['paid_from_account_id']) && (int)$_POST['paid_from_account_id'] === (int)$acc['id']) ? 'selected' : '' ?>>
+                                                        <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> <?= $acc['bank_name'] ? "({$acc['bank_name']})" : "" ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
+                                        <?php if (!empty($groupedAccs['wallet'])): ?>
+                                            <optgroup label="📱 Digital Wallets (JazzCash / EasyPaisa / Raast)">
+                                                <?php foreach ($groupedAccs['wallet'] as $acc): ?>
+                                                    <option value="<?= $acc['id'] ?>" <?= (isset($_POST['paid_from_account_id']) && (int)$_POST['paid_from_account_id'] === (int)$acc['id']) ? 'selected' : '' ?>>
+                                                        <?= htmlspecialchars($acc['account_code']) ?> - <?= htmlspecialchars($acc['account_name']) ?> <?= $acc['account_number'] ? "({$acc['account_number']})" : "" ?> [Bal: <?= format_currency($acc['current_balance']) ?>]
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                        <?php endif; ?>
                                     </select>
                                 </div>
                                 <div class="col-md-6">
@@ -201,6 +236,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <select name="payment_mode" class="form-select" required>
                                         <option value="cash" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'cash') ? 'selected' : '' ?>>Cash (Drawer / Handover)</option>
                                         <option value="bank" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'bank') ? 'selected' : '' ?>>Bank (Transfer / Cheque / Online)</option>
+                                        <option value="wallet" <?= (isset($_POST['payment_mode']) && $_POST['payment_mode'] === 'wallet') ? 'selected' : '' ?>>Digital Wallet (JazzCash / EasyPaisa / Raast)</option>
                                     </select>
                                 </div>
                             </div>

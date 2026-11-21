@@ -266,6 +266,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // 3. Insert cash_submissions (Office Cash Drawer Handover)
+            $cashDepositAcc = (int)($_POST['cash_account_id'] ?? ACC_CASH_MAIN);
+            if ($cashDepositAcc <= 0) {
+                $cashDepositAcc = ACC_CASH_MAIN;
+            }
+
             if ($totalCash > 0) {
                 $subNumber = generate_document_number('CSUB', 'cash_submissions', 'submission_number');
                 $stmtCSub = db()->prepare("
@@ -274,12 +279,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         amount, cash_account_id, received_by, shortage_amount, excess_amount, remarks, created_at
                     ) VALUES (
                         ?, ?, ?, ?, 
-                        ?, 1, ?, 0.00, 0.00, ?, NOW()
+                        ?, ?, ?, 0.00, 0.00, ?, NOW()
                     )
                 ");
                 $stmtCSub->execute([
                     $subNumber, $settlementDate, $salesmanId, $settlementId,
-                    $totalCash, $userId, "Cash submission from route settlement #{$settlementNumber}"
+                    $totalCash, $cashDepositAcc, $userId, "Cash submission from route settlement #{$settlementNumber}"
                 ]);
             }
 
@@ -294,12 +299,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // 5. Post to General Ledger (Balanced Double-Entry)
-            // Debit: Cash (1001), Debit: Receivables (1020), Debit: Sales Returns (4030)
+            // Debit: Cash / Bank / Wallet (Selected liquid account), Debit: Receivables (1020), Debit: Sales Returns (4030)
             // Credit: Sales Revenue (4010) or Sales Dispatched Clearing
             $journalLines = [];
             if ($totalCash > 0) {
                 $journalLines[] = [
-                    'account_id'  => ACC_CASH_MAIN,
+                    'account_id'  => $cashDepositAcc,
                     'debit'       => $totalCash,
                     'credit'      => 0.00,
                     'description' => "Cash collected from route settlement #{$settlementNumber}"
@@ -412,7 +417,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <label class="form-label small fw-bold">Settlement Date <span class="text-danger">*</span></label>
                             <input type="date" name="settlement_date" id="settleDate" class="form-control" value="<?= htmlspecialchars($preDate) ?>" required>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold">Delivery Salesman <span class="text-danger">*</span></label>
                             <select name="salesman_id" id="salesmanSelect" class="form-select" required>
                                 <option value="">-- Select Salesman --</option>
@@ -423,9 +428,53 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-5 d-flex align-items-end">
-                            <button type="button" class="btn btn-primary btn-sm px-3" id="btnLoadBills">
-                                <i class="bi bi-arrow-repeat me-1"></i> Load Route Dispatched Bills
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Deposit Cash Collection Into <span class="text-danger">*</span></label>
+                            <?php
+                                $settleLiquidAccounts = db_fetch_all("
+                                    SELECT id, account_code, account_name, sub_type, bank_name, current_balance 
+                                    FROM accounts 
+                                    WHERE sub_type IN ('cash', 'bank', 'wallet') AND is_active = 1 
+                                    ORDER BY CASE sub_type WHEN 'cash' THEN 1 WHEN 'bank' THEN 2 WHEN 'wallet' THEN 3 END, account_code ASC
+                                ");
+                                $sGrp = ['cash' => [], 'bank' => [], 'wallet' => []];
+                                foreach ($settleLiquidAccounts as $sla) {
+                                    $sGrp[$sla['sub_type']][] = $sla;
+                                }
+                            ?>
+                            <select name="cash_account_id" class="form-select">
+                                <?php if (!empty($sGrp['cash'])): ?>
+                                    <optgroup label="💵 Cash in Hand / Drawers">
+                                        <?php foreach ($sGrp['cash'] as $sla): ?>
+                                            <option value="<?= $sla['id'] ?>" <?= ($sla['id'] == ACC_CASH_MAIN) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($sla['account_code']) ?> - <?= htmlspecialchars($sla['account_name']) ?> [Bal: <?= format_currency($sla['current_balance']) ?>]
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
+                                <?php endif; ?>
+                                <?php if (!empty($sGrp['bank'])): ?>
+                                    <optgroup label="🏦 Commercial Bank Accounts">
+                                        <?php foreach ($sGrp['bank'] as $sla): ?>
+                                            <option value="<?= $sla['id'] ?>">
+                                                <?= htmlspecialchars($sla['account_code']) ?> - <?= htmlspecialchars($sla['account_name']) ?> [Bal: <?= format_currency($sla['current_balance']) ?>]
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
+                                <?php endif; ?>
+                                <?php if (!empty($sGrp['wallet'])): ?>
+                                    <optgroup label="📱 Digital Wallets (JazzCash / EasyPaisa)">
+                                        <?php foreach ($sGrp['wallet'] as $sla): ?>
+                                            <option value="<?= $sla['id'] ?>">
+                                                <?= htmlspecialchars($sla['account_code']) ?> - <?= htmlspecialchars($sla['account_name']) ?> [Bal: <?= format_currency($sla['current_balance']) ?>]
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="button" class="btn btn-primary btn-sm w-100" id="btnLoadBills">
+                                <i class="bi bi-arrow-repeat me-1"></i> Load Bills
                             </button>
                         </div>
                     </div>

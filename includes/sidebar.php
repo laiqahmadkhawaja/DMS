@@ -20,7 +20,7 @@ $isSalesActive      = in_array($activeMenu, ['orders', 'loading', 'invoices', 'd
 $isCustomersActive  = in_array($activeMenu, ['customers', 'cust_ledger', 'customer_payments', 'rpt_aging']);
 $isPurchasesActive  = in_array($activeMenu, ['suppliers', 'purchases', 'goods_receiving', 'supplier_payments', 'supplier_ledger']);
 $isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'categories', 'brands', 'warehouses']);
-$isAccountsActive   = in_array($activeMenu, ['accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger']);
+$isAccountsActive   = in_array($activeMenu, ['accounts', 'manage_accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger']);
 $isOperationsActive = in_array($activeMenu, ['areas', 'bookers', 'salesmen']);
 $isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_company', 'rpt_profitability', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
 $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
@@ -259,6 +259,11 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
             <div class="collapse <?= $isAccountsActive ? 'show' : '' ?>" id="sec-accounts">
                 <ul class="dms-submenu">
                     <?php if (has_permission('accounts_view')): ?>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/accounts/manage_accounts.php" class="dms-menu-item <?= $activeMenu === 'manage_accounts' ? 'active' : '' ?>">
+                            <i class="bi bi-wallet2 text-success"></i> Cash, Banks & Wallets
+                        </a>
+                    </li>
                     <li>
                         <a href="<?= APP_URL ?>/modules/accounts/index.php" class="dms-menu-item <?= $activeMenu === 'accounts' ? 'active' : '' ?>">
                             <i class="bi bi-diagram-3"></i> Chart of Accounts
