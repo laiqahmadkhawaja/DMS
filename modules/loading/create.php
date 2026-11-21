@@ -293,7 +293,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-bold">Delivery Date <span class="text-danger">*</span></label>
-                            <input type="date" name="delivery_date" id="deliveryDate" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                            <input type="date" name="delivery_date" id="deliveryDate" class="form-control" value="<?= date('Y-m-d', strtotime('+1 day')) ?>" required>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-bold">Delivery Salesman <span class="text-danger">*</span></label>
@@ -314,7 +314,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
 
                         <!-- Filter Bar to narrow down orders -->
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-secondary">Filter by Route / Area</label>
                             <select id="filterArea" class="form-select form-select-sm">
                                 <option value="">-- All Routes / Areas --</option>
@@ -323,7 +323,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-secondary">Filter by Order Booker</label>
                             <select id="filterBooker" class="form-select form-select-sm">
                                 <option value="">-- All Bookers --</option>
@@ -332,9 +332,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-secondary">Filter by Delivery Date</label>
+                            <select id="filterDeliveryDate" class="form-select form-select-sm">
+                                <option value="all" selected>-- All Confirmed Orders (Any Date) --</option>
+                                <option value="match">Match Header Delivery Date</option>
+                                <option value="today">Today (<?= date('d M Y') ?>)</option>
+                                <option value="tomorrow">Tomorrow (<?= date('d M Y', strtotime('+1 day')) ?>)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
                             <button type="button" id="btnFetchOrders" class="btn btn-sm btn-outline-primary w-100">
-                                <i class="bi bi-arrow-repeat me-1"></i> Refresh Confirmed Orders List
+                                <i class="bi bi-arrow-repeat me-1"></i> Refresh Confirmed Orders
                             </button>
                         </div>
                     </div>
@@ -362,6 +371,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <input type="checkbox" class="form-check-input" id="checkMaster">
                                     </th>
                                     <th>Order #</th>
+                                    <th>Delivery Date</th>
                                     <th>Customer / Retail Shop</th>
                                     <th>Route / Area</th>
                                     <th>Booker</th>
@@ -372,7 +382,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </thead>
                             <tbody id="ordersTbody">
                                 <tr>
-                                    <td colspan="8" class="text-center py-4 text-muted">
+                                    <td colspan="9" class="text-center py-4 text-muted">
                                         <i class="bi bi-hourglass-split me-1"></i> Loading confirmed orders...
                                     </td>
                                 </tr>
@@ -472,25 +482,45 @@ let fetchedOrders = [];
 function loadConfirmedOrders() {
     const areaId = document.getElementById('filterArea').value;
     const bookerId = document.getElementById('filterBooker').value;
-    const deliveryDate = document.getElementById('deliveryDate').value;
+    const dateFilter = document.getElementById('filterDeliveryDate').value;
+    let deliveryDateParam = 'all';
+
+    if (dateFilter === 'match') {
+        deliveryDateParam = document.getElementById('deliveryDate').value;
+    } else if (dateFilter === 'today') {
+        deliveryDateParam = 'today';
+    } else if (dateFilter === 'tomorrow') {
+        deliveryDateParam = 'tomorrow';
+    }
+
     const tbody = document.getElementById('ordersTbody');
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-1"></i> Fetching confirmed orders...</td></tr>`;
 
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-1"></i> Fetching confirmed orders...</td></tr>`;
-
-    fetch(`../../ajax/loading/get_orders.php?area_id=${areaId}&booker_id=${bookerId}&delivery_date=${encodeURIComponent(deliveryDate)}`)
+    fetch(`../../ajax/loading/get_orders.php?area_id=${areaId}&booker_id=${bookerId}&delivery_date=${encodeURIComponent(deliveryDateParam)}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
                 fetchedOrders = data.data.orders || [];
                 renderOrdersTable();
             } else {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">${data.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-danger">${data.message}</td></tr>`;
             }
         })
         .catch(err => {
             console.error(err);
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">Error connecting to server.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-danger">Error connecting to server.</td></tr>`;
         });
+}
+
+function formatDate(str) {
+    if (!str) return '-';
+    const parts = str.split('-');
+    if (parts.length === 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const mIdx = parseInt(parts[1], 10) - 1;
+        return `${parts[2]}-${months[mIdx] || parts[1]}-${parts[0]}`;
+    }
+    return str;
 }
 
 function renderOrdersTable() {
@@ -500,7 +530,7 @@ function renderOrdersTable() {
     badge.innerText = `${fetchedOrders.length} available`;
 
     if (fetchedOrders.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted"><i class="bi bi-info-circle me-1"></i> No confirmed orders found for these filters.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted"><i class="bi bi-info-circle me-1"></i> No confirmed orders found for these filters.</td></tr>`;
         recalculateSummary();
         return;
     }
@@ -516,6 +546,10 @@ function renderOrdersTable() {
                     <a href="../orders/view.php?id=${o.id}" target="_blank" class="text-decoration-none">
                         ${o.order_number}
                     </a>
+                </td>
+                <td>
+                    <div class="fw-bold text-navy"><i class="bi bi-calendar2-check me-1 text-primary"></i>${formatDate(o.delivery_date)}</div>
+                    <small class="text-muted">Booked: ${formatDate(o.order_date)}</small>
                 </td>
                 <td>
                     <div class="fw-semibold text-dark">${escapeHtml(o.customer_name)}</div>
@@ -645,7 +679,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('btnFetchOrders').addEventListener('click', loadConfirmedOrders);
     document.getElementById('filterArea').addEventListener('change', loadConfirmedOrders);
     document.getElementById('filterBooker').addEventListener('change', loadConfirmedOrders);
-    document.getElementById('deliveryDate').addEventListener('change', loadConfirmedOrders);
+    document.getElementById('filterDeliveryDate').addEventListener('change', loadConfirmedOrders);
+    document.getElementById('deliveryDate').addEventListener('change', function() {
+        if (document.getElementById('filterDeliveryDate').value === 'match') {
+            loadConfirmedOrders();
+        }
+    });
 
     document.getElementById('checkMaster').addEventListener('change', function() {
         const checked = this.checked;

@@ -13,20 +13,28 @@ require_once INCLUDES_PATH . '/permission.php';
 header('Content-Type: application/json; charset=utf-8');
 
 if (!is_logged_in()) {
-    json_error('Unauthenticated', 401);
+    json_error('Unauthenticated', [], 401);
 }
 
 if (!has_permission('loading_create') && !has_permission('loading_view')) {
-    json_error('Permission denied', 403);
+    json_error('Permission denied', [], 403);
 }
 
 $salesmanId   = isset($_GET['salesman_id']) ? (int)$_GET['salesman_id'] : 0;
 $areaId       = isset($_GET['area_id']) ? (int)$_GET['area_id'] : 0;
 $bookerId     = isset($_GET['booker_id']) ? (int)$_GET['booker_id'] : 0;
-$deliveryDate = isset($_GET['delivery_date']) ? sanitize_input($_GET['delivery_date']) : '';
+$deliveryDate = isset($_GET['delivery_date']) ? trim(sanitize_input($_GET['delivery_date'])) : '';
 
 $where = ["o.status = 'confirmed'"];
 $params = [];
+
+// Exclude orders that are already assigned to an active draft or issued load sheet
+$where[] = "o.id NOT IN (
+    SELECT lso.order_id 
+    FROM load_sheet_orders lso 
+    JOIN load_sheets ls ON lso.load_sheet_id = ls.id 
+    WHERE ls.status IN ('draft', 'issued')
+)";
 
 if ($areaId > 0) {
     $where[] = "o.area_id = ?";
@@ -38,9 +46,17 @@ if ($bookerId > 0) {
     $params[] = $bookerId;
 }
 
-if (!empty($deliveryDate)) {
-    $where[] = "o.delivery_date = ?";
-    $params[] = $deliveryDate;
+// Delivery date filtering:
+// If empty, 'all', or 'any', do not restrict by delivery date (returns all confirmed orders ready for loading)
+if (!empty($deliveryDate) && !in_array($deliveryDate, ['all', 'any', 'all_dates'], true)) {
+    if ($deliveryDate === 'today') {
+        $where[] = "o.delivery_date = CURDATE()";
+    } elseif ($deliveryDate === 'tomorrow') {
+        $where[] = "o.delivery_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
+    } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate)) {
+        $where[] = "o.delivery_date = ?";
+        $params[] = $deliveryDate;
+    }
 }
 
 $whereClause = implode(" AND ", $where);
@@ -68,7 +84,7 @@ try {
         JOIN areas a ON o.area_id = a.id
         JOIN bookers b ON o.booker_id = b.id
         WHERE {$whereClause}
-        ORDER BY a.area_name ASC, c.shop_name ASC
+        ORDER BY o.delivery_date ASC, a.area_name ASC, c.shop_name ASC
     ", $params);
 
     // If orders found, also get aggregated items for each order or all selected orders
