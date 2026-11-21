@@ -148,6 +148,39 @@ function update_customer_balance(int $customerId, float $amount, string $directi
 }
 
 /**
+ * Re-audit and sync Customer Balance from full journal transaction history
+ */
+function recalculate_customer_balance(int $customerId): float {
+    $hasOpeningJE = (bool)db_fetch_val("
+        SELECT jel.id FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'customer' AND jel.party_id = ? AND je.reference_type = 'opening'
+    ", [$customerId]);
+    $baseOpening = (!$hasOpeningJE) ? (float)db_fetch_val("SELECT opening_balance FROM customers WHERE id = ?", [$customerId]) : 0.0;
+
+    $debits = (float)db_fetch_val("
+        SELECT COALESCE(SUM(jel.debit), 0) 
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'customer' AND jel.party_id = ? AND je.is_posted = 1
+    ", [$customerId]);
+
+    $credits = (float)db_fetch_val("
+        SELECT COALESCE(SUM(jel.credit), 0) 
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'customer' AND jel.party_id = ? AND je.is_posted = 1
+    ", [$customerId]);
+
+    $balance = round($baseOpening + $debits - $credits, 2);
+
+    db()->prepare("UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?")
+        ->execute([$balance, $customerId]);
+
+    return $balance;
+}
+
+/**
  * Update Supplier balance atomically
  *
  * @param int $supplierId
@@ -163,6 +196,39 @@ function update_supplier_balance(int $supplierId, float $amount, string $directi
         WHERE id = ?
     ");
     $stmt->execute([$delta, $supplierId]);
+}
+
+/**
+ * Re-audit and sync Supplier Balance from full journal transaction history
+ */
+function recalculate_supplier_balance(int $supplierId): float {
+    $hasOpeningJE = (bool)db_fetch_val("
+        SELECT jel.id FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'supplier' AND jel.party_id = ? AND je.reference_type = 'opening'
+    ", [$supplierId]);
+    $baseOpening = (!$hasOpeningJE) ? (float)db_fetch_val("SELECT opening_balance FROM suppliers WHERE id = ?", [$supplierId]) : 0.0;
+
+    $credits = (float)db_fetch_val("
+        SELECT COALESCE(SUM(jel.credit), 0) 
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'supplier' AND jel.party_id = ? AND je.is_posted = 1
+    ", [$supplierId]);
+
+    $debits = (float)db_fetch_val("
+        SELECT COALESCE(SUM(jel.debit), 0) 
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'supplier' AND jel.party_id = ? AND je.is_posted = 1
+    ", [$supplierId]);
+
+    $balance = round($baseOpening + $credits - $debits, 2);
+
+    db()->prepare("UPDATE suppliers SET current_balance = ?, updated_at = NOW() WHERE id = ?")
+        ->execute([$balance, $supplierId]);
+
+    return $balance;
 }
 
 /**

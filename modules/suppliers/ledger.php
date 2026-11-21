@@ -22,6 +22,14 @@ $openingBal = 0.0;
 $ledgerEntries = [];
 
 if ($selectedSupp) {
+    // Check if initial opening balance had a journal entry
+    $hasOpeningJE = (bool)db_fetch_val("
+        SELECT jel.id FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'supplier' AND jel.party_id = ? AND je.reference_type = 'opening'
+    ", [$supplierId]);
+    $baseOpening = (!$hasOpeningJE) ? (float)($selectedSupp['opening_balance'] ?? 0) : 0.0;
+
     // Supplier is Liability: Credit increases payable, Debit decreases payable (payments)
     $preCredits = (float)db_fetch_val("
         SELECT COALESCE(SUM(credit), 0) 
@@ -37,7 +45,7 @@ if ($selectedSupp) {
         WHERE jel.party_type = 'supplier' AND jel.party_id = ? AND je.entry_date < ?
     ", [$supplierId, $fromDate]);
 
-    $openingBal = $preCredits - $preDebits;
+    $openingBal = $baseOpening + ($preCredits - $preDebits);
 
     $sqlTransactions = "
         SELECT 
@@ -49,6 +57,10 @@ if ($selectedSupp) {
         ORDER BY je.entry_date ASC, je.id ASC
     ";
     $ledgerEntries = db_fetch_all($sqlTransactions, [$supplierId, $fromDate, $toDate]);
+
+    // Ensure supplier balance is synced with audit
+    $currentAudited = recalculate_supplier_balance($supplierId);
+    $selectedSupp['current_balance'] = $currentAudited;
 }
 
 $pageTitle = 'Supplier Ledger: ' . ($selectedSupp['supplier_name'] ?? '') . ' — ' . APP_NAME;

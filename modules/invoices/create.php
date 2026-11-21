@@ -170,16 +170,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // General Ledger: Debit Accounts Receivable (1020), Credit Sales Revenue (4010)
                 $glLines = [
                     [
-                        'account_id' => 1020, // Accounts Receivable
-                        'debit'      => $netTotal,
-                        'credit'     => 0,
-                        'memo'       => "Credit sale to customer #{$customerId}"
+                        'account_id'  => 1020, // Accounts Receivable
+                        'debit'       => $netTotal,
+                        'credit'      => 0,
+                        'party_type'  => 'customer',
+                        'party_id'    => $customerId,
+                        'description' => "Credit sale invoice #{$invoiceNumber}"
                     ],
                     [
-                        'account_id' => 4010, // Sales Revenue
-                        'debit'      => 0,
-                        'credit'     => $netTotal,
-                        'memo'       => "Gross sales invoice #{$invoiceNumber}"
+                        'account_id'  => 4010, // Sales Revenue
+                        'debit'       => 0,
+                        'credit'      => $netTotal,
+                        'party_type'  => null,
+                        'party_id'    => null,
+                        'description' => "Gross sales invoice #{$invoiceNumber}"
                     ]
                 ];
                 post_journal_entry([

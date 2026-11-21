@@ -189,6 +189,14 @@ $ledgerEntries = [];
 $openingBal = 0.0;
 
 if ($selectedCust) {
+    // Check if initial opening balance had a journal entry
+    $hasOpeningJE = (bool)db_fetch_val("
+        SELECT jel.id FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel.journal_entry_id
+        WHERE jel.party_type = 'customer' AND jel.party_id = ? AND je.reference_type = 'opening'
+    ", [$customerId]);
+    $baseOpening = (!$hasOpeningJE) ? (float)($selectedCust['opening_balance'] ?? 0) : 0.0;
+
     // Calculate opening balance before $fromDate
     $preDebits = (float)db_fetch_val("
         SELECT COALESCE(SUM(debit), 0) 
@@ -204,7 +212,7 @@ if ($selectedCust) {
         WHERE jel.party_type = 'customer' AND jel.party_id = ? AND je.entry_date < ?
     ", [$customerId, $fromDate]);
 
-    $openingBal = $preDebits - $preCredits;
+    $openingBal = $baseOpening + ($preDebits - $preCredits);
 
     // Fetch transactions in date range
     $sqlTransactions = "
@@ -217,6 +225,10 @@ if ($selectedCust) {
         ORDER BY je.entry_date ASC, je.id ASC
     ";
     $ledgerEntries = db_fetch_all($sqlTransactions, [$customerId, $fromDate, $toDate]);
+
+    // Ensure customer balance is synced with audit
+    $currentAudited = recalculate_customer_balance($customerId);
+    $selectedCust['current_balance'] = $currentAudited;
 }
 
 $pageTitle = 'Customer Statement: ' . ($selectedCust['shop_name'] ?? '') . ' — ' . APP_NAME;

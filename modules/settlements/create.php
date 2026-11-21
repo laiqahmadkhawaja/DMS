@@ -244,13 +244,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'description' => "Cash collected from route settlement #{$settlementNumber}"
                 ];
             }
-            if ($totalCredit > 0) {
-                $journalLines[] = [
-                    'account_id'  => ACC_RECEIVABLES,
-                    'debit'       => $totalCredit,
-                    'credit'      => 0.00,
-                    'description' => "Customer credit from route settlement #{$settlementNumber}"
-                ];
+            // Post itemized customer credit lines to Accounts Receivable (1020) with customer party tags
+            foreach ($validItems as $vi) {
+                if ($vi['credit_amount'] > 0) {
+                    $inv = db_fetch_one("SELECT invoice_number FROM sales_invoices WHERE id = ?", [$vi['invoice_id']]);
+                    $cust = db_fetch_one("SELECT shop_name FROM customers WHERE id = ?", [$vi['customer_id']]);
+                    $invNum = $inv ? $inv['invoice_number'] : "Bill #{$vi['invoice_id']}";
+                    $shopName = $cust ? $cust['shop_name'] : "Customer #{$vi['customer_id']}";
+
+                    $journalLines[] = [
+                        'account_id'  => ACC_RECEIVABLES,
+                        'debit'       => (float)$vi['credit_amount'],
+                        'credit'      => 0.00,
+                        'party_type'  => 'customer',
+                        'party_id'    => (int)$vi['customer_id'],
+                        'description' => "Route Credit - {$invNum} ({$shopName}) [Settlement #{$settlementNumber}]"
+                    ];
+                }
             }
             if ($totalReturns > 0) {
                 $journalLines[] = [
