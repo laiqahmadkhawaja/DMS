@@ -277,12 +277,13 @@ function get_active_menu(): string {
     // Specialized script paths
     if (strpos($script, 'modules/inventory/ledger.php') !== false) return 'stock_ledger';
     if (strpos($script, 'modules/customers/statement.php') !== false) return 'cust_ledger';
+    if (strpos($script, 'modules/suppliers/ledger.php') !== false) return 'supplier_ledger';
     if (strpos($script, 'modules/salesmen/ledger.php') !== false) return 'sm_ledger';
     if (strpos($script, 'customer_payment') !== false) return 'customer_payments';
     if (strpos($script, 'supplier_payment') !== false) return 'supplier_payments';
     if (strpos($script, 'modules/accounts/ledger.php') !== false) return 'general_ledger';
     if (strpos($script, 'modules/accounts/journal_') !== false) return 'journal_entries';
-    if (strpos($script, 'modules/goods_receiving/') !== false) return 'purchases';
+    if (strpos($script, 'modules/goods_receiving/') !== false) return 'goods_receiving';
     if (strpos($script, 'modules/reports/customer_aging.php') !== false) return 'rpt_aging';
     if (strpos($script, 'modules/reports/trial_balance.php') !== false) return 'rpt_tb';
     if (strpos($script, 'modules/reports/profit_loss.php') !== false) return 'rpt_pl';
