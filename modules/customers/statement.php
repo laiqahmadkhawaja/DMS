@@ -23,8 +23,9 @@ $allCustomers = db_fetch_all("
 
 // 1. PARTIES CREDIT VIEW (Matching Image 6)
 if ($viewMode === 'parties_credit') {
-    $areaFilter = (int)($_GET['area_id'] ?? 0);
-    $bookerFilter = (int)($_GET['booker_id'] ?? 0);
+    $areaFilter    = (int)($_GET['area_id'] ?? 0);
+    $bookerFilter  = (int)($_GET['booker_id'] ?? 0);
+    $balanceFilter = clean_input($_GET['balance_type'] ?? 'all_balances');
 
     $sqlParties = "
         SELECT 
@@ -34,9 +35,20 @@ if ($viewMode === 'parties_credit') {
         FROM customers c
         JOIN areas a ON a.id = c.area_id
         LEFT JOIN bookers b ON b.id = c.booker_id
-        WHERE c.is_deleted = 0 AND c.current_balance > 0
+        WHERE c.is_deleted = 0
     ";
     $paramsParties = [];
+
+    if ($balanceFilter === 'debit_only') {
+        $sqlParties .= " AND c.current_balance > 0";
+    } elseif ($balanceFilter === 'credit_only') {
+        $sqlParties .= " AND c.current_balance < 0";
+    } elseif ($balanceFilter === 'all_customers') {
+        // No balance constraint
+    } else {
+        // Default: all non-zero balances (both positive receivables and negative advance credits)
+        $sqlParties .= " AND c.current_balance != 0";
+    }
 
     if ($areaFilter > 0) {
         $sqlParties .= " AND c.area_id = ?";
@@ -47,12 +59,20 @@ if ($viewMode === 'parties_credit') {
         $paramsParties[] = $bookerFilter;
     }
 
-    $sqlParties .= " ORDER BY c.current_balance DESC";
+    $sqlParties .= " ORDER BY c.current_balance DESC, c.shop_name ASC";
     $creditParties = db_fetch_all($sqlParties, $paramsParties);
 
     $totalPartiesCredit = 0;
+    $totalReceivables = 0;
+    $totalAdvances = 0;
     foreach ($creditParties as $cp) {
-        $totalPartiesCredit += (float)$cp['current_balance'];
+        $bal = (float)$cp['current_balance'];
+        $totalPartiesCredit += $bal;
+        if ($bal > 0) {
+            $totalReceivables += $bal;
+        } else {
+            $totalAdvances += abs($bal);
+        }
     }
 
     $pageTitle = 'Parties Credit List — ' . APP_NAME;
@@ -82,7 +102,7 @@ if ($viewMode === 'parties_credit') {
     <div class="card-dms p-2 mb-3 no-print">
         <form method="GET" action="<?= APP_URL ?>/modules/customers/statement.php" class="row g-2 align-items-center">
             <input type="hidden" name="view" value="parties_credit">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <select name="area_id" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="0">All Areas / Routes</option>
                     <?php foreach ($areas as $ar): ?>
@@ -92,7 +112,7 @@ if ($viewMode === 'parties_credit') {
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <select name="booker_id" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="0">All Bookers</option>
                     <?php foreach ($bookers as $bk): ?>
@@ -102,7 +122,15 @@ if ($viewMode === 'parties_credit') {
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-3">
+                <select name="balance_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="all_balances" <?= $balanceFilter === 'all_balances' ? 'selected' : '' ?>>All Outstanding (Non-Zero)</option>
+                    <option value="debit_only" <?= $balanceFilter === 'debit_only' ? 'selected' : '' ?>>Market Debtors (Receivables &gt; 0)</option>
+                    <option value="credit_only" <?= $balanceFilter === 'credit_only' ? 'selected' : '' ?>>Advances / In Credit (Balance &lt; 0)</option>
+                    <option value="all_customers" <?= $balanceFilter === 'all_customers' ? 'selected' : '' ?>>All Customers (Incl. Zero)</option>
+                </select>
+            </div>
+            <div class="col-md-1">
                 <button type="submit" class="btn btn-sm btn-primary w-100">Filter</button>
             </div>
             <div class="col-md-2 text-end">
@@ -125,7 +153,7 @@ if ($viewMode === 'parties_credit') {
                     <tr>
                         <th style="color: #f8fafc;">Booker Name / Shop</th>
                         <th style="color: #f8fafc;">Address</th>
-                        <th class="text-end" style="color: #f8fafc; width: 180px;">Amount (<?= DEFAULT_CURRENCY ?>)</th>
+                        <th class="text-end" style="color: #f8fafc; width: 220px;">Amount (<?= DEFAULT_CURRENCY ?>)</th>
                         <th class="text-end no-print" style="color: #f8fafc; width: 100px;">Statement</th>
                     </tr>
                 </thead>
@@ -138,7 +166,9 @@ if ($viewMode === 'parties_credit') {
                             </td>
                         </tr>
                     <?php else: ?>
-                        <?php foreach ($creditParties as $party): ?>
+                        <?php foreach ($creditParties as $party): 
+                            $bal = (float)$party['current_balance'];
+                        ?>
                             <tr>
                                 <td class="fw-semibold text-dark">
                                     <?= e($party['shop_name']) ?>
@@ -147,7 +177,17 @@ if ($viewMode === 'parties_credit') {
                                     <?php endif; ?>
                                 </td>
                                 <td><?= e($party['address']) ?> <span class="text-muted">(<?= e($party['area_name']) ?>)</span></td>
-                                <td class="text-end fw-bold text-dark fs-6"><?= format_currency($party['current_balance'], false) ?></td>
+                                <td class="text-end fw-bold fs-6">
+                                    <?php if ($bal < 0): ?>
+                                        <span class="badge bg-info-subtle text-primary border border-primary-subtle me-1" style="font-size: 0.72rem;">Advance / Cr</span>
+                                        <span class="text-primary"><?= format_currency($bal, false) ?></span>
+                                    <?php elseif ($bal > 0): ?>
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1" style="font-size: 0.72rem;">Receivable / Dr</span>
+                                        <span class="text-danger"><?= format_currency($bal, false) ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted">0.00</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-end no-print">
                                     <a href="<?= APP_URL ?>/modules/customers/statement.php?view=single&id=<?= $party['id'] ?>" class="btn btn-xs btn-outline-primary py-0 px-2">
                                         View Ledger
@@ -159,8 +199,15 @@ if ($viewMode === 'parties_credit') {
                 </tbody>
                 <tfoot class="table-fmcg-total">
                     <tr style="font-size: 1rem;">
-                        <th colspan="2" class="text-end">Total Outstanding Credit:</th>
-                        <th class="text-end text-dark"><?= format_currency($totalPartiesCredit) ?></th>
+                        <th colspan="2" class="text-end">
+                            Total Outstanding Balance:
+                            <?php if ($totalAdvances > 0 && $totalReceivables > 0): ?>
+                                <small class="text-muted fw-normal ms-2">(Receivables: <?= format_currency($totalReceivables) ?> | Advances: <?= format_currency($totalAdvances) ?>)</small>
+                            <?php endif; ?>
+                        </th>
+                        <th class="text-end <?= $totalPartiesCredit < 0 ? 'text-primary' : 'text-dark' ?>">
+                            <?= format_currency($totalPartiesCredit) ?>
+                        </th>
                         <th class="no-print"></th>
                     </tr>
                 </tfoot>

@@ -52,7 +52,7 @@ if ($statusFilter === 'active') {
 }
 
 if ($balanceFilter === 'with_balance') {
-    $sql .= " AND c.current_balance > 0";
+    $sql .= " AND c.current_balance != 0";
 }
 
 $sql .= " ORDER BY c.shop_name ASC";
@@ -61,11 +61,15 @@ $customers = db_fetch_all($sql, $params);
 $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 AND is_active = 1 ORDER BY area_name ASC");
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_deleted = 0 AND is_active = 1 ORDER BY booker_name ASC");
 
-// Calculate aggregate customer receivables
+// Calculate aggregate customer receivables & advances
 $totalOutstanding = 0;
+$totalAdvances = 0;
 foreach ($customers as $cust) {
-    if ((float)$cust['current_balance'] > 0) {
-        $totalOutstanding += (float)$cust['current_balance'];
+    $cBal = (float)$cust['current_balance'];
+    if ($cBal > 0) {
+        $totalOutstanding += $cBal;
+    } elseif ($cBal < 0) {
+        $totalAdvances += abs($cBal);
     }
 }
 
@@ -196,8 +200,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <td><?= !empty($c['booker_name']) ? e($c['booker_name']) : '<span class="text-muted">-</span>' ?></td>
                             <td><i class="bi bi-telephone text-muted me-1"></i><?= e($c['phone']) ?></td>
                             <td class="text-end"><?= (float)$c['credit_limit'] > 0 ? format_currency($c['credit_limit']) : '<span class="text-muted">-</span>' ?></td>
-                            <td class="text-end fw-bold <?= (float)$c['current_balance'] > 0 ? 'text-danger' : 'text-success' ?>">
-                                <?= format_currency($c['current_balance']) ?>
+                            <td class="text-end fw-bold">
+                                <?php if ((float)$c['current_balance'] < 0): ?>
+                                    <span class="badge bg-info-subtle text-primary border border-primary-subtle me-1" style="font-size: 0.72rem;">Advance</span>
+                                    <span class="text-primary"><?= format_currency($c['current_balance']) ?></span>
+                                <?php elseif ((float)$c['current_balance'] > 0): ?>
+                                    <span class="text-danger"><?= format_currency($c['current_balance']) ?></span>
+                                <?php else: ?>
+                                    <span class="text-muted">0.00</span>
+                                <?php endif; ?>
                             </td>
                             <td class="text-center">
                                 <span class="badge bg-<?= $c['is_active'] ? 'success' : 'secondary' ?>-subtle text-<?= $c['is_active'] ? 'success' : 'dark' ?> border">
