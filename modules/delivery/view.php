@@ -76,6 +76,7 @@ $viewMode = $_GET['mode'] ?? ($isSettled ? 'filled' : 'blank');
 $showFilled = ($viewMode === 'filled');
 
 $pageTitle = 'Delivery Run ' . $run['run_number'];
+$activeMenu = 'delivery';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Delivery Runs', 'url' => 'index.php'],

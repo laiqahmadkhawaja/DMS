@@ -173,6 +173,7 @@ $areaNames = array_unique(array_column($orders, 'area_name'));
 $areasList = !empty($areaNames) ? implode(', ', $areaNames) : 'All Routes';
 
 $pageTitle = 'Load Sheet ' . $sheet['load_number'];
+$activeMenu = 'loading';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Warehouse Loading', 'url' => 'index.php'],

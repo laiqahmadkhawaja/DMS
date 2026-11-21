@@ -60,6 +60,7 @@ $journalEntry = db_fetch_one("
 ", [$id]);
 
 $pageTitle = 'Return Voucher ' . $ret['return_number'];
+$activeMenu = 'returns';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Sales Returns', 'url' => 'index.php'],

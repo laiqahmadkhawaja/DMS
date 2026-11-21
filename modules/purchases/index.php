@@ -13,6 +13,7 @@ require_login();
 require_permission('purchases_view');
 
 $pageTitle = 'Purchase Orders';
+$activeMenu = 'purchases';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Purchases', 'url' => '']

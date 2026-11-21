@@ -13,6 +13,7 @@ require_login();
 require_permission('returns_view');
 
 $pageTitle = 'Sales Returns';
+$activeMenu = 'returns';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Sales Returns', 'url' => '']

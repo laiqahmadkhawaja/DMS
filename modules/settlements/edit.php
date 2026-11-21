@@ -258,6 +258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Edit Route Settlement: ' . $settlement['settlement_number'];
+$activeMenu = 'settlements';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Settlements', 'url' => 'index.php'],

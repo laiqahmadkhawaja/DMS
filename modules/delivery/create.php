@@ -13,6 +13,7 @@ require_login();
 require_permission('delivery_manage');
 
 $pageTitle = 'Create Delivery Run';
+$activeMenu = 'delivery';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Delivery Runs', 'url' => 'index.php'],

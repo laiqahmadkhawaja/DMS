@@ -300,6 +300,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $salesmen = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_active = 1 ORDER BY salesman_name ASC");
 
+$pageTitle = 'Create Route Settlement';
+$activeMenu = 'settlements';
+
 require_once INCLUDES_PATH . '/header.php';
 require_once INCLUDES_PATH . '/sidebar.php';
 require_once INCLUDES_PATH . '/topbar.php';

@@ -15,6 +15,7 @@ require_login();
 require_permission('inventory_adjust');
 
 $pageTitle = 'Physical Stock Adjustment';
+$activeMenu = 'inventory';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Inventory', 'url' => 'index.php'],

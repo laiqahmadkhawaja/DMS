@@ -13,6 +13,7 @@ require_login();
 require_permission('settlements_view');
 
 $pageTitle = 'Route Settlements & Reconciliation';
+$activeMenu = 'settlements';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Settlements', 'url' => '']

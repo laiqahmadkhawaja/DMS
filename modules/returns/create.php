@@ -15,6 +15,7 @@ require_login();
 require_permission('returns_create');
 
 $pageTitle = 'Create Sales Return Voucher';
+$activeMenu = 'returns';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Sales Returns', 'url' => 'index.php'],

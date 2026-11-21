@@ -13,6 +13,7 @@ require_login();
 require_permission('invoices_view');
 
 $pageTitle = 'Sales Invoices & Bills';
+$activeMenu = 'invoices';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Sales Invoices', 'url' => '']

@@ -58,6 +58,7 @@ $grns = db_fetch_all("
 ", [$id]);
 
 $pageTitle = 'PO ' . $po['purchase_number'];
+$activeMenu = 'purchases';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Purchases', 'url' => 'index.php'],

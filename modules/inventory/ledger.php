@@ -13,6 +13,7 @@ require_login();
 require_permission('inventory_view');
 
 $pageTitle = 'Stock Movement Ledger';
+$activeMenu = 'stock_ledger';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Inventory', 'url' => 'index.php'],

@@ -13,6 +13,7 @@ require_login();
 require_permission('purchases_receive');
 
 $pageTitle = 'Goods Receiving Notes (GRN)';
+$activeMenu = 'purchases';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Goods Receiving', 'url' => '']

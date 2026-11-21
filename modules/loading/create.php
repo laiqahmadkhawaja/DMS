@@ -14,6 +14,7 @@ require_login();
 require_permission('loading_create');
 
 $pageTitle = 'Create Load Sheet';
+$activeMenu = 'loading';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Warehouse Loading', 'url' => 'index.php'],

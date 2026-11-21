@@ -254,3 +254,81 @@ if (!function_exists('redirect')) {
         exit;
     }
 }
+
+/**
+ * Automatically determine the current active sidebar menu item
+ * Checks explicit $activeMenu first, then auto-detects from request script path.
+ */
+function get_active_menu(): string {
+    global $activeMenu;
+
+    // If explicitly set and not the ambiguous default 'dashboard'
+    if (!empty($activeMenu) && $activeMenu !== 'dashboard') {
+        return $activeMenu;
+    }
+
+    // Auto-detect from script path / URI
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF'] ?? '');
+
+    if (strpos($script, 'dashboard.php') !== false) {
+        return 'dashboard';
+    }
+
+    // Specialized script paths
+    if (strpos($script, 'modules/inventory/ledger.php') !== false) return 'stock_ledger';
+    if (strpos($script, 'modules/customers/statement.php') !== false) return 'cust_ledger';
+    if (strpos($script, 'modules/salesmen/ledger.php') !== false) return 'sm_ledger';
+    if (strpos($script, 'customer_payment') !== false) return 'customer_payments';
+    if (strpos($script, 'supplier_payment') !== false) return 'supplier_payments';
+    if (strpos($script, 'modules/accounts/ledger.php') !== false) return 'general_ledger';
+    if (strpos($script, 'modules/accounts/journal_') !== false) return 'journal_entries';
+    if (strpos($script, 'modules/goods_receiving/') !== false) return 'purchases';
+    if (strpos($script, 'modules/reports/customer_aging.php') !== false) return 'rpt_aging';
+    if (strpos($script, 'modules/reports/trial_balance.php') !== false) return 'rpt_tb';
+    if (strpos($script, 'modules/reports/profit_loss.php') !== false) return 'rpt_pl';
+    if (strpos($script, 'modules/reports/balance_sheet.php') !== false) return 'rpt_bs';
+    if (strpos($script, 'modules/reports/daily_sales.php') !== false ||
+        strpos($script, 'modules/reports/booker_sales.php') !== false ||
+        strpos($script, 'modules/reports/product_sales.php') !== false ||
+        strpos($script, 'modules/reports/salesman_delivery.php') !== false) {
+        return 'rpt_daily';
+    }
+    if (strpos($script, 'modules/settings/audit.php') !== false) return 'audit';
+
+    // General module paths
+    $pathMap = [
+        'modules/orders/'      => 'orders',
+        'modules/loading/'     => 'loading',
+        'modules/invoices/'    => 'invoices',
+        'modules/delivery/'    => 'delivery',
+        'modules/settlements/' => 'settlements',
+        'modules/returns/'     => 'returns',
+        'modules/inventory/'   => 'inventory',
+        'modules/purchases/'   => 'purchases',
+        'modules/customers/'   => 'customers',
+        'modules/salesmen/'    => 'salesmen',
+        'modules/expenses/'    => 'expenses',
+        'modules/accounts/'    => 'accounts',
+        'modules/reports/'     => 'reports',
+        'modules/excel/'       => 'excel',
+        'modules/products/'    => 'products',
+        'modules/units/'       => 'products',
+        'modules/price_lists/' => 'products',
+        'modules/categories/'  => 'categories',
+        'modules/brands/'      => 'brands',
+        'modules/areas/'       => 'areas',
+        'modules/bookers/'     => 'bookers',
+        'modules/suppliers/'   => 'suppliers',
+        'modules/warehouses/'  => 'warehouses',
+        'modules/settings/'    => 'settings',
+        'modules/users/'       => 'users',
+    ];
+
+    foreach ($pathMap as $prefix => $menu) {
+        if (strpos($script, $prefix) !== false) {
+            return $menu;
+        }
+    }
+
+    return $activeMenu ?? 'dashboard';
+}

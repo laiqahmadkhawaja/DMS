@@ -9,7 +9,7 @@ if (!defined('DMS_RUNNING')) {
 }
 
 $pageTitle = $pageTitle ?? APP_NAME;
-$activeMenu = $activeMenu ?? 'dashboard';
+$activeMenu = get_active_menu();
 ?>
 <!DOCTYPE html>
 <html lang="en">

@@ -13,6 +13,7 @@ require_login();
 require_permission('delivery_view');
 
 $pageTitle = 'Delivery Run Sheets';
+$activeMenu = 'delivery';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Delivery Runs', 'url' => '']

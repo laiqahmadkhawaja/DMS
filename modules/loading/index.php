@@ -13,6 +13,7 @@ require_login();
 require_permission('loading_view');
 
 $pageTitle = 'Warehouse Loading Sheets';
+$activeMenu = 'loading';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Warehouse Loading', 'url' => '']

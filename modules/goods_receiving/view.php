@@ -60,6 +60,7 @@ $journalEntry = db_fetch_one("
 ", [$id]);
 
 $pageTitle = 'GRN ' . $grn['grn_number'];
+$activeMenu = 'purchases';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Goods Receiving', 'url' => 'index.php'],

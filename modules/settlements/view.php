@@ -68,6 +68,7 @@ $journalEntry = db_fetch_one("
 ", [$id]);
 
 $pageTitle = 'Settlement ' . $settlement['settlement_number'];
+$activeMenu = 'settlements';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Settlements', 'url' => 'index.php'],

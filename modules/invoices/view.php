@@ -64,6 +64,7 @@ $items = db_fetch_all("
 ", [$id]);
 
 $pageTitle = 'Invoice ' . $invoice['invoice_number'];
+$activeMenu = 'invoices';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
     ['label' => 'Sales Invoices', 'url' => 'index.php'],

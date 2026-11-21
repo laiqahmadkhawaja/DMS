@@ -13,7 +13,7 @@ if (defined('DMS_SIDEBAR_RENDERED')) {
 }
 define('DMS_SIDEBAR_RENDERED', true);
 
-$activeMenu = $activeMenu ?? 'dashboard';
+$activeMenu = get_active_menu();
 ?>
 <aside class="dms-sidebar">
     <div class="dms-sidebar-brand">
