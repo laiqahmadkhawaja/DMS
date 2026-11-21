@@ -193,7 +193,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <small class="text-muted"><?= e($c['owner_name'] ?? '-') ?></small>
                             </td>
                             <td><?= e($c['area_name']) ?></td>
-                            <td><?= e($c['booker_name'] ?? '<span class="text-muted">-</span>') ?></td>
+                            <td><?= !empty($c['booker_name']) ? e($c['booker_name']) : '<span class="text-muted">-</span>' ?></td>
                             <td><i class="bi bi-telephone text-muted me-1"></i><?= e($c['phone']) ?></td>
                             <td class="text-end"><?= (float)$c['credit_limit'] > 0 ? format_currency($c['credit_limit']) : '<span class="text-muted">-</span>' ?></td>
                             <td class="text-end fw-bold <?= (float)$c['current_balance'] > 0 ? 'text-danger' : 'text-success' ?>">
