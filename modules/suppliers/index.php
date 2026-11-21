@@ -51,13 +51,18 @@ require_once INCLUDES_PATH . '/topbar.php';
         <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-building me-2 text-primary"></i>Suppliers & Manufacturers</h5>
         <small class="text-muted">Wholesale distributors, product manufacturers, and trade creditors</small>
     </div>
-    <?php if (has_permission('suppliers_create')): ?>
-    <div>
+    <div class="d-flex gap-2">
+        <?php if (has_permission('excel_import')): ?>
+        <a href="<?= APP_URL ?>/modules/excel/import.php" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-file-earmark-excel me-1"></i> Import from Excel
+        </a>
+        <?php endif; ?>
+        <?php if (has_permission('suppliers_create')): ?>
         <button type="button" class="btn btn-sm btn-primary" onclick="openDrawer('drawer-add-supplier')">
             <i class="bi bi-plus-lg me-1"></i> Add Supplier (Ctrl+N)
         </button>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
 </div>
 
 <!-- Search & Filter -->

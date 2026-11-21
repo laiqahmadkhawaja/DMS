@@ -63,6 +63,21 @@ if (isset($_GET['download_template'])) {
         $sh->setCellValue('E2', '1350');
         $sh->setCellValue('F2', '1512');
         $sh->setCellValue('G2', '108');
+    } elseif ($tType === 'suppliers') {
+        $filename = "supplier_import_template.xlsx";
+        $headers = ['Supplier Code', 'Supplier Name*', 'Company Name', 'Contact Person', 'Phone*', 'Address', 'City', 'Opening Balance'];
+        $cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        foreach ($headers as $i => $h) {
+            $sh->setCellValue($cols[$i] . '1', $h);
+        }
+        $sh->setCellValue('A2', 'SUPP-001');
+        $sh->setCellValue('B2', 'National Foods Ltd');
+        $sh->setCellValue('C2', 'National Foods Distribution');
+        $sh->setCellValue('D2', 'Tariq Mahmood');
+        $sh->setCellValue('E2', '03001234567');
+        $sh->setCellValue('F2', 'Small Industrial Estate');
+        $sh->setCellValue('G2', 'Gujranwala');
+        $sh->setCellValue('H2', '150000');
     } else {
         die("Invalid template type.");
     }
@@ -244,6 +259,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         $importedCount++;
                     }
+                } elseif ($importType === 'suppliers') {
+                    // Columns: [Supplier Code, Supplier Name, Company Name, Contact Person, Phone, Address, City, Opening Balance]
+                    $stmtSupp = db()->prepare("
+                        INSERT INTO suppliers (
+                            supplier_code, supplier_name, company_name, contact_person, phone,
+                            address, city, opening_balance, current_balance,
+                            is_active, created_at
+                        ) VALUES (
+                            ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            1, NOW()
+                        )
+                    ");
+
+                    foreach ($rows as $r) {
+                        $sName = trim($r[1] ?? '');
+                        if (empty($sName)) {
+                            $sName = trim($r[0] ?? '');
+                            if (empty($sName)) continue;
+                        }
+
+                        $sCode   = trim($r[0] ?? '');
+                        $cName   = trim($r[2] ?? '');
+                        $cPerson = trim($r[3] ?? '');
+                        $phone   = trim($r[4] ?? '03000000000');
+                        $address = trim($r[5] ?? 'Gujranwala');
+                        $city    = trim($r[6] ?? 'Gujranwala');
+                        $opening = round((float)($r[7] ?? 0), 2);
+
+                        // If supplier code was empty or same as name, generate unique code
+                        if (empty($sCode) || $sCode === $sName) {
+                            $sCode = 'SUPP-' . sprintf('%04d', rand(1000, 9999));
+                        }
+
+                        // Check duplicate code or supplier name
+                        $exists = db_fetch_val("SELECT id FROM suppliers WHERE (supplier_code = ? OR supplier_name = ?) AND is_deleted = 0", [$sCode, $sName]);
+                        if ($exists) continue;
+
+                        $stmtSupp->execute([
+                            $sCode, $sName, $cName, $cPerson, $phone,
+                            $address, $city, $opening, $opening
+                        ]);
+                        $suppId = (int)db()->lastInsertId();
+
+                        // Post opening balance journal entry if > 0 (Debit Capital, Credit Payables)
+                        if ($opening > 0) {
+                            post_journal_entry([
+                                'entry_date'     => date('Y-m-d'),
+                                'reference_type' => 'opening',
+                                'reference_id'   => $suppId,
+                                'narration'      => "Opening Payable Balance for Supplier: {$sName}"
+                            ], [
+                                [
+                                    'account_id'  => ACC_CAPITAL,
+                                    'debit'       => $opening,
+                                    'credit'      => 0.00,
+                                    'description' => "Opening debit reserve for {$sName}",
+                                    'party_type'  => null,
+                                    'party_id'    => null
+                                ],
+                                [
+                                    'account_id'  => ACC_PAYABLES,
+                                    'debit'       => 0.00,
+                                    'credit'      => $opening,
+                                    'description' => "Opening payable balance for {$sName}",
+                                    'party_type'  => 'supplier',
+                                    'party_id'    => $suppId
+                                ]
+                            ]);
+                        }
+                        $importedCount++;
+                    }
                 }
 
                 db()->commit();
@@ -267,7 +354,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <h4 class="mb-1 text-navy fw-bold">
                     <i class="bi bi-upload me-2"></i>Master Data Excel Importer
                 </h4>
-                <p class="text-muted small mb-0">Import customers, product catalogs, and opening inventory balances from Microsoft Excel (.xlsx).</p>
+                <p class="text-muted small mb-0">Import customers, product catalogs, suppliers, and opening balances from Microsoft Excel (.xlsx).</p>
             </div>
             <div>
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
@@ -308,6 +395,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <select name="import_type" id="importTypeSelect" class="form-select" required>
                                     <option value="customers">Customers / Retail Stores (with Opening Balances)</option>
                                     <option value="products">Products & SKUs (with Opening Warehouse Stock)</option>
+                                    <option value="suppliers">Suppliers / Vendors (with Opening Payables)</option>
                                 </select>
                             </div>
 
@@ -343,6 +431,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <a href="import.php?download_template=products" class="btn btn-outline-info text-start p-3">
                                 <div class="fw-bold text-dark"><i class="bi bi-download me-2"></i>Product Import Template (.xlsx)</div>
                                 <div class="small text-muted">Code, Name, Category, Carton Ratio, Wholesale Rate, Opening Stock</div>
+                            </a>
+                            <a href="import.php?download_template=suppliers" class="btn btn-outline-warning text-dark text-start p-3">
+                                <div class="fw-bold text-dark"><i class="bi bi-download me-2"></i>Supplier Import Template (.xlsx)</div>
+                                <div class="small text-muted">Code, Supplier Name, Company, Contact Person, Phone, Address, City, Opening Balance</div>
                             </a>
                         </div>
                     </div>
