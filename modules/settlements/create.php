@@ -508,14 +508,80 @@ function renderSettlementTable() {
 
     tbody.innerHTML = html;
 
-    // Attach listeners
-    document.querySelectorAll('.credit-inp, .return-inp, .cash-inp').forEach(inp => {
+    // Attach listeners with dynamic auto-adjusting
+    document.querySelectorAll('.cash-inp').forEach(inp => {
         inp.addEventListener('input', function() {
-            recalcRow(this.closest('.settle-row'));
-            recalcTotals();
+            handleRowInput(this.closest('.settle-row'), 'cash');
+        });
+    });
+    document.querySelectorAll('.credit-inp').forEach(inp => {
+        inp.addEventListener('input', function() {
+            handleRowInput(this.closest('.settle-row'), 'credit');
+        });
+    });
+    document.querySelectorAll('.return-inp').forEach(inp => {
+        inp.addEventListener('input', function() {
+            handleRowInput(this.closest('.settle-row'), 'return');
         });
     });
 
+    recalcTotals();
+}
+
+function handleRowInput(row, changedField) {
+    const billAmt = parseFloat(row.getAttribute('data-amount')) || 0;
+    const cashInp = row.querySelector('.cash-inp');
+    const creditInp = row.querySelector('.credit-inp');
+    const returnInp = row.querySelector('.return-inp');
+
+    let cash = parseFloat(cashInp.value);
+    let credit = parseFloat(creditInp.value);
+    let ret = parseFloat(returnInp.value) || 0;
+
+    if (changedField === 'cash') {
+        if (!isNaN(cash)) {
+            const rem = billAmt - ret - cash;
+            if (rem >= 0) {
+                creditInp.value = rem > 0 ? rem : '';
+            } else {
+                creditInp.value = '';
+            }
+        }
+    } else if (changedField === 'credit') {
+        if (!isNaN(credit)) {
+            const rem = billAmt - ret - credit;
+            if (rem >= 0) {
+                cashInp.value = rem > 0 ? rem : '';
+            } else {
+                cashInp.value = '';
+            }
+        }
+    } else if (changedField === 'return') {
+        const hasCash = !isNaN(cash);
+        const hasCredit = !isNaN(credit);
+        if (hasCash) {
+            const rem = billAmt - ret - cash;
+            if (rem >= 0) {
+                creditInp.value = rem > 0 ? rem : '';
+            } else {
+                cashInp.value = Math.max(0, billAmt - ret);
+                creditInp.value = '';
+            }
+        } else if (hasCredit) {
+            const rem = billAmt - ret - credit;
+            if (rem >= 0) {
+                cashInp.value = rem > 0 ? rem : '';
+            } else {
+                creditInp.value = Math.max(0, billAmt - ret);
+                cashInp.value = '';
+            }
+        } else {
+            const rem = billAmt - ret;
+            cashInp.value = rem > 0 ? rem : '';
+        }
+    }
+
+    recalcRow(row);
     recalcTotals();
 }
 

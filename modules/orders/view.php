@@ -76,6 +76,12 @@ require_once INCLUDES_PATH . '/topbar.php';
             </a>
         <?php endif; ?>
 
+        <?php if (in_array($order['status'], ['draft', 'confirmed'])): ?>
+            <a href="<?= APP_URL ?>/modules/orders/edit.php?id=<?= $order['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pencil me-1"></i> Edit Order
+            </a>
+        <?php endif; ?>
+
         <a href="<?= APP_URL ?>/modules/orders/print.php?id=<?= $order['id'] ?>" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-printer me-1"></i> Print Order (F10)
         </a>

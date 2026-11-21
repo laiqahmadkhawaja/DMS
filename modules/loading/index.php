@@ -285,8 +285,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <td class="text-end pe-3">
                                             <div class="btn-group btn-group-sm">
                                                 <a href="view.php?id=<?= $ls['id'] ?>" class="btn btn-outline-primary" title="View & Print Issue Summary">
-                                                    <i class="bi bi-printer"></i> Summary
+                                                    <i class="bi bi-eye"></i>
                                                 </a>
+                                                <?php if ($ls['status'] !== 'cancelled' && $ls['status'] !== 'returned_closed'): ?>
+                                                    <a href="edit.php?id=<?= $ls['id'] ?>" class="btn btn-outline-secondary" title="Edit Load Sheet">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                <?php endif; ?>
                                                 <?php if ($ls['status'] === 'draft' && has_permission('loading_issue')): ?>
                                                     <a href="issue.php?id=<?= $ls['id'] ?>" class="btn btn-success" title="Confirm Stock Dispatch">
                                                         <i class="bi bi-box-arrow-right"></i> Issue

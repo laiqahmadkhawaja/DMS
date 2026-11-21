@@ -270,8 +270,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <i class="bi bi-check-lg"></i>
                                     </a>
                                 <?php endif; ?>
-                                <?php if ($ord['status'] === 'draft' && has_permission('orders_edit')): ?>
-                                    <a href="<?= APP_URL ?>/modules/orders/edit.php?id=<?= $ord['id'] ?>" class="btn btn-xs btn-outline-secondary py-0 px-2" title="Edit Draft">
+                                <?php if (in_array($ord['status'], ['draft', 'confirmed'])): ?>
+                                    <a href="<?= APP_URL ?>/modules/orders/edit.php?id=<?= $ord['id'] ?>" class="btn btn-xs btn-outline-secondary py-0 px-2" title="Edit Order">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                 <?php endif; ?>

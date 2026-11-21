@@ -132,6 +132,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Back to Settlements
                 </a>
+                <a href="edit.php?id=<?= $settlement['id'] ?>" class="btn btn-outline-warning btn-sm shadow-sm">
+                    <i class="bi bi-pencil me-1"></i> Edit Settlement
+                </a>
                 <a href="print.php?id=<?= $settlement['id'] ?>" target="_blank" class="btn btn-outline-primary btn-sm shadow-sm">
                     <i class="bi bi-printer me-1"></i> Print Sheet (Photo 1/3)
                 </a>

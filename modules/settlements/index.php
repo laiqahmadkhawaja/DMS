@@ -268,6 +268,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td class="text-end pe-3">
                                             <div class="btn-group btn-group-sm">
+                                                <a href="edit.php?id=<?= $st['id'] ?>" class="btn btn-outline-secondary" title="Edit Settlement & Adjust Balances">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
                                                 <a href="view.php?id=<?= $st['id'] ?>" class="btn btn-outline-primary" title="View & Print Settlement Voucher">
                                                     <i class="bi bi-printer"></i>
                                                 </a>

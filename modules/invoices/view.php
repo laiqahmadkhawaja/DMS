@@ -102,6 +102,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Back to Bills
                 </a>
+                <a href="edit.php?id=<?= $invoice['id'] ?>" class="btn btn-outline-warning btn-sm shadow-sm">
+                    <i class="bi bi-pencil me-1"></i> Edit Bill
+                </a>
                 <div class="btn-group btn-group-sm">
                     <a href="print.php?id=<?= $invoice['id'] ?>" target="_blank" class="btn btn-primary shadow-sm">
                         <i class="bi bi-printer me-1"></i> Print Bill (Photo 2/7)

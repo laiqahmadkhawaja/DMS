@@ -168,6 +168,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="index.php" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </a>
+                <?php if ($sheet['status'] !== 'cancelled' && $sheet['status'] !== 'returned_closed'): ?>
+                    <a href="edit.php?id=<?= $sheet['id'] ?>" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil me-1"></i> Edit Sheet
+                    </a>
+                <?php endif; ?>
                 <a href="print.php?id=<?= $sheet['id'] ?>" target="_blank" class="btn btn-outline-primary btn-sm shadow-sm">
                     <i class="bi bi-printer me-1"></i> Print Sheet (Photo 5/9)
                 </a>

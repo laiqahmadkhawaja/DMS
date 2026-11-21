@@ -328,6 +328,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 <a href="view.php?id=<?= $inv['id'] ?>" class="btn btn-outline-primary" title="View Bill Details">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
+                                                <a href="edit.php?id=<?= $inv['id'] ?>" class="btn btn-outline-warning" title="Edit Bill & Pricing">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
                                                 <a href="print.php?id=<?= $inv['id'] ?>" target="_blank" class="btn btn-outline-secondary" title="Print Customer Memo">
                                                     <i class="bi bi-printer"></i>
                                                 </a>
