@@ -185,4 +185,66 @@
         });
     });
 
+    // 6. Sidebar Scroll Preservation & Auto-scroll to Active Link
+    function initSidebarScroll() {
+        const sidebarMenu = document.querySelector('.dms-sidebar-menu');
+        if (!sidebarMenu) return;
+
+        const activeItem = sidebarMenu.querySelector('.dms-menu-item.active');
+        const savedScroll = sessionStorage.getItem('dms_sidebar_scroll');
+
+        let restored = false;
+        if (savedScroll !== null) {
+            const scrollVal = parseInt(savedScroll, 10);
+            if (!isNaN(scrollVal)) {
+                sidebarMenu.scrollTop = scrollVal;
+                // Verify if active item is comfortably visible in the menu viewport
+                if (activeItem) {
+                    const menuRect = sidebarMenu.getBoundingClientRect();
+                    const itemRect = activeItem.getBoundingClientRect();
+                    if (itemRect.top >= menuRect.top + 10 && itemRect.bottom <= menuRect.bottom - 10) {
+                        restored = true;
+                    }
+                } else {
+                    restored = true;
+                }
+            }
+        }
+
+        // If not restored or active item is outside visible range, scroll it into view (centered)
+        if (!restored && activeItem) {
+            const menuRect = sidebarMenu.getBoundingClientRect();
+            const itemRect = activeItem.getBoundingClientRect();
+            const relativeTop = itemRect.top - menuRect.top + sidebarMenu.scrollTop;
+            const targetScrollTop = relativeTop - (menuRect.height / 2) + (itemRect.height / 2);
+            sidebarMenu.scrollTop = Math.max(0, targetScrollTop);
+        }
+    }
+
+    // Capture sidebar scroll position whenever a user clicks any sidebar link
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('.dms-sidebar-menu a');
+        if (link) {
+            const sidebarMenu = document.querySelector('.dms-sidebar-menu');
+            if (sidebarMenu) {
+                sessionStorage.setItem('dms_sidebar_scroll', sidebarMenu.scrollTop);
+            }
+        }
+    });
+
+    // Also capture sidebar scroll before page unload
+    window.addEventListener('beforeunload', function () {
+        const sidebarMenu = document.querySelector('.dms-sidebar-menu');
+        if (sidebarMenu) {
+            sessionStorage.setItem('dms_sidebar_scroll', sidebarMenu.scrollTop);
+        }
+    });
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSidebarScroll);
+    } else {
+        initSidebarScroll();
+    }
+    requestAnimationFrame(initSidebarScroll);
+
 })();
