@@ -191,31 +191,43 @@ $jv = db_fetch_one("
 
             <!-- Metadata Table -->
             <div class="metadata-table my-3">
-                <table class="table table-borderless table-sm mb-0 fw-bold" style="width: 100% !important; table-layout: fixed; border-collapse: collapse !important; font-size: 11.5px; color: #000; line-height: 1.45;">
-                    <tbody>
-                        <tr>
-                            <td style="width: 18%; padding: 2px 3px;">VOUCHER NO:</td>
-                            <td style="width: 32%; padding: 2px 3px; font-weight: bold;"><?= htmlspecialchars($expense['expense_number']) ?></td>
-                            <td style="width: 18%; padding: 2px 3px;" class="text-end">Voucher Date:</td>
-                            <td style="width: 32%; padding: 2px 3px;">
-                                <span class="date-badge"><?= date('d-m-Y', strtotime($expense['expense_date'])) ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 2px 3px;">Expense Head:</td>
-                            <td style="padding: 2px 3px; font-weight: bold;"><?= htmlspecialchars($expense['category_name']) ?> (<?= htmlspecialchars($expense['category_code']) ?>)</td>
-                            <td style="padding: 2px 3px;" class="text-end">Paid From:</td>
-                            <td style="padding: 2px 3px;">
-                                <span class="fw-bold"><?= htmlspecialchars($expense['paid_from_name']) ?></span>
-                            </td>
-                        </tr>
-                        <?php if ($jv): ?>
-                        <tr>
-                            <td style="padding: 2px 3px;">GL Journal JV:</td>
-                            <td colspan="3" style="padding: 2px 3px;" class="fw-bold text-primary"><?= htmlspecialchars($jv['entry_number']) ?></td>
-                        </tr>
-                        <?php endif; ?>
-                    </tbody>
+                <table style="width: 100% !important; border-collapse: collapse !important; font-size: 11.5px; color: #000; line-height: 1.45;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; padding: 0;">
+                            <table class="table table-borderless table-sm mb-0 fw-bold" style="font-size: 11.5px; color: #000; width: auto; border-collapse: collapse !important;">
+                                <tr>
+                                    <td style="padding: 2px 8px 2px 0; white-space: nowrap; width: 105px;">VOUCHER NO:</td>
+                                    <td style="padding: 2px 0; font-weight: bold;"><?= htmlspecialchars($expense['expense_number']) ?></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 2px 8px 2px 0; white-space: nowrap; width: 105px;">Expense Head:</td>
+                                    <td style="padding: 2px 0; font-weight: bold;"><?= htmlspecialchars($expense['category_name']) ?> (<?= htmlspecialchars($expense['category_code']) ?>)</td>
+                                </tr>
+                                <?php if ($jv): ?>
+                                <tr>
+                                    <td style="padding: 2px 8px 2px 0; white-space: nowrap; width: 105px;">GL Journal JV:</td>
+                                    <td style="padding: 2px 0; font-weight: bold; color: #1e40af;"><?= htmlspecialchars($jv['entry_number']) ?></td>
+                                </tr>
+                                <?php endif; ?>
+                            </table>
+                        </td>
+                        <td style="width: 50%; vertical-align: top; padding: 0;">
+                            <table class="table table-borderless table-sm mb-0 fw-bold" style="font-size: 11.5px; color: #000; width: auto; margin-left: auto; border-collapse: collapse !important;">
+                                <tr>
+                                    <td style="padding: 2px 8px 2px 0; text-align: right; white-space: nowrap;">Voucher Date:</td>
+                                    <td style="padding: 2px 0; text-align: right; white-space: nowrap;">
+                                        <span class="date-badge"><?= date('d-m-Y', strtotime($expense['expense_date'])) ?></span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 2px 8px 2px 0; text-align: right; white-space: nowrap;">Paid From:</td>
+                                    <td style="padding: 2px 0; text-align: right; white-space: nowrap; font-weight: bold;">
+                                        <?= htmlspecialchars($expense['paid_from_name']) ?>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
                 </table>
             </div>
 
