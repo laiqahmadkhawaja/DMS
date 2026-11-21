@@ -137,6 +137,27 @@ $lineHeight = $compactMode ? '21px' : '24px';
             <?php endfor; ?>
         </tbody>
         <tfoot>
+            <?php 
+            $totDiscount = (float)($invoice['extra_discount_amount'] ?? 0) + (float)($invoice['item_discount_amount'] ?? 0);
+            if ($totDiscount > 0): 
+                $discLabel = (!empty($invoice['discount_mode']) && $invoice['discount_mode'] === 'subtotal') ? 'Subtotal Disc' : 'Discount';
+                if (!empty($invoice['subtotal_discount_percent']) && (float)$invoice['subtotal_discount_percent'] > 0) {
+                    $discLabel .= ' (' . (float)$invoice['subtotal_discount_percent'] . '%)';
+                }
+            ?>
+                <tr style="background-color: #fff; color: #000; border-top: 1px solid #000 !important;" class="fw-bold">
+                    <td colspan="6" class="text-end text-uppercase" style="border: 1px solid #000 !important; padding: 1px 5px; font-size: <?= $fontSize ?>;">Gross Total:</td>
+                    <td class="text-end pe-1" style="border: 1px solid #000 !important; padding: 1px 5px; font-size: <?= $fontSize ?>;">
+                        <?= number_format((float)$invoice['gross_amount'], 0) ?>
+                    </td>
+                </tr>
+                <tr style="background-color: #fff; color: #a00; border-top: 1px solid #000 !important;" class="fw-bold">
+                    <td colspan="6" class="text-end text-uppercase" style="border: 1px solid #000 !important; padding: 1px 5px; font-size: <?= $fontSize ?>;"><?= $discLabel ?>:</td>
+                    <td class="text-end pe-1" style="border: 1px solid #000 !important; padding: 1px 5px; font-size: <?= $fontSize ?>; color: #a00;">
+                        -<?= number_format($totDiscount, 0) ?>
+                    </td>
+                </tr>
+            <?php endif; ?>
             <tr style="background-color: #c99c04 !important; color: #000 !important; border-top: 1.5px solid #000 !important; border-bottom: 1.5px solid #000 !important;" class="fw-bold">
                 <td colspan="6" class="text-center text-uppercase" style="border: 1px solid #000 !important; padding: 2px 5px; font-size: <?= $fontSize ?>; letter-spacing: 1px;">Total</td>
                 <td class="text-end pe-1" style="border: 1px solid #000 !important; padding: 2px 5px; font-size: <?= $fontSize ?>;">

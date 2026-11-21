@@ -182,13 +182,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtInv = db()->prepare("
                     INSERT INTO sales_invoices (
                         invoice_number, invoice_date, order_id, load_sheet_id, customer_id, 
-                        booker_id, salesman_id, area_id, gross_amount, item_discount_amount, 
-                        extra_discount_amount, net_amount, status, reconciliation_status, payment_status,
+                        booker_id, salesman_id, area_id, discount_mode, gross_amount, item_discount_amount, 
+                        extra_discount_amount, subtotal_discount_percent, net_amount, status, reconciliation_status, payment_status,
                         created_by, finalized_at, created_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, 
-                        ?, ?, ?, ?, ?, 
-                        ?, ?, 'finalized', 'pending', 'unpaid',
+                        ?, ?, ?, ?, ?, ?, 
+                        ?, ?, ?, 'finalized', 'pending', 'unpaid',
                         ?, NOW(), NOW()
                     )
                 ");
@@ -208,11 +208,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $ord = db_fetch_one("SELECT * FROM orders WHERE id = ?", [(int)$ordId]);
                     if ($ord) {
+                        $isSubtotal = ($ord['discount_mode'] ?? 'item_rate') === 'subtotal';
+                        $itemDisc = $isSubtotal ? 0.00 : (float)$ord['discount_amount'];
+                        $extraDisc = $isSubtotal ? (float)$ord['discount_amount'] : 0.00;
+                        $subtotalDiscPct = $isSubtotal ? (float)($ord['subtotal_discount_percent'] ?? 0) : 0.00;
+
                         $invNumber = generate_document_number(PREFIX_INVOICE, 'sales_invoices', 'invoice_number');
                         $stmtInv->execute([
                             $invNumber, $deliveryDate, $ord['id'], $loadSheetId, $ord['customer_id'],
-                            $ord['booker_id'], $salesmanId, $ord['area_id'], $ord['gross_amount'],
-                            $ord['discount_amount'], 0.00, $ord['net_amount'],
+                            $ord['booker_id'], $salesmanId, $ord['area_id'], $ord['discount_mode'] ?? 'item_rate',
+                            $ord['gross_amount'], $itemDisc, $extraDisc, $subtotalDiscPct, $ord['net_amount'],
                             $userId
                         ]);
                         $invoiceId = (int)db()->lastInsertId();

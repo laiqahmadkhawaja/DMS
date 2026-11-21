@@ -83,6 +83,9 @@ $orders = db_fetch_all("
         c.phone as customer_phone,
         a.area_name,
         b.booker_name,
+        o.gross_amount,
+        o.discount_amount,
+        o.discount_mode,
         o.net_amount,
         o.status as order_status,
         inv.id as invoice_id,
@@ -508,7 +511,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="fw-semibold text-dark"><?= htmlspecialchars($o['shop_name']) ?></td>
                                     <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($o['area_name']) ?></span></td>
                                     <td><?= htmlspecialchars($o['booker_name']) ?></td>
-                                    <td class="text-end fw-bold text-navy"><?= format_currency((float)$o['net_amount']) ?></td>
+                                    <td class="text-end fw-bold text-navy">
+                                        <?= format_currency((float)$o['net_amount']) ?>
+                                        <?php if ((float)($o['discount_amount'] ?? 0) > 0): ?>
+                                            <small class="text-danger d-block fw-normal" style="font-size: 11px;">
+                                                -<?= format_currency((float)$o['discount_amount']) ?> (<?= ($o['discount_mode'] ?? '') === 'subtotal' ? 'Subtotal' : 'Item' ?>)
+                                            </small>
+                                        <?php endif; ?>
+                                    </td>
                                     <?php if ($showFilled): ?>
                                         <td class="text-end fw-bold text-success"><?= number_format($rowCash, 2) ?></td>
                                         <td class="text-end fw-bold text-danger"><?= number_format($rowCredit, 2) ?></td>

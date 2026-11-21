@@ -171,12 +171,30 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <?php endforeach; ?>
             </tbody>
             <tfoot class="table-fmcg-total">
+                <?php 
+                $ordDiscount = (float)($order['discount_amount'] ?? 0);
+                $ordMode = $order['discount_mode'] ?? 'item_rate';
+                if ($ordDiscount > 0): 
+                    $discLabel = ($ordMode === 'subtotal') ? 'Subtotal Disc' : 'Item Disc';
+                    if (!empty($order['subtotal_discount_percent']) && (float)$order['subtotal_discount_percent'] > 0) {
+                        $discLabel .= ' (' . (float)$order['subtotal_discount_percent'] . '%)';
+                    }
+                ?>
+                    <tr class="table-light">
+                        <th colspan="5" class="text-end text-muted small text-uppercase">Gross Total:</th>
+                        <th class="text-end" colspan="3"><?= format_currency($order['gross_amount']) ?></th>
+                    </tr>
+                    <tr class="table-light text-danger">
+                        <th colspan="5" class="text-end small text-uppercase"><?= $discLabel ?>:</th>
+                        <th class="text-end text-danger" colspan="3">-<?= format_currency($ordDiscount) ?></th>
+                    </tr>
+                <?php endif; ?>
                 <tr>
-                    <th colspan="2" class="text-end">Order Totals:</th>
+                    <th colspan="2" class="text-end">Order Net:</th>
                     <th class="text-center"><?= format_qty($totalCartons) ?> Ctns</th>
                     <th class="text-center"><?= $calcPacks > 0 ? format_qty($calcPacks) . ' Pck' : '-' ?></th>
                     <th class="text-center"><?= format_qty($totalUnits) ?> Pcs</th>
-                    <th class="text-end" colspan="2">Gross: <?= format_currency($order['gross_amount']) ?></th>
+                    <th class="text-end" colspan="2"><?= $ordDiscount > 0 ? 'Net Payable:' : 'Gross:' ?></th>
                     <th class="text-end fs-6"><?= format_currency($order['net_amount']) ?></th>
                 </tr>
             </tfoot>

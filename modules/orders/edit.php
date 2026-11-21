@@ -66,6 +66,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $itemRates      = $_POST['item_rate'] ?? [];
     $itemDiscounts  = $_POST['item_discount_percent'] ?? [];
 
+    $discountMode = clean_input($_POST['discount_mode'] ?? ($order['discount_mode'] ?? 'item_rate'));
+    if ($discountMode !== 'subtotal') {
+        $discountMode = 'item_rate';
+    }
+    $subtotalDiscountPercent = (float)($_POST['subtotal_discount_percent'] ?? ($order['subtotal_discount_percent'] ?? 0));
+    $subtotalDiscountAmount  = (float)($_POST['subtotal_discount_amount'] ?? ($order['subtotal_discount_amount'] ?? 0));
+
     $grossAmount = 0.0;
     $discountAmount = 0.0;
     $totalCartons = 0.0;
@@ -96,11 +103,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $totalQuantityInBaseUnits = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
         $baseCartons = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
         $lineGross = $baseCartons * $rate;
-        $lineDiscount = ($lineGross * $discPercent) / 100.0;
-        $lineTotal = $lineGross - $lineDiscount;
+
+        if ($discountMode === 'subtotal') {
+            $itemDiscPct = 0.0;
+            $lineDiscount = 0.0;
+            $lineTotal = $lineGross;
+        } else {
+            $itemDiscPct = $discPercent;
+            $lineDiscount = ($lineGross * $itemDiscPct) / 100.0;
+            $lineTotal = $lineGross - $lineDiscount;
+            $discountAmount += $lineDiscount;
+        }
 
         $grossAmount += $lineGross;
-        $discountAmount += $lineDiscount;
         $totalCartons += $cartonQty;
         $totalPieces += $pcsQty;
         $totalUnits += $totalQuantityInBaseUnits;
@@ -113,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'pcs_qty'          => $pcsQty,
             'quantity'         => $totalQuantityInBaseUnits,
             'rate'             => $rate,
-            'discount_percent' => $discPercent,
+            'discount_percent' => $itemDiscPct,
             'discount_amount'  => $lineDiscount,
             'line_total'       => $lineTotal
         ];
@@ -122,7 +137,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($validItems)) {
         set_flash_message('danger', 'Please include at least one valid product line in the order.');
     } else {
-        $netAmount = round($grossAmount - $discountAmount, 2);
+        if ($discountMode === 'subtotal') {
+            if ($subtotalDiscountAmount > 0) {
+                $discountAmount = $subtotalDiscountAmount;
+                if ($grossAmount > 0 && $subtotalDiscountPercent <= 0) {
+                    $subtotalDiscountPercent = round(($discountAmount / $grossAmount) * 100, 2);
+                }
+            } elseif ($subtotalDiscountPercent > 0) {
+                $discountAmount = round(($grossAmount * $subtotalDiscountPercent) / 100.0, 2);
+                $subtotalDiscountAmount = $discountAmount;
+            } else {
+                $discountAmount = 0.0;
+                $subtotalDiscountAmount = 0.0;
+                $subtotalDiscountPercent = 0.0;
+            }
+        } else {
+            $subtotalDiscountPercent = 0.0;
+            $subtotalDiscountAmount = 0.0;
+        }
+
+        $netAmount = max(0, round($grossAmount - $discountAmount, 2));
 
         try {
             db()->beginTransaction();
@@ -131,12 +165,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtUpd = db()->prepare("
                 UPDATE orders 
                 SET order_date = ?, delivery_date = ?, customer_id = ?, booker_id = ?, area_id = ?,
+                    discount_mode = ?, subtotal_discount_percent = ?, subtotal_discount_amount = ?,
                     gross_amount = ?, discount_amount = ?, net_amount = ?, total_cartons = ?, 
                     total_units = ?, status = ?, remarks = ?, updated_at = NOW()
                 WHERE id = ?
             ");
             $stmtUpd->execute([
                 $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
+                $discountMode, $subtotalDiscountPercent, $subtotalDiscountAmount,
                 $grossAmount, $discountAmount, $netAmount, $totalCartons,
                 $totalUnits, $orderStatus, $remarks, $id
             ]);
@@ -251,6 +287,32 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </div>
             </div>
 
+            <!-- Discount Mode Radio Selection Bar -->
+            <div class="pos-discount-mode-bar bg-light p-2 border mb-3 rounded d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="small fw-bold text-secondary"><i class="bi bi-tag-fill me-1 text-primary"></i> Discount Type:</span>
+                    <div class="form-check form-check-inline m-0">
+                        <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeItem" value="item_rate" <?= ($order['discount_mode'] ?? 'item_rate') === 'item_rate' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
+                        <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeItem">Discount from per item rate</label>
+                    </div>
+                    <div class="form-check form-check-inline m-0">
+                        <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeSubtotal" value="subtotal" <?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
+                        <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeSubtotal">Discount from subtotal</label>
+                    </div>
+                </div>
+                <div id="subtotalDiscountInputs" class="<?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'd-flex' : 'd-none' ?> align-items-center gap-2">
+                    <span class="small fw-bold text-navy">Subtotal Disc:</span>
+                    <div class="input-group input-group-sm" style="width: 110px;">
+                        <input type="number" step="0.01" min="0" max="100" name="subtotal_discount_percent" id="subtotalDiscountPercent" class="form-control form-control-sm text-end" placeholder="0" value="<?= (float)($order['subtotal_discount_percent'] ?? 0) > 0 ? (float)$order['subtotal_discount_percent'] : '' ?>" oninput="onSubtotalPercentChange()">
+                        <span class="input-group-text small">%</span>
+                    </div>
+                    <div class="input-group input-group-sm" style="width: 140px;">
+                        <span class="input-group-text small">Rs</span>
+                        <input type="number" step="0.01" min="0" name="subtotal_discount_amount" id="subtotalDiscountAmount" class="form-control form-control-sm text-end" placeholder="0.00" value="<?= (float)($order['subtotal_discount_amount'] ?? 0) > 0 ? (float)$order['subtotal_discount_amount'] : '' ?>" oninput="onSubtotalAmountChange()">
+                    </div>
+                </div>
+            </div>
+
             <!-- Items Grid -->
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
@@ -322,7 +384,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-center" id="footCtn">0</td>
                                     <td class="text-center" id="footPack">0</td>
                                     <td class="text-center" id="footPcs">0</td>
-                                    <td colspan="2" class="text-end">Order Net:</td>
+                                    <td class="text-end" id="footGross">Rs. 0.00</td>
+                                    <td class="text-center text-danger" id="footDisc">Rs. 0.00</td>
                                     <td class="text-end pe-3 text-navy fs-6" id="footNet">Rs. 0.00</td>
                                     <td></td>
                                 </tr>
@@ -386,9 +449,136 @@ require_once INCLUDES_PATH . '/topbar.php';
 </template>
 
 <script>
+function getDiscountMode() {
+    const radio = document.querySelector('input[name="discount_mode"]:checked');
+    return radio ? radio.value : 'item_rate';
+}
+
+function onDiscountModeChange() {
+    const mode = getDiscountMode();
+    const subtotalBox = document.getElementById('subtotalDiscountInputs');
+    const discInps = document.querySelectorAll('.disc-inp');
+
+    if (mode === 'subtotal') {
+        if (subtotalBox) {
+            subtotalBox.classList.remove('d-none');
+            subtotalBox.classList.add('d-flex');
+        }
+        discInps.forEach(inp => {
+            inp.disabled = true;
+            inp.classList.add('bg-light', 'text-muted');
+            inp.title = 'Disabled in subtotal discount mode';
+        });
+        const pctEl = document.getElementById('subtotalDiscountPercent');
+        const amtEl = document.getElementById('subtotalDiscountAmount');
+        if (parseFloat(pctEl?.value) > 0) {
+            onSubtotalPercentChange();
+        } else if (parseFloat(amtEl?.value) > 0) {
+            onSubtotalAmountChange();
+        }
+    } else {
+        if (subtotalBox) {
+            subtotalBox.classList.remove('d-flex');
+            subtotalBox.classList.add('d-none');
+        }
+        discInps.forEach(inp => {
+            inp.disabled = false;
+            inp.classList.remove('bg-light', 'text-muted');
+            inp.title = '';
+        });
+    }
+
+    recalcAllOrderLines();
+    recalcOrderTotals();
+}
+
+function onSubtotalPercentChange() {
+    const mode = getDiscountMode();
+    if (mode !== 'subtotal') return;
+
+    const pctVal = parseFloat(document.getElementById('subtotalDiscountPercent')?.value) || 0;
+    let grossTotal = 0;
+    document.querySelectorAll('.item-row').forEach(row => {
+        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+        const pcsPerCtn   = packsPerCtn * pcsPerPack;
+        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
+        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
+        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
+        const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
+        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
+        grossTotal += (baseCartons * rate);
+    });
+
+    const amt = Math.round(((grossTotal * pctVal) / 100.0) * 100) / 100;
+    const amtEl = document.getElementById('subtotalDiscountAmount');
+    if (amtEl && document.activeElement !== amtEl) {
+        amtEl.value = amt > 0 ? amt.toFixed(2) : '';
+    }
+
+    recalcOrderTotals();
+}
+
+function onSubtotalAmountChange() {
+    const mode = getDiscountMode();
+    if (mode !== 'subtotal') return;
+
+    const amtVal = parseFloat(document.getElementById('subtotalDiscountAmount')?.value) || 0;
+    let grossTotal = 0;
+    document.querySelectorAll('.item-row').forEach(row => {
+        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+        const pcsPerCtn   = packsPerCtn * pcsPerPack;
+        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
+        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
+        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
+        const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
+        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
+        grossTotal += (baseCartons * rate);
+    });
+
+    const pct = grossTotal > 0 ? Math.round(((amtVal / grossTotal) * 100.0) * 100) / 100 : 0;
+    const pctEl = document.getElementById('subtotalDiscountPercent');
+    if (pctEl && document.activeElement !== pctEl) {
+        pctEl.value = pct > 0 ? pct.toFixed(2) : '';
+    }
+
+    recalcOrderTotals();
+}
+
+function recalcAllOrderLines() {
+    const mode = getDiscountMode();
+    document.querySelectorAll('.item-row').forEach(row => {
+        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+        const pcsPerCtn   = packsPerCtn * pcsPerPack;
+        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
+        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
+        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
+        const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
+        const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
+
+        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
+        const gross = baseCartons * rate;
+        const discAmt = (mode === 'subtotal') ? 0 : ((gross * disc) / 100);
+        const net = gross - discAmt;
+
+        row.querySelector('.line-total').innerText = net.toLocaleString('en-US', {minimumFractionDigits: 2});
+    });
+}
+
 function addOrderRow() {
     const tpl = document.getElementById('orderRowTpl').content.cloneNode(true);
     document.getElementById('orderItemsTbody').appendChild(tpl);
+    if (getDiscountMode() === 'subtotal') {
+        const lastRow = document.querySelector('#orderItemsTbody tr:last-child');
+        const discInp = lastRow?.querySelector('.disc-inp');
+        if (discInp) {
+            discInp.disabled = true;
+            discInp.classList.add('bg-light', 'text-muted');
+            discInp.title = 'Disabled in subtotal discount mode';
+        }
+    }
     recalcOrderTotals();
 }
 
@@ -428,20 +618,32 @@ function recalcOrderLine(el) {
     const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
     const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
 
+    const mode = getDiscountMode();
     const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
     const gross = baseCartons * rate;
-    const discAmt = (gross * disc) / 100;
+    const discAmt = (mode === 'subtotal') ? 0 : ((gross * disc) / 100);
     const net = gross - discAmt;
 
     row.querySelector('.line-total').innerText = net.toLocaleString('en-US', {minimumFractionDigits: 2});
+    
+    if (mode === 'subtotal') {
+        const pctEl = document.getElementById('subtotalDiscountPercent');
+        if (pctEl && parseFloat(pctEl.value) > 0) {
+            onSubtotalPercentChange();
+            return;
+        }
+    }
+
     recalcOrderTotals();
 }
 
 function recalcOrderTotals() {
+    const mode = getDiscountMode();
     let totCtn = 0;
     let totPack = 0;
     let totPcs = 0;
-    let totNet = 0;
+    let totGross = 0;
+    let totItemDisc = 0;
 
     document.querySelectorAll('.item-row').forEach(row => {
         const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
@@ -456,22 +658,46 @@ function recalcOrderTotals() {
 
         const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
         const gross = baseCartons * rate;
-        const discAmt = (gross * disc) / 100;
-        const net = gross - discAmt;
+        const discAmt = (mode === 'subtotal') ? 0 : ((gross * disc) / 100);
 
         totCtn += ctn;
         totPack += pack;
         totPcs += pcs;
-        totNet += net;
+        totGross += gross;
+        totItemDisc += discAmt;
     });
+
+    let finalDisc = 0;
+    if (mode === 'subtotal') {
+        const subtotalAmt = parseFloat(document.getElementById('subtotalDiscountAmount')?.value) || 0;
+        const subtotalPct = parseFloat(document.getElementById('subtotalDiscountPercent')?.value) || 0;
+        if (subtotalAmt > 0) {
+            finalDisc = subtotalAmt;
+        } else if (subtotalPct > 0) {
+            finalDisc = (totGross * subtotalPct) / 100.0;
+        }
+    } else {
+        finalDisc = totItemDisc;
+    }
+
+    const finalNet = Math.max(0, totGross - finalDisc);
 
     document.getElementById('footCtn').innerText = totCtn;
     if (document.getElementById('footPack')) document.getElementById('footPack').innerText = totPack;
     document.getElementById('footPcs').innerText = totPcs;
-    document.getElementById('footNet').innerText = 'Rs. ' + totNet.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('footGross').innerText = 'Rs. ' + totGross.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('footDisc').innerText = '-Rs. ' + finalDisc.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('footNet').innerText = 'Rs. ' + finalNet.toLocaleString('en-US', {minimumFractionDigits: 2});
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    if (getDiscountMode() === 'subtotal') {
+        document.querySelectorAll('.disc-inp').forEach(inp => {
+            inp.disabled = true;
+            inp.classList.add('bg-light', 'text-muted');
+            inp.title = 'Disabled in subtotal discount mode';
+        });
+    }
     recalcOrderTotals();
 });
 </script>

@@ -225,9 +225,19 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <span class="text-muted">Gross Amount:</span>
                             <span class="fw-semibold text-dark"><?= format_currency((float)$invoice['gross_amount']) ?></span>
                         </div>
+                        <?php 
+                        $totalDisc = (float)($invoice['item_discount_amount'] ?? 0) + (float)($invoice['extra_discount_amount'] ?? 0);
+                        $discMode = $invoice['discount_mode'] ?? ((float)($invoice['extra_discount_amount'] ?? 0) > 0 ? 'subtotal' : 'item_rate');
+                        ?>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Discount Mode:</span>
+                            <span class="badge <?= $discMode === 'subtotal' ? 'bg-info text-dark' : 'bg-secondary' ?>">
+                                <?= $discMode === 'subtotal' ? 'Subtotal Discount' : 'Per Item Rate' ?>
+                            </span>
+                        </div>
                         <div class="d-flex justify-content-between mb-2">
                             <span class="text-muted">Discount Allowed:</span>
-                            <span class="fw-semibold text-danger">-<?= format_currency((float)$invoice['item_discount_amount']) ?></span>
+                            <span class="fw-semibold text-danger">-<?= format_currency($totalDisc) ?></span>
                         </div>
                         <hr>
                         <div class="d-flex justify-content-between mb-3">
