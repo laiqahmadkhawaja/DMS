@@ -207,8 +207,8 @@ $invoicesList = db_fetch_all("
 $expensesList = db_fetch_all("
     SELECT e.*, ec.category_name, a.account_name, u.full_name as creator_name
     FROM expenses e
-    LEFT JOIN expense_categories ec ON e.category_id = ec.id
-    LEFT JOIN accounts a ON e.account_id = a.id
+    LEFT JOIN expense_categories ec ON e.expense_category_id = ec.id
+    LEFT JOIN accounts a ON e.paid_from_account_id = a.id
     LEFT JOIN users u ON e.created_by = u.id
     WHERE e.expense_date BETWEEN ? AND ?
     ORDER BY e.expense_date DESC, e.id DESC
@@ -685,7 +685,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 <td><?= date('d-M-Y', strtotime($exp['expense_date'])) ?></td>
                                                 <td><span class="badge bg-secondary"><?= htmlspecialchars($exp['category_name'] ?? 'General') ?></span></td>
                                                 <td class="text-wrap font-sans"><?= htmlspecialchars($exp['description']) ?></td>
-                                                <td class="font-sans"><?= htmlspecialchars($exp['paid_to'] ?? '-') ?></td>
+                                                <td class="font-sans"><?= htmlspecialchars($exp['payee_name'] ?? $exp['paid_to'] ?? '-') ?></td>
                                                 <td class="text-uppercase"><?= htmlspecialchars($exp['payment_mode']) ?></td>
                                                 <td class="text-end fw-bold text-danger"><?= format_currency((float)$exp['amount']) ?></td>
                                             </tr>
