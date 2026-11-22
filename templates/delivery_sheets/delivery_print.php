@@ -29,8 +29,16 @@ $isSettled = !empty($run['status']) && $run['status'] === 'completed';
             </h4>
             <div class="fw-semibold text-dark" style="font-size: 10px;">
                 <?= CLIENT_NAME ?> &bull; Salesman: <strong><?= htmlspecialchars($run['salesman_name']) ?></strong> (<?= htmlspecialchars($run['salesman_phone'] ?: 'N/A') ?>)
-                <?php if (!empty($run['load_number'])): ?>
+                <?php if ($run['run_type'] === 'manual'): ?>
+                    &bull; <span style="background-color: #000; color: #fff; padding: 1px 4px; border-radius: 2px;">Manual Recovery Sheet</span>
+                    <?php if (!empty($run['run_area_name'])): ?>
+                        &bull; Route: <strong><?= htmlspecialchars($run['run_area_name']) ?></strong>
+                    <?php endif; ?>
+                <?php elseif (!empty($run['load_number'])): ?>
                     &bull; Load Sheet: <strong><?= htmlspecialchars($run['load_number']) ?></strong>
+                <?php endif; ?>
+                <?php if (!empty($run['route_notes'])): ?>
+                    &bull; Notes: <em><?= htmlspecialchars($run['route_notes']) ?></em>
                 <?php endif; ?>
             </div>
         </div>
@@ -76,14 +84,19 @@ $isSettled = !empty($run['status']) && $run['status'] === 'completed';
 
                 // Calculate Previous Balance & Total Due
                 $custBal = (float)($b['customer_current_balance'] ?? 0);
-                if ($isSettled) {
+                if ($run['run_type'] === 'manual') {
+                    $prevBal = ((float)$b['prev_balance'] > 0 || (float)$b['net_amount'] > 0) ? (float)$b['prev_balance'] : $custBal;
+                    $totalDue = $prevBal + $billAmount;
+                    $remainingBal = max(0, $totalDue - ($cashVal + $returnVal));
+                } elseif ($isSettled) {
                     $prevBal = max(0, $custBal - $creditVal);
                     $remainingBal = max(0, $prevBal + $billAmount - ($cashVal + $returnVal));
+                    $totalDue = $prevBal + $billAmount;
                 } else {
                     $prevBal = $custBal;
                     $remainingBal = $prevBal + $billAmount;
+                    $totalDue = $prevBal + $billAmount;
                 }
-                $totalDue = $prevBal + $billAmount;
 
                 $totalPrevBal    += $prevBal;
                 $totalBillAmount += $billAmount;

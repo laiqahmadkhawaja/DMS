@@ -147,9 +147,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </h4>
                 <p class="text-muted small mb-0">Assign customer bills to delivery salesman and generate field recovery sheet</p>
             </div>
-            <div>
+            <div class="d-flex gap-2">
                 <a href="index.php" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left me-1"></i> Back to Runs
+                </a>
+                <a href="create_manual.php" class="btn btn-primary shadow-sm fw-bold">
+                    <i class="bi bi-pencil-square me-1"></i> Switch to Manual / Recovery Sheet
                 </a>
             </div>
         </div>

@@ -82,6 +82,8 @@ $runs = db_fetch_all("
         dr.run_number,
         dr.run_date,
         dr.salesman_id,
+        dr.run_type,
+        a.area_name,
         s.salesman_name,
         ls.load_number,
         dr.total_bills,
@@ -92,6 +94,7 @@ $runs = db_fetch_all("
     FROM delivery_runs dr
     JOIN salesmen s ON dr.salesman_id = s.id
     LEFT JOIN load_sheets ls ON dr.load_sheet_id = ls.id
+    LEFT JOIN areas a ON dr.area_id = a.id
     WHERE {$whereClause}
     ORDER BY dr.run_date DESC, dr.id DESC
     LIMIT {$perPage} OFFSET {$offset}
@@ -117,8 +120,11 @@ require_once INCLUDES_PATH . '/topbar.php';
             </div>
             <div class="d-flex gap-2">
                 <?php if (has_permission('delivery_manage')): ?>
-                    <a href="create.php" class="btn btn-primary shadow-sm">
-                        <i class="bi bi-plus-circle me-1"></i> New Delivery Run
+                    <a href="create.php" class="btn btn-outline-primary shadow-sm">
+                        <i class="bi bi-truck-flatbed me-1"></i> From Load Sheet
+                    </a>
+                    <a href="create_manual.php" class="btn btn-primary shadow-sm fw-bold">
+                        <i class="bi bi-pencil-square me-1"></i> New Manual / Recovery Sheet (مینول رن شیٹ)
                     </a>
                 <?php endif; ?>
             </div>
@@ -210,7 +216,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th class="ps-3">Run #</th>
                                 <th>Date</th>
                                 <th>Salesman</th>
-                                <th>Source Load Sheet</th>
+                                <th>Source / Type</th>
                                 <th class="text-center">Total Bills</th>
                                 <th class="text-end">Run Value</th>
                                 <th class="text-center">Status</th>
@@ -236,8 +242,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <td><?= date('d-M-Y', strtotime($r['run_date'])) ?></td>
                                         <td class="fw-semibold text-dark"><?= htmlspecialchars($r['salesman_name']) ?></td>
                                         <td>
-                                            <?php if ($r['load_number']): ?>
-                                                <span class="badge bg-light text-dark border"><?= htmlspecialchars($r['load_number']) ?></span>
+                                            <?php if ($r['run_type'] === 'manual'): ?>
+                                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                                    <i class="bi bi-pencil-square me-1"></i>Manual Recovery
+                                                </span>
+                                                <?php if (!empty($r['area_name'])): ?>
+                                                    <small class="d-block text-muted"><?= htmlspecialchars($r['area_name']) ?></small>
+                                                <?php endif; ?>
+                                            <?php elseif ($r['load_number']): ?>
+                                                <span class="badge bg-light text-dark border"><i class="bi bi-truck me-1"></i><?= htmlspecialchars($r['load_number']) ?></span>
                                             <?php else: ?>
                                                 <span class="text-muted small">Direct Run</span>
                                             <?php endif; ?>

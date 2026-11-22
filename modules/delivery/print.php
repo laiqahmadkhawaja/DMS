@@ -24,10 +24,12 @@ $run = db_fetch_one("
         s.salesman_name,
         s.phone as salesman_phone,
         ls.load_number,
+        a.area_name as run_area_name,
         u.full_name as creator_name
     FROM delivery_runs dr
     JOIN salesmen s ON dr.salesman_id = s.id
     LEFT JOIN load_sheets ls ON dr.load_sheet_id = ls.id
+    LEFT JOIN areas a ON dr.area_id = a.id
     LEFT JOIN users u ON dr.created_by = u.id
     WHERE dr.id = ?
 ", [$id]);
@@ -48,26 +50,31 @@ $fillFigures = isset($_GET['filled']) ? ($_GET['filled'] == '1') : $isSettled;
 $bills = db_fetch_all("
     SELECT 
         drb.*,
-        inv.invoice_number,
+        COALESCE(inv.invoice_number, drb.bill_number, CONCAT('REC-', COALESCE(c_direct.id, c_inv.id))) as invoice_number,
         inv.invoice_date,
-        inv.net_amount,
-        COALESCE(si.cash_amount, inv.paid_amount) as cash_amount,
-        COALESCE(si.credit_amount, inv.credit_amount) as credit_amount,
-        COALESCE(si.return_amount, inv.return_amount) as return_amount,
-        c.shop_name,
-        c.current_balance as customer_current_balance,
-        c.phone as customer_phone,
-        c.address as customer_address,
-        a.area_name,
-        b.booker_name
+        COALESCE(drb.bill_amount, inv.net_amount, 0) as net_amount,
+        COALESCE(si.cash_amount, drb.cash_collected, inv.paid_amount, 0) as cash_amount,
+        COALESCE(si.credit_amount, drb.credit_given, inv.credit_amount, 0) as credit_amount,
+        COALESCE(si.return_amount, drb.return_value, inv.return_amount, 0) as return_amount,
+        COALESCE(c_inv.shop_name, c_direct.shop_name) as shop_name,
+        COALESCE(c_inv.current_balance, c_direct.current_balance, 0) as customer_current_balance,
+        COALESCE(c_inv.phone, c_direct.phone) as customer_phone,
+        COALESCE(c_inv.address, c_direct.address) as customer_address,
+        COALESCE(a_inv.area_name, a_direct.area_name, a_run.area_name, '-') as area_name,
+        COALESCE(b_inv.booker_name, b_direct.booker_name, '-') as booker_name
     FROM delivery_run_bills drb
-    JOIN sales_invoices inv ON drb.invoice_id = inv.id
+    LEFT JOIN sales_invoices inv ON drb.invoice_id = inv.id
     LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
-    JOIN customers c ON inv.customer_id = c.id
-    JOIN areas a ON inv.area_id = a.id
-    JOIN bookers b ON inv.booker_id = b.id
+    LEFT JOIN customers c_inv ON inv.customer_id = c_inv.id
+    LEFT JOIN customers c_direct ON drb.customer_id = c_direct.id
+    LEFT JOIN areas a_inv ON inv.area_id = a_inv.id
+    LEFT JOIN areas a_direct ON c_direct.area_id = a_direct.id
+    LEFT JOIN delivery_runs dr ON drb.delivery_run_id = dr.id
+    LEFT JOIN areas a_run ON dr.area_id = a_run.id
+    LEFT JOIN bookers b_inv ON inv.booker_id = b_inv.id
+    LEFT JOIN bookers b_direct ON c_direct.booker_id = b_direct.id
     WHERE drb.delivery_run_id = ?
-    ORDER BY drb.stop_sequence ASC, a.area_name ASC, c.shop_name ASC
+    ORDER BY drb.stop_sequence ASC, drb.id ASC
 ", [$settlement ? $settlement['id'] : 0, $id]);
 ?>
 <!DOCTYPE html>
