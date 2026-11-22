@@ -353,6 +353,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <input type="text" id="productSearch" class="form-control form-control-sm pos-search-input" 
                                        placeholder="Search product name, code, packing... (Press / or F2)" autocomplete="off">
                             </div>
+
+                            <!-- Company / Supplier Filter -->
+                            <div class="d-flex align-items-center gap-2 mb-2 px-1">
+                                <span class="small fw-bold text-secondary text-nowrap"><i class="bi bi-building me-1 text-primary"></i>Company / Supplier:</span>
+                                <select id="catalogSupplierFilter" class="form-select form-select-sm py-0" style="font-size:12px; height:28px;">
+                                    <option value="">-- All Companies / Suppliers --</option>
+                                    <?php foreach ($suppliers as $sup): ?>
+                                        <option value="<?= $sup['id'] ?>"><?= htmlspecialchars($sup['supplier_name']) ?><?= !empty($sup['company_name']) ? ' (' . htmlspecialchars($sup['company_name']) . ')' : '' ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                             
                             <!-- Category Filter Pills -->
                             <div class="pos-category-pills">
@@ -547,6 +558,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Supplier selection updates financial balance & contact banner, and filters products
     supplierSelect.addEventListener('change', function () {
+        const catalogSupplierFilter = document.getElementById('catalogSupplierFilter');
+        if (catalogSupplierFilter) {
+            catalogSupplierFilter.value = this.value;
+        }
         const opt = this.options[this.selectedIndex];
         if (!opt || !opt.value) {
             supplierAlert.style.display = 'none';
@@ -560,6 +575,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         filterProductCards();
     });
+
+    const catalogSupplierFilter = document.getElementById('catalogSupplierFilter');
+    if (catalogSupplierFilter) {
+        catalogSupplierFilter.addEventListener('change', function () {
+            if (supplierSelect) {
+                supplierSelect.value = this.value;
+                supplierSelect.dispatchEvent(new Event('change'));
+            } else {
+                filterProductCards();
+            }
+        });
+    }
 
     if (supplierSelect.value) {
         supplierSelect.dispatchEvent(new Event('change'));
@@ -685,8 +712,9 @@ function filterProductCards() {
     const query = productSearch ? productSearch.value.trim().toLowerCase() : '';
     const activeCatEl = document.querySelector('.pos-category-pill.active');
     const activeCat = activeCatEl ? activeCatEl.getAttribute('data-cat') : '';
+    const catalogSupplierFilter = document.getElementById('catalogSupplierFilter');
     const supplierSelect = document.getElementById('supplierSelect');
-    const selectedSupplier = supplierSelect ? supplierSelect.value : '';
+    const selectedSupplier = (catalogSupplierFilter && catalogSupplierFilter.value) ? catalogSupplierFilter.value : (supplierSelect ? supplierSelect.value : '');
 
     let visibleCount = 0;
     document.querySelectorAll('.pos-product-card').forEach(card => {

@@ -23,6 +23,7 @@ $breadcrumbs = [
 // Filters
 $warehouseId = isset($_GET['warehouse_id']) ? (int)$_GET['warehouse_id'] : 1;
 $categoryId  = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
+$supplierId  = isset($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
 $stockFilter = sanitize_input($_GET['stock_filter'] ?? ''); // 'low', 'out', 'available'
 $search      = sanitize_input($_GET['q'] ?? '');
 
@@ -32,6 +33,10 @@ $params = [$warehouseId];
 if ($categoryId > 0) {
     $where[] = "p.category_id = ?";
     $params[] = $categoryId;
+}
+if ($supplierId > 0) {
+    $where[] = "p.supplier_id = ?";
+    $params[] = $supplierId;
 }
 if (!empty($search)) {
     $where[] = "(p.product_name LIKE ? OR p.product_code LIKE ?)";
@@ -105,6 +110,7 @@ $products = db_fetch_all("
 
 $warehouses = db_fetch_all("SELECT id, warehouse_name FROM warehouses WHERE is_active = 1 ORDER BY id ASC");
 $categories = db_fetch_all("SELECT id, category_name FROM product_categories ORDER BY category_name ASC");
+$suppliers  = db_fetch_all("SELECT id, supplier_name, company_name FROM suppliers WHERE is_active = 1 ORDER BY supplier_name ASC");
 
 require_once INCLUDES_PATH . '/header.php';
 require_once INCLUDES_PATH . '/sidebar.php';
@@ -178,7 +184,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body">
                 <form method="GET" action="index.php" class="row g-2 align-items-end">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label small fw-bold">Warehouse</label>
                         <select name="warehouse_id" class="form-select form-select-sm">
                             <?php foreach ($warehouses as $wh): ?>
@@ -189,6 +195,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </select>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label small fw-bold">Company / Supplier</label>
+                        <select name="supplier_id" class="form-select form-select-sm">
+                            <option value="">-- All Suppliers --</option>
+                            <?php foreach ($suppliers as $sup): ?>
+                                <option value="<?= $sup['id'] ?>" <?= $supplierId === (int)$sup['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($sup['supplier_name']) ?><?= !empty($sup['company_name']) ? ' (' . htmlspecialchars($sup['company_name']) . ')' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label small fw-bold">Category</label>
                         <select name="category_id" class="form-select form-select-sm">
                             <option value="">-- All Categories --</option>
@@ -203,7 +220,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <label class="form-label small fw-bold">Search Product / SKU</label>
                         <input type="text" name="q" class="form-control form-control-sm" placeholder="Name or code..." value="<?= htmlspecialchars($search) ?>">
                     </div>
-                    <div class="col-md-3 d-flex gap-2">
+                    <div class="col-md-2 d-flex gap-2">
                         <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
                             <i class="bi bi-filter"></i> Filter
                         </button>
@@ -324,7 +341,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <ul class="pagination pagination-sm mb-0">
                             <?php for ($i = 1; $i <= $totalPages; $i++): ?>
                                 <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-                                    <a class="page-link" href="?page=<?= $i ?>&warehouse_id=<?= $warehouseId ?>&category_id=<?= $categoryId ?>&q=<?= urlencode($search) ?>">
+                                    <a class="page-link" href="?page=<?= $i ?>&warehouse_id=<?= $warehouseId ?>&supplier_id=<?= $supplierId ?>&category_id=<?= $categoryId ?>&q=<?= urlencode($search) ?>">
                                         <?= $i ?>
                                     </a>
                                 </li>
