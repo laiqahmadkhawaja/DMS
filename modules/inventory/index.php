@@ -48,7 +48,7 @@ $statsSql = "
         SUM(sb.total_value) as total_inventory_valuation,
         SUM(sb.saleable_qty) as total_units_in_stock,
         SUM(CASE WHEN sb.saleable_qty <= p.min_stock_level THEN 1 ELSE 0 END) as low_stock_count,
-        SUM(sb.damaged_qty * p.purchase_rate) as damaged_stock_valuation
+        SUM(sb.damaged_qty * (CASE WHEN p.purchase_piece_rate > 0 THEN p.purchase_piece_rate ELSE (p.purchase_rate / GREATEST(p.carton_qty * p.pack_qty, 1)) END)) as damaged_stock_valuation
     FROM products p
     LEFT JOIN stock_balances sb ON p.id = sb.product_id AND sb.warehouse_id = ?
     WHERE {$whereClause}
@@ -87,6 +87,7 @@ $products = db_fetch_all("
         p.min_stock_level,
         c.category_name,
         u.unit_code as base_unit_code,
+        COALESCE(u.symbol, 'Ctn') as major_unit_symbol,
         COALESCE(sb.saleable_qty, 0) as saleable_qty,
         COALESCE(sb.damaged_qty, 0) as damaged_qty,
         COALESCE(sb.expired_qty, 0) as expired_qty,
@@ -231,8 +232,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th>Category</th>
                                 <th class="text-center">Cartons / Packs / Pcs</th>
                                 <th class="text-center">Total Units</th>
-                                <th class="text-end">Cost Price</th>
-                                <th class="text-end">Wholesale Rate</th>
+                                <th class="text-end">Cost (Ctn)</th>
+                                <th class="text-end">Wholesale (Ctn)</th>
                                 <th class="text-end">Valuation</th>
                                 <th class="text-center">Status</th>
                                 <th class="text-end pe-3">Actions</th>
@@ -251,7 +252,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     $saleable = (float)$p['saleable_qty'];
                                     $packsPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
                                     $pcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
-                                    $breakdown = breakdown_base_pieces($saleable, $packsPerCtn, $pcsPerPack);
+                                    $breakdown = breakdown_base_pieces($saleable, $packsPerCtn, $pcsPerPack, $p['major_unit_symbol'] ?? 'Ctn');
                                     $isLow = ($saleable <= (float)$p['min_stock_level']);
                                 ?>
                                     <tr>
@@ -275,7 +276,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td class="text-end"><?= format_currency((float)$p['cost_price']) ?></td>
                                         <td class="text-end fw-semibold"><?= format_currency((float)$p['wholesale_rate']) ?></td>
-                                        <td class="text-end fw-bold text-navy"><?= format_currency((float)$p['total_value']) ?></td>
+                                        <?php 
+                                            $pcsPerCtn = ($packsPerCtn * $pcsPerPack) > 0 ? ($packsPerCtn * $pcsPerPack) : 1;
+                                            $itemVal = (float)$p['total_value'];
+                                            // Fallback or self-heal check: if valuation exceeds reasonable piece valuation (e.g. multiplied by carton rate)
+                                            if ($itemVal > ($saleable * (float)$p['cost_price'] * 0.9) && $pcsPerCtn > 1) {
+                                                $itemVal = round(($saleable / $pcsPerCtn) * (float)$p['cost_price'], 2);
+                                            } elseif ($itemVal <= 0 && $saleable > 0) {
+                                                $itemVal = round(($saleable / $pcsPerCtn) * (float)$p['cost_price'], 2);
+                                            }
+                                        ?>
+                                        <td class="text-end fw-bold text-navy"><?= format_currency($itemVal) ?></td>
                                         <td class="text-center">
                                             <?php if ($saleable <= 0): ?>
                                                 <span class="badge bg-danger">Out of Stock</span>

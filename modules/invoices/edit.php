@@ -35,15 +35,17 @@ if (!$invoice) {
 }
 
 $items = db_fetch_all("
-    SELECT sii.*, p.product_name, p.product_code, p.carton_qty as ctn_ratio, p.pack_qty as pack_ratio
+    SELECT sii.*, p.product_name, p.product_code, p.carton_qty as ctn_ratio, p.pack_qty as pack_ratio,
+           p.carton_rate, p.piece_rate, u.symbol as unit_symbol
     FROM sales_invoice_items sii
     JOIN products p ON sii.product_id = p.id
+    LEFT JOIN units u ON u.id = sii.unit_id
     WHERE sii.invoice_id = ?
     ORDER BY sii.id ASC
 ", [$id]);
 
 $products = db_fetch_all("
-    SELECT id, product_name, product_code, wholesale_rate, carton_qty, pack_qty, base_unit_id 
+    SELECT id, product_name, product_code, wholesale_rate, carton_rate, piece_rate, carton_qty, pack_qty, base_unit_id 
     FROM products 
     WHERE is_deleted = 0 AND is_active = 1 
     ORDER BY product_name ASC
@@ -60,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ctnQtys     = $_POST['item_carton_qty'] ?? [];
     $packQtys    = $_POST['item_pack_qty'] ?? [];
     $pcsQtys     = $_POST['item_pcs_qty'] ?? [];
+    $itemUnits   = $_POST['item_unit'] ?? [];
     $rates       = $_POST['item_rate'] ?? [];
     $discounts   = $_POST['item_discount_percent'] ?? [];
 
@@ -79,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ctn  = (float)($ctnQtys[$idx] ?? 0);
         $pack = (float)($packQtys[$idx] ?? 0);
         $pcs  = (float)($pcsQtys[$idx] ?? 0);
+        $unitCode = strtolower(trim((string)($itemUnits[$idx] ?? 'ctn')));
         $rate = (float)($rates[$idx] ?? 0);
         $disc = (float)($discounts[$idx] ?? 0);
 
@@ -94,7 +98,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $baseQty = calculate_base_pieces($ctn, $pack, $pcs, $packsPerCtn, $pcsPerPack);
         $baseCartons = calculate_carton_equivalent($ctn, $pack, $pcs, $packsPerCtn, $pcsPerPack);
-        $lineGross = $baseCartons * $rate;
+
+        if ($unitCode === 'pcs') {
+            $lineGross = $baseQty * $rate;
+            $unitId = 4; // Piece unit
+        } else {
+            $lineGross = $baseCartons * $rate;
+            $unitId = (int)$prod['base_unit_id']; // Carton unit
+        }
 
         if ($discountMode === 'subtotal') {
             $itemDiscPct = 0.0;
@@ -111,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $validItems[] = [
             'product_id'       => $prodId,
-            'unit_id'          => (int)$prod['base_unit_id'],
+            'unit_id'          => $unitId,
             'carton_qty'       => $ctn,
             'pack_qty'         => $pack,
             'pcs_qty'          => $pcs,
@@ -322,10 +333,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <thead class="bg-light small text-uppercase">
                                 <tr>
                                     <th>Product Description</th>
-                                    <th style="width: 100px;" class="text-center">Cartons</th>
-                                    <th style="width: 100px;" class="text-center">Packs</th>
-                                    <th style="width: 100px;" class="text-center">Pieces</th>
-                                    <th style="width: 130px;" class="text-end">Wholesale Rate</th>
+                                    <th style="width: 85px;" class="text-center">Unit</th>
+                                    <th style="width: 95px;" class="text-center">Cartons</th>
+                                    <th style="width: 85px;" class="text-center">Packs</th>
+                                    <th style="width: 95px;" class="text-center">Pieces</th>
+                                    <th style="width: 140px;" class="text-end">Rate</th>
                                     <th style="width: 90px;" class="text-center">Disc %</th>
                                     <th style="width: 140px;" class="text-end pe-3">Line Total (Rs.)</th>
                                     <th style="width: 45px;"></th>
@@ -335,6 +347,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php foreach ($items as $it): 
                                     $packsPerCtn = (float)$it['ctn_ratio'] > 0 ? (float)$it['ctn_ratio'] : 1;
                                     $pcsPerPack  = (float)$it['pack_ratio'] > 0 ? (float)$it['pack_ratio'] : 1;
+                                    $isPieceUnit = ((int)($it['unit_id'] ?? 0) === 4);
                                 ?>
                                     <tr class="inv-row" data-ratio="<?= $packsPerCtn ?>" data-pack-ratio="<?= $pcsPerPack ?>">
                                         <td>
@@ -343,10 +356,22 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                     $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
                                                     $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
                                                 ?>
-                                                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $pPacksPerCtn ?>" data-pack-ratio="<?= $pPcsPerPack ?>" <?= $p['id'] == $it['product_id'] ? 'selected' : '' ?>>
+                                                    <option value="<?= $p['id'] ?>" 
+                                                            data-rate="<?= (float)$p['carton_rate'] ?>" 
+                                                            data-carton-rate="<?= (float)$p['carton_rate'] ?>" 
+                                                            data-piece-rate="<?= (float)$p['piece_rate'] ?>" 
+                                                            data-ratio="<?= $pPacksPerCtn ?>" 
+                                                            data-pack-ratio="<?= $pPcsPerPack ?>" 
+                                                            <?= $p['id'] == $it['product_id'] ? 'selected' : '' ?>>
                                                         <?= htmlspecialchars($p['product_name']) ?> (<?= htmlspecialchars($p['product_code']) ?>)
                                                     </option>
                                                 <?php endforeach; ?>
+                                            </select>
+                                        </td>
+                                        <td class="text-center">
+                                            <select name="item_unit[]" class="form-select form-select-sm unit-inp text-center py-0 px-1" onchange="onInvUnitChange(this)">
+                                                <option value="ctn" <?= !$isPieceUnit ? 'selected' : '' ?>>Ctn</option>
+                                                <option value="pcs" <?= $isPieceUnit ? 'selected' : '' ?>>Pcs</option>
                                             </select>
                                         </td>
                                         <td>
@@ -360,6 +385,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td>
                                             <input type="number" step="0.01" min="0" name="item_rate[]" class="form-control form-control-sm text-end rate-inp" value="<?= (float)$it['rate'] ?>" oninput="recalcInvLine(this)">
+                                            <span class="small text-muted rate-unit-lbl" style="font-size: 10px;">/ <?= $isPieceUnit ? 'Piece' : 'Carton' ?></span>
                                         </td>
                                         <td>
                                             <input type="number" step="0.01" min="0" name="item_discount_percent[]" class="form-control form-control-sm text-center disc-inp" value="<?= (float)$it['discount_percent'] ?>" oninput="recalcInvLine(this)">
@@ -375,7 +401,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </tbody>
                             <tfoot class="table-light fw-bold fs-6">
                                 <tr>
-                                    <td class="text-end text-uppercase">Totals:</td>
+                                    <td class="text-end text-uppercase" colspan="2">Totals:</td>
                                     <td class="text-center" id="footCtn">0</td>
                                     <td class="text-center" id="footPack">0</td>
                                     <td class="text-center" id="footPcs">0</td>
@@ -413,10 +439,21 @@ require_once INCLUDES_PATH . '/topbar.php';
                     $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
                     $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
                 ?>
-                    <option value="<?= $p['id'] ?>" data-rate="<?= $p['wholesale_rate'] ?>" data-ratio="<?= $pPacksPerCtn ?>" data-pack-ratio="<?= $pPcsPerPack ?>">
+                    <option value="<?= $p['id'] ?>" 
+                            data-rate="<?= (float)$p['carton_rate'] ?>" 
+                            data-carton-rate="<?= (float)$p['carton_rate'] ?>" 
+                            data-piece-rate="<?= (float)$p['piece_rate'] ?>" 
+                            data-ratio="<?= $pPacksPerCtn ?>" 
+                            data-pack-ratio="<?= $pPcsPerPack ?>">
                         <?= htmlspecialchars($p['product_name']) ?> (<?= htmlspecialchars($p['product_code']) ?>)
                     </option>
                 <?php endforeach; ?>
+            </select>
+        </td>
+        <td class="text-center">
+            <select name="item_unit[]" class="form-select form-select-sm unit-inp text-center py-0 px-1" onchange="onInvUnitChange(this)">
+                <option value="ctn" selected>Ctn</option>
+                <option value="pcs">Pcs</option>
             </select>
         </td>
         <td>
@@ -430,6 +467,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         </td>
         <td>
             <input type="number" step="0.01" min="0" name="item_rate[]" class="form-control form-control-sm text-end rate-inp" value="0.00" oninput="recalcInvLine(this)">
+            <span class="small text-muted rate-unit-lbl" style="font-size: 10px;">/ Carton</span>
         </td>
         <td>
             <input type="number" step="0.01" min="0" name="item_discount_percent[]" class="form-control form-control-sm text-center disc-inp" value="0" oninput="recalcInvLine(this)">
@@ -487,6 +525,26 @@ function onDiscountModeChange() {
     recalcInvTotals();
 }
 
+function calculateInvRowGross(row) {
+    const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+    const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+    const pcsPerCtn   = packsPerCtn * pcsPerPack;
+
+    const ctn  = parseFloat(row.querySelector('.ctn-inp')?.value) || 0;
+    const pack = parseFloat(row.querySelector('.pack-inp')?.value) || 0;
+    const pcs  = parseFloat(row.querySelector('.pcs-inp')?.value) || 0;
+    const rate = parseFloat(row.querySelector('.rate-inp')?.value) || 0;
+    const unit = row.querySelector('.unit-inp')?.value || 'ctn';
+
+    if (unit === 'pcs') {
+        const totalPieces = (ctn * pcsPerCtn) + (pack * pcsPerPack) + pcs;
+        return totalPieces * rate;
+    } else {
+        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
+        return baseCartons * rate;
+    }
+}
+
 function onSubtotalPercentChange() {
     const mode = getDiscountMode();
     if (mode !== 'subtotal') return;
@@ -494,15 +552,7 @@ function onSubtotalPercentChange() {
     const pctVal = parseFloat(document.getElementById('subtotalDiscountPercent')?.value) || 0;
     let grossTotal = 0;
     document.querySelectorAll('.inv-row').forEach(row => {
-        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
-        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
-        const pcsPerCtn   = packsPerCtn * pcsPerPack;
-        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
-        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
-        const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
-        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
-        grossTotal += (baseCartons * rate);
+        grossTotal += calculateInvRowGross(row);
     });
 
     const amt = Math.round(((grossTotal * pctVal) / 100.0) * 100) / 100;
@@ -521,15 +571,7 @@ function onSubtotalAmountChange() {
     const amtVal = parseFloat(document.getElementById('subtotalDiscountAmount')?.value) || 0;
     let grossTotal = 0;
     document.querySelectorAll('.inv-row').forEach(row => {
-        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
-        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
-        const pcsPerCtn   = packsPerCtn * pcsPerPack;
-        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
-        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
-        const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
-        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
-        grossTotal += (baseCartons * rate);
+        grossTotal += calculateInvRowGross(row);
     });
 
     const pct = grossTotal > 0 ? Math.round(((amtVal / grossTotal) * 100.0) * 100) / 100 : 0;
@@ -544,17 +586,8 @@ function onSubtotalAmountChange() {
 function recalcAllInvLines() {
     const mode = getDiscountMode();
     document.querySelectorAll('.inv-row').forEach(row => {
-        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
-        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
-        const pcsPerCtn   = packsPerCtn * pcsPerPack;
-        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
-        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
-        const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
         const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
-
-        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
-        const lineGross = baseCartons * rate;
+        const lineGross = calculateInvRowGross(row);
         const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * disc) / 100.0);
         const lineNet = lineGross - lineDisc;
 
@@ -587,16 +620,72 @@ function removeInvRow(btn) {
     }
 }
 
+function onInvUnitChange(sel) {
+    const row = sel.closest('tr');
+    const unit = sel.value;
+    const prodSel = row.querySelector('.prod-select');
+    const opt = prodSel ? prodSel.selectedOptions[0] : null;
+
+    const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
+    const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
+    const pcsPerCtn   = packsPerCtn * pcsPerPack;
+
+    const cartonRate = opt ? (parseFloat(opt.getAttribute('data-carton-rate')) || parseFloat(opt.getAttribute('data-rate')) || 0) : 0;
+    const pieceRate  = opt ? (parseFloat(opt.getAttribute('data-piece-rate')) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate)) : 0;
+
+    const ctnInp  = row.querySelector('.ctn-inp');
+    const pcsInp  = row.querySelector('.pcs-inp');
+    const rateInp = row.querySelector('.rate-inp');
+    const lblUnit = row.querySelector('.rate-unit-lbl');
+
+    if (unit === 'pcs') {
+        if (rateInp) rateInp.value = pieceRate.toFixed(2);
+        if (lblUnit) lblUnit.innerText = '/ Piece';
+        const ctnVal = parseFloat(ctnInp?.value) || 0;
+        const pcsVal = parseFloat(pcsInp?.value) || 0;
+        if (ctnVal > 0 && pcsVal === 0) {
+            if (pcsInp) pcsInp.value = ctnVal * pcsPerCtn;
+            if (ctnInp) ctnInp.value = 0;
+        }
+    } else {
+        if (rateInp) rateInp.value = cartonRate.toFixed(2);
+        if (lblUnit) lblUnit.innerText = '/ Carton';
+        const ctnVal = parseFloat(ctnInp?.value) || 0;
+        const pcsVal = parseFloat(pcsInp?.value) || 0;
+        if (ctnVal === 0 && pcsVal > 0 && pcsPerCtn > 0) {
+            if (ctnInp) ctnInp.value = Math.floor(pcsVal / pcsPerCtn);
+            if (pcsInp) pcsInp.value = pcsVal % pcsPerCtn;
+        }
+    }
+
+    recalcInvLine(sel);
+}
+
 function onInvProdChange(sel) {
     const row = sel.closest('tr');
     const opt = sel.selectedOptions[0];
     if (opt && opt.value) {
-        const rate = parseFloat(opt.getAttribute('data-rate')) || 0;
         const ratio = parseFloat(opt.getAttribute('data-ratio')) || 1;
         const packRatio = parseFloat(opt.getAttribute('data-pack-ratio')) || 1;
-        row.querySelector('.rate-inp').value = rate.toFixed(2);
         row.setAttribute('data-ratio', ratio);
         row.setAttribute('data-pack-ratio', packRatio);
+
+        const pcsPerCtn = ratio * packRatio;
+        const cartonRate = parseFloat(opt.getAttribute('data-carton-rate')) || parseFloat(opt.getAttribute('data-rate')) || 0;
+        const pieceRate  = parseFloat(opt.getAttribute('data-piece-rate')) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate);
+
+        const unit = row.querySelector('.unit-inp')?.value || 'ctn';
+        const rateInp = row.querySelector('.rate-inp');
+        const lblUnit = row.querySelector('.rate-unit-lbl');
+
+        if (unit === 'pcs') {
+            if (rateInp) rateInp.value = pieceRate.toFixed(2);
+            if (lblUnit) lblUnit.innerText = '/ Piece';
+        } else {
+            if (rateInp) rateInp.value = cartonRate.toFixed(2);
+            if (lblUnit) lblUnit.innerText = '/ Carton';
+        }
+
         recalcInvLine(sel);
     }
 }
@@ -607,16 +696,40 @@ function recalcInvLine(el) {
     const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
     const pcsPerCtn   = packsPerCtn * pcsPerPack;
 
-    const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-    const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
-    const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
-    const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
-    const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
+    const ctnInp  = row.querySelector('.ctn-inp');
+    const pcsInp  = row.querySelector('.pcs-inp');
+    const unitInp = row.querySelector('.unit-inp');
+    const rateInp = row.querySelector('.rate-inp');
+    const lblUnit = row.querySelector('.rate-unit-lbl');
+
+    const ctnVal  = parseFloat(ctnInp?.value) || 0;
+    const pcsVal  = parseFloat(pcsInp?.value) || 0;
+    const rateVal = parseFloat(rateInp?.value) || 0;
+    const discVal = parseFloat(row.querySelector('.disc-inp')?.value) || 0;
+    let unitVal   = unitInp ? unitInp.value : 'ctn';
+
+    // Auto-switch unit if user specifically entered 0 Cartons and >0 Pieces
+    if (unitVal === 'ctn' && ctnVal === 0 && pcsVal > 0) {
+        const prodSel = row.querySelector('.prod-select');
+        const opt = prodSel ? prodSel.selectedOptions[0] : null;
+        const pieceRate = opt ? (parseFloat(opt.getAttribute('data-piece-rate')) || (pcsPerCtn > 0 ? rateVal / pcsPerCtn : rateVal)) : (pcsPerCtn > 0 ? rateVal / pcsPerCtn : rateVal);
+        unitVal = 'pcs';
+        if (unitInp) unitInp.value = 'pcs';
+        if (rateInp) rateInp.value = pieceRate.toFixed(2);
+        if (lblUnit) lblUnit.innerText = '/ Piece';
+    } else if (unitVal === 'pcs' && ctnVal > 0 && pcsVal === 0) {
+        const prodSel = row.querySelector('.prod-select');
+        const opt = prodSel ? prodSel.selectedOptions[0] : null;
+        const cartonRate = opt ? (parseFloat(opt.getAttribute('data-carton-rate')) || rateVal * pcsPerCtn) : rateVal * pcsPerCtn;
+        unitVal = 'ctn';
+        if (unitInp) unitInp.value = 'ctn';
+        if (rateInp) rateInp.value = cartonRate.toFixed(2);
+        if (lblUnit) lblUnit.innerText = '/ Carton';
+    }
 
     const mode = getDiscountMode();
-    const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
-    const lineGross = baseCartons * rate;
-    const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * disc) / 100.0);
+    const lineGross = calculateInvRowGross(row);
+    const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * discVal) / 100.0);
     const lineNet = lineGross - lineDisc;
 
     row.querySelector('.line-net').innerText = lineNet.toLocaleString('en-US', {minimumFractionDigits: 2});
@@ -641,18 +754,12 @@ function recalcInvTotals() {
     let totItemDisc = 0;
 
     document.querySelectorAll('.inv-row').forEach(row => {
-        const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
-        const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
-        const pcsPerCtn   = packsPerCtn * pcsPerPack;
-
         const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
         const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
         const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
-        const rate = parseFloat(row.querySelector('.rate-inp').value) || 0;
         const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
 
-        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
-        const lineGross = baseCartons * rate;
+        const lineGross = calculateInvRowGross(row);
         const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * disc) / 100.0);
 
         totCtn += ctn;

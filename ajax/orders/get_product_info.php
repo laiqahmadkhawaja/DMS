@@ -17,7 +17,7 @@ $product = db_fetch_one("
     SELECT 
         p.id, p.product_code, p.barcode, p.product_name,
         p.base_unit_id, u.unit_name, u.symbol as unit_symbol,
-        p.wholesale_rate, p.default_sale_rate, p.retail_rate,
+        p.wholesale_rate, p.carton_rate, p.piece_rate, p.purchase_rate, p.purchase_carton_rate, p.purchase_piece_rate, p.default_sale_rate, p.retail_rate,
         p.carton_qty, p.pack_qty, p.min_stock_level,
         COALESCE(sb.saleable_qty, 0) as available_stock
     FROM products p

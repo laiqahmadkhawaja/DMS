@@ -220,6 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $rCtn, $rRate, $rAmount
                             ]);
 
+                            $pCost = (float)$rPieces > 0 ? round((float)$rAmount / (float)$rPieces, 6) : 0;
                             record_stock_movement([
                                 'product_id'     => $rPid,
                                 'warehouse_id'   => 1,
@@ -228,7 +229,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'reference_id'   => $returnId,
                                 'qty_in'         => $rPieces,
                                 'qty_out'        => 0,
-                                'unit_cost'      => $rRate,
+                                'unit_cost'      => $pCost,
+                                'total_cost'     => (float)$rAmount,
                                 'remarks'        => "Stock returned from route settlement #{$settlementNumber} for bill #{$vi['invoice_id']}",
                                 'condition_type' => 'saleable'
                             ]);
@@ -241,6 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $ctnReturned = $vi['return_amount'] / $rate;
                             $ratios = get_product_packaging_ratios((int)$invItem['product_id']);
                             $piecesReturned = round($ctnReturned * $ratios['pcs_per_ctn'], 4);
+                            $pCost = $piecesReturned > 0 ? round((float)$vi['return_amount'] / $piecesReturned, 6) : 0;
 
                             $stmtReturnItem->execute([
                                 $returnId, (int)$invItem['product_id'], 1,
@@ -256,7 +259,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'reference_id'   => $returnId,
                                 'qty_in'         => $piecesReturned,
                                 'qty_out'        => 0,
-                                'unit_cost'      => (float)$invItem['rate'],
+                                'unit_cost'      => $pCost,
+                                'total_cost'     => (float)$vi['return_amount'],
                                 'remarks'        => "Stock returned from route settlement #{$settlementNumber} (Unverified item check-in)",
                                 'condition_type' => 'saleable'
                             ]);

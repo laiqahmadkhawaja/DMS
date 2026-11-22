@@ -219,8 +219,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <div class="text-muted" style="font-size: 0.72rem;">1 Ctn = <?= format_qty($packsPerCtn) ?> Pcs</div>
                                 <?php endif; ?>
                             </td>
-                            <td class="text-end text-muted small"><?= format_currency($p['purchase_rate']) ?></td>
-                            <td class="text-end fw-bold text-navy"><?= format_currency($p['wholesale_rate']) ?></td>
+                            <td class="text-end small">
+                                <div><?= format_currency((float)($p['purchase_carton_rate'] ?? 0) > 0 ? $p['purchase_carton_rate'] : $p['purchase_rate']) ?> <span class="text-muted" style="font-size:0.7rem;">/Ctn</span></div>
+                                <?php if ((float)($p['purchase_piece_rate'] ?? 0) > 0): ?>
+                                    <div class="text-muted" style="font-size:0.7rem;"><?= format_currency($p['purchase_piece_rate']) ?> /Pc</div>
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-end">
+                                <div class="fw-bold text-navy"><?= format_currency((float)($p['carton_rate'] ?? 0) > 0 ? $p['carton_rate'] : $p['wholesale_rate']) ?> <span class="text-muted fw-normal" style="font-size:0.7rem;">/Ctn</span></div>
+                                <?php if ((float)($p['piece_rate'] ?? 0) > 0): ?>
+                                    <div class="text-secondary small" style="font-size:0.75rem;"><?= format_currency($p['piece_rate']) ?> /Pc</div>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-end">
                                 <span class="badge bg-<?= (float)$p['saleable_qty'] <= (float)$p['min_stock_level'] ? 'warning' : 'success' ?>-subtle text-<?= (float)$p['saleable_qty'] <= (float)$p['min_stock_level'] ? 'warning-emphasis' : 'success' ?> border">
                                     <?= format_qty($p['saleable_qty']) ?> <?= e($p['unit_symbol']) ?>

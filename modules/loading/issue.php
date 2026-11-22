@@ -50,6 +50,9 @@ try {
         $stmtUpdItem->execute([$item['id']]);
 
         // Record stock movement (sales_dispatch)
+        $reqQty = (float)$item['required_qty'];
+        $totAmt = (float)$item['total_amount'];
+        $pieceCost = $reqQty > 0 ? round($totAmt / $reqQty, 6) : 0;
         record_stock_movement([
             'product_id'     => (int)$item['product_id'],
             'warehouse_id'   => (int)$sheet['warehouse_id'],
@@ -57,8 +60,9 @@ try {
             'reference_type' => 'load_sheet',
             'reference_id'   => $id,
             'qty_in'         => 0,
-            'qty_out'        => (float)$item['required_qty'],
-            'unit_cost'      => (float)$item['rate'],
+            'qty_out'        => $reqQty,
+            'unit_cost'      => $pieceCost,
+            'total_cost'     => $totAmt,
             'remarks'        => "Stock dispatch for Load Sheet #{$sheet['load_number']}",
             'condition_type' => 'saleable'
         ]);

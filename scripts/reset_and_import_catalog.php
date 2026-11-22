@@ -2,7 +2,7 @@
 /**
  * DMS - Distribution Management System
  * System Reset & Real Products Catalog Importer
- * Purges old testing transactions and sets up the 3 real companies and 229 products.
+ * Purges old testing transactions and sets up the 2 real companies and 154 products.
  */
 
 define('DMS_RUNNING', true);
@@ -10,12 +10,12 @@ require_once __DIR__ . '/../config/config.php';
 
 try {
     echo "======================================================" . PHP_EOL;
-    echo "STARTING SYSTEM DATA PURGE & CATALOG IMPORT" . PHP_EOL;
+    echo "STARTING SYSTEM DATA PURGE & 2-COMPANY CATALOG IMPORT" . PHP_EOL;
     echo "======================================================" . PHP_EOL;
 
     db()->exec("SET FOREIGN_KEY_CHECKS = 0;");
 
-    // 1. Truncate all transactional tables
+    // 1. Truncate all transactional and catalog tables
     $transactionTables = [
         'order_items', 'orders',
         'load_sheet_items', 'load_sheet_orders', 'load_sheets',
@@ -44,11 +44,10 @@ try {
 
     // 2. Reset balances
     db()->exec("UPDATE customers SET opening_balance = 0.00, current_balance = 0.00");
-    db()->exec("UPDATE suppliers SET opening_balance = 0.00, current_balance = 0.00");
     db()->exec("UPDATE accounts SET opening_balance = 0.00, current_balance = 0.00");
-    echo " - Balances reset for customers, suppliers, and financial accounts." . PHP_EOL;
+    echo " - Balances reset for customers and financial accounts." . PHP_EOL;
 
-    // 3. Ensure the 3 real suppliers
+    // 3. Ensure ONLY the 2 real suppliers: Ujab Enterprises and Kunafa Foods
     $targetSuppliers = [
         [
             'code' => 'SUPP-UJAB',
@@ -63,17 +62,9 @@ try {
             'company' => 'Dubai Kunafa & Confectionery Gujranwala',
             'phone' => '0300-9876543',
             'address' => 'Small Industrial Estate, Gujranwala'
-        ],
-        [
-            'code' => 'SUPP-HASH',
-            'name' => 'Hashim Enterprises',
-            'company' => 'Hashim Enterprises / Judge Trader / SM Agencies',
-            'phone' => '03001416177',
-            'address' => 'Chandaqila Gala Baba Talib Wala, Gujranwala'
         ]
     ];
 
-    // Truncate suppliers and insert the 3 real ones
     db()->exec("TRUNCATE TABLE suppliers");
     $stmtSup = db()->prepare("
         INSERT INTO suppliers (supplier_code, supplier_name, company_name, phone, address, is_active, created_at, updated_at)
@@ -88,15 +79,15 @@ try {
         echo " - Configured Supplier: {$ts['name']} (ID: {$sId})" . PHP_EOL;
     }
 
-    // 4. Ensure the 7 FMCG categories
+    // 4. Ensure Categories
     $targetCategories = [
-        ['code' => 'CAT-NIM', 'name' => 'Nimko & Savouries', 'desc' => 'Nimko, Moong Daal, Moth Daal, Party Packs'],
-        ['code' => 'CAT-SNK', 'name' => 'Snacks & Puffs', 'desc' => 'Slanty, Puffs, Popcorn, Nachos'],
-        ['code' => 'CAT-CND', 'name' => 'Confectionery', 'desc' => 'Lollipops, Candies, Toffees, Kunafa Packs'],
-        ['code' => 'CAT-BSC', 'name' => 'Biscuits & Wafers', 'desc' => 'Brunik Biscuits, Just Cream Wafers'],
-        ['code' => 'CAT-GRC', 'name' => 'Grocery & Sauces', 'desc' => 'Mayonnaise, Tomato Ketchup, Sauces, Vinegar, Pickles, Jams'],
-        ['code' => 'CAT-BAK', 'name' => 'Bakery & Dry Mixes', 'desc' => 'Baking Powder, Soda, Cocoa, Cooking Chocolate, Pasta, Seeds'],
-        ['code' => 'CAT-COS', 'name' => 'Cosmetics & Toiletries', 'desc' => '4ME Soaps, Air Fresheners, Garbage Bin Rolls']
+        ['code' => 'CAT-NIM', 'name' => 'Nimko & Savouries', 'desc' => 'Nimko twists, Moong Daal, Moth Daal, Party Packs'],
+        ['code' => 'CAT-SNK', 'name' => 'Snacks & Puffs', 'desc' => 'Slanty, Zoro Ring Puffs, Popcorn, Nacho Chips'],
+        ['code' => 'CAT-CND', 'name' => 'Confectionery', 'desc' => 'Lollipops, Candies, Toffees, Chocolates, Kunafa Gift Packs'],
+        ['code' => 'CAT-BSC', 'name' => 'Biscuits & Wafers', 'desc' => 'Biscuits & Wafers'],
+        ['code' => 'CAT-GRC', 'name' => 'Grocery & Sauces', 'desc' => 'Sauces, Vinegar, Pickles, Jams, Seeds, Spices, Bin Rolls'],
+        ['code' => 'CAT-BAK', 'name' => 'Bakery & Dry Mixes', 'desc' => 'Baking Powder, Soda, Cocoa Powder, Cooking Chocolate, Pasta'],
+        ['code' => 'CAT-COS', 'name' => 'Cosmetics & Toiletries', 'desc' => 'Toiletries & Cleaning Essentials']
     ];
 
     db()->exec("TRUNCATE TABLE product_categories");
@@ -130,13 +121,19 @@ try {
     $stmtProd = db()->prepare("
         INSERT INTO products (
             product_code, barcode, product_name, category_id, supplier_id,
-            base_unit_id, purchase_rate, default_sale_rate, wholesale_rate,
-            retail_rate, carton_qty, pack_qty, packing_description,
+            base_unit_id,
+            purchase_rate, purchase_carton_rate, purchase_piece_rate,
+            default_sale_rate, wholesale_rate, carton_rate, piece_rate,
+            retail_rate, retail_carton_rate, retail_piece_rate,
+            carton_qty, pack_qty, packing_description,
             min_stock_level, is_active, is_deleted, created_at, updated_at
         ) VALUES (
             ?, ?, ?, ?, ?,
+            ?,
+            ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
             0.00, 1, 0, NOW(), NOW()
         )
     ");
@@ -148,9 +145,9 @@ try {
 
     $importedCount = 0;
     foreach ($products as $p) {
-        $supId = $supplierMap[$p['supplier_name']] ?? $supplierMap['Hashim Enterprises'];
-        $catId = $categoryMap[$p['category_name']] ?? $categoryMap['Confectionery'];
-        $unitId = $unitMap[$p['unit']] ?? 1;
+        $supId = $supplierMap[$p['supplier_name']] ?? 1;
+        $catId = $categoryMap[$p['category_name']] ?? 3;
+        $unitId = 1; // Pcs / base unit
 
         $stmtProd->execute([
             $p['product_code'],
@@ -160,9 +157,15 @@ try {
             $supId,
             $unitId,
             $p['purchase_rate'],
+            $p['purchase_carton_rate'],
+            $p['purchase_piece_rate'],
+            $p['carton_rate'],
             $p['wholesale_rate'],
-            $p['wholesale_rate'],
-            $p['retail_rate'],
+            $p['carton_rate'],
+            $p['piece_rate'],
+            $p['carton_rate'],
+            $p['carton_rate'],
+            $p['piece_rate'],
             $p['carton_qty'],
             $p['pack_qty'],
             $p['packing_description']
@@ -177,7 +180,7 @@ try {
     db()->exec("SET FOREIGN_KEY_CHECKS = 1;");
 
     echo "======================================================" . PHP_EOL;
-    echo "SUCCESS: Cleaned all test transactions & imported {$importedCount} unique products!" . PHP_EOL;
+    echo "SUCCESS: Cleaned all test transactions & imported {$importedCount} unique products for 2 suppliers!" . PHP_EOL;
     echo "======================================================" . PHP_EOL;
 
 } catch (Exception $e) {

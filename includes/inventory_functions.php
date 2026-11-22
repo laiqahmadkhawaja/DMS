@@ -50,28 +50,73 @@ function calculate_carton_equivalent(float $cartons, float $packs, float $pieces
 }
 
 /**
- * Break down a total quantity in pieces into formatted Cartons, Packs, and Loose Pieces
+ * Helper to pluralize unit labels nicely
  */
-function breakdown_base_pieces(float $totalPieces, float $packsPerCtn, float $pcsPerPack): array {
+function pluralize_unit(string $unit, float $qty): string {
+    if (abs($qty) == 1) return $unit;
+    $lower = strtolower($unit);
+    if (str_ends_with($lower, 's')) return $unit;
+    if (str_ends_with($lower, 'x') || str_ends_with($lower, 'ch') || str_ends_with($lower, 'sh')) {
+        return $unit . 'es';
+    }
+    return $unit . 's';
+}
+
+/**
+ * Break down a total quantity in pieces into formatted Cartons, Packs, and Loose Pieces (or by assigned major unit)
+ */
+function breakdown_base_pieces(float $totalPieces, float $packsPerCtn, float $pcsPerPack, ?string $majorUnit = 'Ctn', ?string $mediumUnit = 'Pck', ?string $minorUnit = 'Pcs'): array {
     $packsPerCtn = $packsPerCtn > 0 ? $packsPerCtn : 1.0;
     $pcsPerPack  = $pcsPerPack > 0 ? $pcsPerPack : 1.0;
     $pcsPerCtn   = $packsPerCtn * $pcsPerPack;
 
-    $cartons = floor($totalPieces / $pcsPerCtn);
-    $rem = fmod($totalPieces, $pcsPerCtn);
+    $isNegative = ($totalPieces < 0);
+    $absPieces = abs($totalPieces);
+
+    $cartons = floor($absPieces / $pcsPerCtn);
+    $rem = fmod($absPieces, $pcsPerCtn);
     $packs = floor($rem / $pcsPerPack);
     $pieces = fmod($rem, $pcsPerPack);
 
+    $majorLabel  = !empty($majorUnit) ? trim($majorUnit) : 'Ctn';
+    $mediumLabel = !empty($mediumUnit) ? trim($mediumUnit) : 'Pck';
+    $minorLabel  = !empty($minorUnit) ? trim($minorUnit) : 'Pcs';
+
     $parts = [];
-    if ($cartons > 0) $parts[] = "{$cartons} Ctn" . ($cartons != 1 ? 's' : '');
-    if ($packs > 0) $parts[] = "{$packs} Pck" . ($packs != 1 ? 's' : '');
-    if ($pieces > 0 || empty($parts)) $parts[] = "{$pieces} Pcs";
+    if ($cartons > 0) {
+        $parts[] = "{$cartons} " . pluralize_unit($majorLabel, $cartons);
+    }
+    if ($packs > 0) {
+        $parts[] = "{$packs} " . pluralize_unit($mediumLabel, $packs);
+    }
+    if ($pieces > 0 || empty($parts)) {
+        $parts[] = "{$pieces} {$minorLabel}";
+    }
+
+    $sign = $isNegative ? '-' : '';
 
     return [
-        'cartons'   => (float)$cartons,
-        'packs'     => (float)$packs,
-        'pieces'    => (float)$pieces,
-        'formatted' => implode(' + ', $parts)
+        'cartons'   => (float)($isNegative ? -$cartons : $cartons),
+        'packs'     => (float)($isNegative ? -$packs : $packs),
+        'pieces'    => (float)($isNegative ? -$pieces : $pieces),
+        'formatted' => $sign . implode(' + ', $parts)
+    ];
+}
+
+/**
+ * Format movement quantity with major unit breakdown and base unit detail
+ */
+function format_movement_quantity(float $pieces, float $packsPerCtn, float $pcsPerPack, ?string $majorUnit = 'Ctn', bool $showSign = false): array {
+    $breakdown = breakdown_base_pieces($pieces, $packsPerCtn, $pcsPerPack, $majorUnit);
+    $absPieces = abs($pieces);
+    $sign = ($pieces > 0 && $showSign) ? '+' : '';
+    
+    return [
+        'cartons'   => $breakdown['cartons'],
+        'packs'     => $breakdown['packs'],
+        'pieces'    => $breakdown['pieces'],
+        'breakdown' => $sign . $breakdown['formatted'],
+        'units'     => $sign . number_format($pieces, 0) . ' units'
     ];
 }
 
@@ -158,7 +203,35 @@ function record_stock_movement(array $data): int {
     }
 
     $netQty = $qtyIn - $qtyOut;
-    $totalCost = ($qtyIn > 0 ? $qtyIn : $qtyOut) * $unitCost;
+    $movementQty = $qtyIn > 0 ? $qtyIn : $qtyOut;
+
+    // Normalize unit cost to piece / base unit cost:
+    // If total_cost is passed explicitly, calculate unit piece cost from total_cost.
+    $ratios = get_product_packaging_ratios($productId);
+    $pcsPerCtn = (float)($ratios['pcs_per_ctn'] ?? 1);
+    if ($pcsPerCtn <= 0) $pcsPerCtn = 1.0;
+
+    if (isset($data['total_cost']) && (float)$data['total_cost'] > 0) {
+        $totalCost = round((float)$data['total_cost'], 2);
+        $unitCost  = $movementQty > 0 ? round($totalCost / $movementQty, 6) : $unitCost;
+    } else {
+        // If caller passed carton rate as unitCost when pcs_per_ctn > 1, normalize to piece cost
+        $prod = db_fetch_one("SELECT purchase_rate, purchase_piece_rate FROM products WHERE id = ?", [$productId]);
+        $pieceRate  = (float)($prod['purchase_piece_rate'] ?? 0);
+        $cartonRate = (float)($prod['purchase_rate'] ?? 0);
+
+        if ($pcsPerCtn > 1 && $unitCost > 0) {
+            if ($pieceRate > 0 && $unitCost > ($pieceRate * 1.5)) {
+                $unitCost = round($unitCost / $pcsPerCtn, 6);
+            } elseif ($cartonRate > 0 && $unitCost >= ($cartonRate * 0.4)) {
+                $unitCost = round($unitCost / $pcsPerCtn, 6);
+            }
+        } elseif ($unitCost <= 0 && $pieceRate > 0) {
+            $unitCost = $pieceRate;
+        }
+
+        $totalCost = round($movementQty * $unitCost, 2);
+    }
 
     // 1. Insert Movement Record
     $stmt = db()->prepare("

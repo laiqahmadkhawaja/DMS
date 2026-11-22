@@ -66,13 +66,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $stmtInsert = db()->prepare("
             INSERT INTO products (
                 product_code, barcode, product_name, category_id, supplier_id,
-                base_unit_id, purchase_rate, default_sale_rate, wholesale_rate,
-                retail_rate, carton_qty, pack_qty, packing_description,
+                base_unit_id,
+                purchase_rate, purchase_carton_rate, purchase_piece_rate,
+                default_sale_rate, wholesale_rate, carton_rate, piece_rate,
+                retail_rate, retail_carton_rate, retail_piece_rate,
+                carton_qty, pack_qty, packing_description,
                 min_stock_level, is_active, is_deleted, created_at, updated_at
             ) VALUES (
                 ?, ?, ?, ?, ?,
+                ?,
+                ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
                 0.00, 1, 0, NOW(), NOW()
             )
         ");
@@ -80,8 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $stmtUpdate = db()->prepare("
             UPDATE products SET
                 product_name = ?, category_id = ?, supplier_id = ?,
-                purchase_rate = ?, default_sale_rate = ?, wholesale_rate = ?,
-                retail_rate = ?, carton_qty = ?, pack_qty = ?, packing_description = ?,
+                purchase_rate = ?, purchase_carton_rate = ?, purchase_piece_rate = ?,
+                default_sale_rate = ?, wholesale_rate = ?, carton_rate = ?, piece_rate = ?,
+                retail_rate = ?, retail_carton_rate = ?, retail_piece_rate = ?,
+                carton_qty = ?, pack_qty = ?, packing_description = ?,
                 updated_at = NOW()
             WHERE id = ?
         ");
@@ -110,14 +118,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             $catId = $categoryMap[$catName];
 
-            $unitId = $unitMap[$item['unit']] ?? 1;
+            $unitId = $unitMap[$item['unit'] ?? 'PCS'] ?? 1;
+
+            $pCartonRate = (float)($item['purchase_carton_rate'] ?? $item['purchase_rate']);
+            $pPieceRate  = (float)($item['purchase_piece_rate'] ?? 0);
+            if ($pPieceRate <= 0 && (float)($item['total_pcs_per_ctn'] ?? 0) > 0) {
+                $pPieceRate = round($pCartonRate / (float)$item['total_pcs_per_ctn'], 2);
+            }
+            $wCartonRate = (float)($item['carton_rate'] ?? $item['wholesale_rate']);
+            $wPieceRate  = (float)($item['piece_rate'] ?? ($pPieceRate > 0 ? $pPieceRate : $wCartonRate));
 
             $existingId = db_fetch_val("SELECT id FROM products WHERE product_code = ?", [$item['product_code']]);
             if ($existingId) {
                 $stmtUpdate->execute([
                     $item['product_name'], $catId, $supId,
-                    $item['purchase_rate'], $item['wholesale_rate'], $item['wholesale_rate'],
-                    $item['retail_rate'], $item['carton_qty'], $item['pack_qty'], $item['packing_description'],
+                    $pCartonRate, $pCartonRate, $pPieceRate,
+                    $wCartonRate, $wCartonRate, $wCartonRate, $wPieceRate,
+                    $wCartonRate, $wCartonRate, $wPieceRate,
+                    $item['carton_qty'], $item['pack_qty'], $item['packing_description'],
                     $existingId
                 ]);
                 $stmtStock->execute([$existingId]);
@@ -130,10 +148,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $catId,
                     $supId,
                     $unitId,
-                    $item['purchase_rate'],
-                    $item['wholesale_rate'],
-                    $item['wholesale_rate'],
-                    $item['retail_rate'],
+                    $pCartonRate, $pCartonRate, $pPieceRate,
+                    $wCartonRate, $wCartonRate, $wCartonRate, $wPieceRate,
+                    $wCartonRate, $wCartonRate, $wPieceRate,
                     $item['carton_qty'],
                     $item['pack_qty'],
                     $item['packing_description']
@@ -145,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         db()->exec("SET FOREIGN_KEY_CHECKS = 1;");
-        $message = "Successfully loaded 3-Company Catalog! Inserted: {$inserted}, Updated: {$updated}. All stock balances set to 0.00.";
+        $message = "Successfully synced 2-Company Master Catalog (Ujab Enterprises & Kunafa Foods)! Inserted: {$inserted}, Updated: {$updated}. All stock balances set to 0.00.";
         $messageType = "success";
 
     } catch (Exception $e) {
@@ -497,13 +514,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h6 class="fw-bold text-dark mb-1">
-                                    <i class="bi bi-arrow-clockwise me-1 text-warning"></i> Re-Sync Pre-Loaded 3-Company Catalog (229 Items)
+                                    <i class="bi bi-arrow-clockwise me-1 text-warning"></i> Re-Sync Pre-Loaded 2-Company Catalog (154 Items)
                                 </h6>
                                 <p class="text-muted small mb-0">
-                                    Quickly re-populate or update all 229 verified items for <strong>Ujab Enterprises</strong>, <strong>Kunafa Foods</strong>, and <strong>Hashim Enterprises</strong> with 1 click.
+                                    Quickly re-populate or update all 154 verified items for <strong>Ujab Enterprises</strong> and <strong>Kunafa Foods</strong> with 1 click.
                                 </p>
                             </div>
-                            <form method="POST" action="import.php" onsubmit="return confirm('Do you want to re-sync all 229 catalog products from the pre-loaded supplier master?');">
+                            <form method="POST" action="import.php" onsubmit="return confirm('Do you want to re-sync all 154 catalog products from the official supplier master?');">
                                 <input type="hidden" name="action" value="quick_load_default">
                                 <button type="submit" class="btn btn-outline-dark btn-sm fw-semibold">
                                     <i class="bi bi-lightning-charge-fill text-warning me-1"></i> Quick Sync Now

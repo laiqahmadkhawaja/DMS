@@ -264,7 +264,7 @@ $padRows = max(8, count($items));
                         <th style="width: 10%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Carton Qty</th>
                         <th style="width: 9%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Pack Qty</th>
                         <th style="width: 9%; border: 1px solid #000 !important; padding: 3px 2px; text-align: center;">Pcs Qty</th>
-                        <th style="width: 10%; border: 1px solid #000 !important; padding: 3px 4px; text-align: right; padding-right: 5px;">Rate / Ctn</th>
+                        <th style="width: 10%; border: 1px solid #000 !important; padding: 3px 4px; text-align: right; padding-right: 5px;">Rate</th>
                         <th style="width: 10%; border: 1px solid #000 !important; padding: 3px 5px; text-align: right;" class="text-end pe-1">Total</th>
                     </tr>
                 </thead>
@@ -299,7 +299,7 @@ $padRows = max(8, count($items));
                                 <?= $pcsQty > 0 ? format_qty($pcsQty) : '-' ?>
                             </td>
                             <td class="text-end pe-1" style="border: 1px solid #000 !important; padding: 1px 5px; text-align: right;">
-                                <?= number_format((float)$item['rate'], 0) ?>
+                                <?= number_format((float)$item['rate'], 0) ?><?= ($item['unit_symbol'] === 'Pcs' || (int)$item['unit_id'] === 4) ? ' <span style="font-size:8.5px;">/Pc</span>' : '' ?>
                             </td>
                             <td class="text-end pe-1 fw-bold" style="border: 1px solid #000 !important; padding: 1px 5px; text-align: right;">
                                 <?= number_format((float)$item['line_total'], 0) ?>

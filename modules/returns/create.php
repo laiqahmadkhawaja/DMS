@@ -367,21 +367,35 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <div class="card-body py-2 px-3">
                     <div class="row g-2 align-items-center">
                         <div class="col-md-3">
-                            <label class="form-label small fw-bold mb-1">Customer / Retailer <span class="text-danger">*</span></label>
-                            <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
-                                <option value="">-- Choose Retailer --</option>
-                                <?php foreach ($customers as $c): ?>
-                                    <option value="<?= $c['id'] ?>"
-                                            data-code="<?= htmlspecialchars($c['customer_code'] ?? '') ?>"
-                                            data-balance="<?= (float)$c['current_balance'] ?>"
-                                            data-limit="<?= (float)$c['credit_limit'] ?>"
-                                            data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>"
-                                            data-area="<?= htmlspecialchars($c['area_name'] ?? '') ?>"
-                                            <?= ($preCustomerId === (int)$c['id']) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($c['shop_name']) ?> <?= !empty($c['area_name']) ? '(' . htmlspecialchars($c['area_name']) . ')' : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label class="form-label small fw-bold mb-1 d-flex justify-content-between align-items-center">
+                                <span>Customer / Retailer <span class="text-danger">*</span></span>
+                                <?php if (has_permission('customers_create')): ?>
+                                <a href="javascript:void(0)" onclick="openQuickCustomerDrawer('customerSelect')" class="text-primary text-decoration-none" title="Quick Add Customer">
+                                    <i class="bi bi-plus-circle-fill"></i> New
+                                </a>
+                                <?php endif; ?>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
+                                    <option value="">-- Choose Retailer --</option>
+                                    <?php foreach ($customers as $c): ?>
+                                        <option value="<?= $c['id'] ?>"
+                                                data-code="<?= htmlspecialchars($c['customer_code'] ?? '') ?>"
+                                                data-balance="<?= (float)$c['current_balance'] ?>"
+                                                data-limit="<?= (float)$c['credit_limit'] ?>"
+                                                data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>"
+                                                data-area="<?= htmlspecialchars($c['area_name'] ?? '') ?>"
+                                                <?= ($preCustomerId === (int)$c['id']) ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($c['shop_name']) ?> <?= !empty($c['area_name']) ? '(' . htmlspecialchars($c['area_name']) . ')' : '' ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (has_permission('customers_create')): ?>
+                                <button type="button" class="btn btn-outline-primary" onclick="openQuickCustomerDrawer('customerSelect')" title="Add New Customer in Real-Time">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <div class="col-md-2">

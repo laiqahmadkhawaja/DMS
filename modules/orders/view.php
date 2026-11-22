@@ -164,7 +164,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <td class="text-center fw-semibold"><?= (float)$item['carton_qty'] > 0 ? format_qty($item['carton_qty']) . ' Ctn' : '-' ?></td>
                         <td class="text-center"><?= (float)$item['pack_qty'] > 0 ? format_qty($item['pack_qty']) . ' Pck' : '-' ?></td>
                         <td class="text-center"><?= (float)$item['pcs_qty'] > 0 ? format_qty($item['pcs_qty']) . ' Pcs' : '-' ?></td>
-                        <td class="text-end"><?= format_currency($item['rate']) ?></td>
+                        <td class="text-end">
+                            <?= format_currency($item['rate']) ?>
+                            <small class="text-muted d-block" style="font-size: 0.72rem;"><?= ($item['unit_symbol'] === 'Pcs' || (int)$item['unit_id'] === 4) ? '/ Piece' : '/ Carton' ?></small>
+                        </td>
                         <td class="text-end"><?= (float)$item['discount_percent'] > 0 ? number_format((float)$item['discount_percent'], 1) . '%' : '-' ?></td>
                         <td class="text-end fw-semibold"><?= format_currency($item['line_total']) ?></td>
                     </tr>

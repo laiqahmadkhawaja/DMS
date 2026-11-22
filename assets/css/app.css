@@ -774,6 +774,259 @@ input[type=number] {
 }
 
 /* ==========================================================================
+   DMS Searchable Select Component (Searchable Customer Dropdown)
+   ========================================================================== */
+.dms-searchable-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.dms-searchable-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    cursor: pointer;
+    background-color: #ffffff;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    padding: 0.28rem 0.55rem;
+    font-size: 0.8125rem;
+    color: #1e293b;
+    min-height: 31px;
+    background-image: none !important;
+    user-select: none;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.dms-searchable-control.form-select-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.775rem;
+    min-height: 29px;
+}
+
+.dms-searchable-control:focus,
+.dms-searchable-wrapper.is-open .dms-searchable-control {
+    border-color: #3b82f6;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2);
+}
+
+.dms-searchable-control.is-invalid {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.2) !important;
+}
+
+.dms-searchable-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    margin-right: 6px;
+    font-weight: 500;
+}
+
+.dms-searchable-label.placeholder {
+    color: #94a3b8;
+    font-weight: normal;
+}
+
+.dms-searchable-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.dms-searchable-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+    padding: 0;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.dms-searchable-clear:hover {
+    color: #ef4444;
+    background-color: #fee2e2;
+}
+
+.dms-searchable-chevron {
+    font-size: 0.65rem;
+    color: #64748b;
+    transition: transform 0.2s ease;
+    pointer-events: none;
+}
+
+.dms-searchable-wrapper.is-open .dms-searchable-chevron {
+    transform: rotate(180deg);
+}
+
+/* Floating Dropdown Menu */
+.dms-searchable-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 1060;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.375rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+    display: none;
+    flex-direction: column;
+    min-width: 300px;
+    max-width: 520px;
+}
+
+.dms-searchable-wrapper.is-open .dms-searchable-dropdown {
+    display: flex;
+}
+
+.dms-searchable-search-wrapper {
+    padding: 6px 8px;
+    background-color: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+}
+
+.dms-searchable-search-input {
+    font-size: 0.8125rem !important;
+}
+
+.dms-searchable-search-input:focus {
+    box-shadow: none !important;
+    border-color: #3b82f6 !important;
+}
+
+.dms-searchable-meta {
+    padding: 3px 10px;
+    font-size: 0.7rem;
+    color: #64748b;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dms-searchable-menu {
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 2px 0;
+    margin: 0;
+    list-style: none;
+    scroll-behavior: smooth;
+}
+
+.dms-searchable-item {
+    padding: 6px 12px;
+    font-size: 0.8125rem;
+    color: #1e293b;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+    border-bottom: 1px solid #f8fafc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.dms-searchable-item:last-child {
+    border-bottom: none;
+}
+
+.dms-searchable-item:hover,
+.dms-searchable-item.is-focused {
+    background-color: #e0e7ff;
+    color: #1e1b4b;
+}
+
+.dms-searchable-item.is-selected {
+    background-color: #0f172a;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.dms-searchable-item.is-selected .dms-item-sub,
+.dms-searchable-item.is-selected .text-muted {
+    color: #cbd5e1 !important;
+}
+
+.dms-searchable-item.is-selected .badge {
+    opacity: 0.9;
+}
+
+.dms-item-main {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dms-item-title {
+    font-weight: 500;
+    color: inherit;
+    line-height: 1.25;
+}
+
+.dms-item-sub {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.2;
+}
+
+.dms-item-badge {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.dms-item-badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.dms-item-badge-success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.dms-item-badge-secondary {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.dms-searchable-highlight {
+    background-color: #fef08a;
+    color: #854d0e;
+    font-weight: bold;
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+.dms-searchable-empty {
+    padding: 18px 12px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.8125rem;
+}
+
+/* ==========================================================================
    Excel-like Congested Print Engine (Zero Paper Wastage)
    ========================================================================== */
 @media print {
@@ -792,7 +1045,7 @@ input[type=number] {
     }
 
     .dms-sidebar, .dms-topbar, .dms-shortcut-bar, .no-print, .btn, .dms-toast-container,
-    .breadcrumb, .pagination, .alert {
+    .breadcrumb, .pagination, .alert, .dms-searchable-dropdown, .dms-searchable-clear, .dms-searchable-chevron {
         display: none !important;
     }
 

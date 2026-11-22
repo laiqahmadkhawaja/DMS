@@ -173,6 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 // Record atomic stock addition into warehouse
+                $pieceCost = $vi['base_pieces'] > 0 ? round($vi['line_total'] / $vi['base_pieces'], 6) : 0;
                 if ($vi['base_pieces'] > 0) {
                     record_stock_movement([
                         'product_id'     => $vi['product_id'],
@@ -182,7 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'reference_id'   => $grnId,
                         'qty_in'         => $vi['base_pieces'],
                         'qty_out'        => 0,
-                        'unit_cost'      => $vi['unit_rate'],
+                        'unit_cost'      => $pieceCost,
+                        'total_cost'     => $vi['line_total'],
                         'remarks'        => "Stock received via GRN #{$grnNumber}",
                         'condition_type' => 'saleable'
                     ]);
@@ -190,6 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // If damaged stock received, quarantine it
                 if ($vi['damaged_qty'] > 0) {
+                    $damagedCost = round($vi['damaged_qty'] * $pieceCost, 2);
                     record_stock_movement([
                         'product_id'     => $vi['product_id'],
                         'warehouse_id'   => $warehouseId,
@@ -198,7 +201,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'reference_id'   => $grnId,
                         'qty_in'         => $vi['damaged_qty'],
                         'qty_out'        => 0,
-                        'unit_cost'      => $vi['unit_rate'],
+                        'unit_cost'      => $pieceCost,
+                        'total_cost'     => $damagedCost,
                         'remarks'        => "Damaged arrival quarantined via GRN #{$grnNumber}",
                         'condition_type' => 'damaged'
                     ]);

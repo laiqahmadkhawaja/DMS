@@ -141,8 +141,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th style="width: 10%;">Ctn</th>
                                 <th style="width: 10%;">Pack</th>
                                 <th style="width: 10%;">Pcs</th>
-                                <th style="width: 13%;">Total Cartons</th>
-                                <th style="width: 14%;">Rate / Ctn</th>
+                                <th style="width: 13%;">Total Qty</th>
+                                <th style="width: 14%;">Rate</th>
                                 <th style="width: 18%;" class="text-end pe-3">Credit Amount</th>
                             </tr>
                         </thead>
@@ -169,8 +169,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-center fw-bold text-dark"><?= $cQty > 0 ? number_format($cQty) : '-' ?></td>
                                     <td class="text-center fw-bold text-dark"><?= $pkQty > 0 ? number_format($pkQty) : '-' ?></td>
                                     <td class="text-center fw-bold text-dark"><?= $pQty > 0 ? number_format($pQty) : '-' ?></td>
-                                    <td class="text-center fw-semibold text-primary"><?= number_format((float)$item['quantity'], 2) ?> Ctn</td>
-                                    <td class="text-center"><?= format_currency((float)$item['rate']) ?></td>
+                                    <td class="text-center fw-semibold text-primary"><?= number_format((float)$item['quantity'], 2) ?> <?= ($item['unit_code'] === 'PCS' || (int)$item['unit_id'] === 4) ? 'Pcs' : 'Ctn' ?></td>
+                                    <td class="text-center">
+                                        <?= format_currency((float)$item['rate']) ?>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;"><?= ($item['unit_code'] === 'PCS' || (int)$item['unit_id'] === 4) ? '/ Piece' : '/ Carton' ?></small>
+                                    </td>
                                     <td class="text-end pe-3 fw-bold text-navy"><?= format_currency((float)$item['amount']) ?></td>
                                 </tr>
                             <?php endforeach; ?>

@@ -159,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // If issuing right away, record stock deduction
                 if ($actionType === 'issue') {
+                    $pieceCost = $reqQty > 0 ? round($agg['total_amount'] / $reqQty, 6) : 0;
                     record_stock_movement([
                         'product_id'     => $agg['product_id'],
                         'warehouse_id'   => $warehouseId,
@@ -167,7 +168,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'reference_id'   => $loadSheetId,
                         'qty_in'         => 0,
                         'qty_out'        => $reqQty,
-                        'unit_cost'      => $agg['rate'], // Or cost from product
+                        'unit_cost'      => $pieceCost,
+                        'total_cost'     => (float)$agg['total_amount'],
                         'remarks'        => "Stock dispatch for Load Sheet #{$loadNumber}",
                         'condition_type' => 'saleable'
                     ]);

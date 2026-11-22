@@ -43,15 +43,19 @@ if ($action === 'cancel') {
         if (empty($invoice['load_sheet_id'])) {
             $items = db_fetch_all("SELECT * FROM sales_invoice_items WHERE invoice_id = ?", [$id]);
             foreach ($items as $item) {
+                $revQty = (float)$item['quantity'];
+                $revTot = (float)$item['line_total'];
+                $pieceCost = $revQty > 0 ? round($revTot / $revQty, 6) : 0;
                 record_stock_movement([
                     'product_id'     => (int)$item['product_id'],
                     'warehouse_id'   => 1,
                     'movement_type'  => 'stock_adjustment_add',
                     'reference_type' => 'adjustment',
                     'reference_id'   => $id,
-                    'qty_in'         => (float)$item['quantity'],
+                    'qty_in'         => $revQty,
                     'qty_out'        => 0,
-                    'unit_cost'      => (float)$item['rate'],
+                    'unit_cost'      => $pieceCost,
+                    'total_cost'     => $revTot,
                     'remarks'        => "Stock reversal for cancelled invoice #{$invoice['invoice_number']}",
                     'condition_type' => 'saleable'
                 ]);

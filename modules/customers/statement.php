@@ -307,7 +307,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         <input type="hidden" name="view" value="single">
         <div class="col-md-5">
             <label class="form-label small fw-semibold mb-1">Select Customer / Shop</label>
-            <select name="id" class="form-select form-select-sm" onchange="this.form.submit()">
+            <select name="id" class="form-select form-select-sm searchable-customer" onchange="this.form.submit()">
                 <option value="">-- Choose Retailer --</option>
                 <?php foreach ($allCustomers as $ac): ?>
                     <option value="<?= $ac['id'] ?>" <?= $ac['id'] == $customerId ? 'selected' : '' ?>>

@@ -63,6 +63,9 @@ if (!defined('DMS_RUNNING')) {
 <!-- Global Quick Area / Route Slide Drawer (Real-Time Dynamic Route Creation) -->
 <?php require_once __DIR__ . '/drawers/quick_area_drawer.php'; ?>
 
+<!-- Global Quick Customer / Retailer Slide Drawer (Real-Time Dynamic Customer Creation) -->
+<?php require_once __DIR__ . '/drawers/quick_customer_drawer.php'; ?>
+
 <!-- Local Scripts (No CDNs) -->
 <script src="<?= APP_URL ?>/assets/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="<?= APP_URL ?>/assets/js/app.js"></script>

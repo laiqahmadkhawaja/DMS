@@ -371,19 +371,33 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <div class="card-body py-2 px-3">
                     <div class="row g-2 align-items-center">
                         <div class="col-md-3">
-                            <label class="form-label small fw-bold mb-1">Customer / Retail Shop <span class="text-danger">*</span></label>
-                            <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
-                                <option value="">-- Select Retail Customer --</option>
-                                <?php foreach ($customers as $c): ?>
-                                    <option value="<?= $c['id'] ?>" <?= ($preselectedCustomerId === (int)$c['id']) ? 'selected' : '' ?> 
-                                            data-area="<?= $c['area_id'] ?>" 
-                                            data-booker="<?= $c['booker_id'] ?>"
-                                            data-balance="<?= $c['current_balance'] ?>"
-                                            data-limit="<?= $c['credit_limit'] ?>">
-                                        <?= htmlspecialchars($c['shop_name']) ?> (<?= htmlspecialchars($c['customer_code']) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label class="form-label small fw-bold mb-1 d-flex justify-content-between align-items-center">
+                                <span>Customer / Retail Shop <span class="text-danger">*</span></span>
+                                <?php if (has_permission('customers_create')): ?>
+                                <a href="javascript:void(0)" onclick="openQuickCustomerDrawer('customerSelect')" class="text-primary text-decoration-none" title="Quick Add Customer">
+                                    <i class="bi bi-plus-circle-fill"></i> New
+                                </a>
+                                <?php endif; ?>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
+                                    <option value="">-- Select Retail Customer --</option>
+                                    <?php foreach ($customers as $c): ?>
+                                        <option value="<?= $c['id'] ?>" <?= ($preselectedCustomerId === (int)$c['id']) ? 'selected' : '' ?> 
+                                                data-area="<?= $c['area_id'] ?>" 
+                                                data-booker="<?= $c['booker_id'] ?>"
+                                                data-balance="<?= $c['current_balance'] ?>"
+                                                data-limit="<?= $c['credit_limit'] ?>">
+                                            <?= htmlspecialchars($c['shop_name']) ?> (<?= htmlspecialchars($c['customer_code']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (has_permission('customers_create')): ?>
+                                <button type="button" class="btn btn-outline-primary" onclick="openQuickCustomerDrawer('customerSelect')" title="Add New Customer in Real-Time">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label small fw-bold mb-1">Invoice Date <span class="text-danger">*</span></label>

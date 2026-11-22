@@ -38,16 +38,20 @@ try {
     if ($sheet['status'] === 'issued') {
         $items = db_fetch_all("SELECT * FROM load_sheet_items WHERE load_sheet_id = ?", [$id]);
         foreach ($items as $item) {
-            if ((float)$item['loaded_qty'] > 0) {
+            $loadedQty = (float)$item['loaded_qty'];
+            if ($loadedQty > 0) {
+                $totAmt = (float)$item['total_amount'];
+                $pieceCost = round($totAmt / $loadedQty, 6);
                 record_stock_movement([
                     'product_id'     => (int)$item['product_id'],
                     'warehouse_id'   => (int)$sheet['warehouse_id'],
                     'movement_type'  => 'stock_adjustment_add',
                     'reference_type' => 'load_sheet',
                     'reference_id'   => $id,
-                    'qty_in'         => (float)$item['loaded_qty'],
+                    'qty_in'         => $loadedQty,
                     'qty_out'        => 0,
-                    'unit_cost'      => (float)$item['rate'],
+                    'unit_cost'      => $pieceCost,
+                    'total_cost'     => $totAmt,
                     'remarks'        => "Stock reversal for cancelled Load Sheet #{$sheet['load_number']}",
                     'condition_type' => 'saleable'
                 ]);

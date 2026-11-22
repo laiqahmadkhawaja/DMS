@@ -80,6 +80,9 @@ $movements = db_fetch_all("
         p.product_code,
         p.product_name,
         p.carton_qty as ctn_ratio,
+        p.pack_qty as pack_ratio,
+        p.base_unit_id,
+        COALESCE(u_prod.symbol, 'Ctn') as major_unit_symbol,
         sm.qty_in,
         sm.qty_out,
         sm.base_unit_qty,
@@ -90,12 +93,23 @@ $movements = db_fetch_all("
         u.full_name as creator_name
     FROM stock_movements sm
     JOIN products p ON sm.product_id = p.id
+    LEFT JOIN units u_prod ON p.base_unit_id = u_prod.id
     JOIN warehouses w ON sm.warehouse_id = w.id
     LEFT JOIN users u ON sm.created_by = u.id
     WHERE {$whereClause}
     ORDER BY sm.movement_date DESC, sm.id DESC
     LIMIT {$perPage} OFFSET {$offset}
 ", $params);
+
+$selectedProduct = null;
+if ($productId > 0) {
+    $selectedProduct = db_fetch_one("
+        SELECT p.*, COALESCE(u.symbol, 'Ctn') as major_unit_symbol 
+        FROM products p 
+        LEFT JOIN units u ON p.base_unit_id = u.id 
+        WHERE p.id = ?
+    ", [$productId]);
+}
 
 $products = db_fetch_all("SELECT id, product_code, product_name FROM products WHERE is_deleted = 0 ORDER BY product_name ASC");
 
@@ -136,8 +150,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
                     <div class="card-body">
                         <div class="text-muted small text-uppercase fw-bold">Total Stock Received (In)</div>
-                        <div class="fs-4 fw-bold text-success mt-1">+<?= number_format((float)$stats['total_units_in']) ?></div>
-                        <div class="small text-success mt-1">Purchases, Opening & Returns</div>
+                        <?php if ($selectedProduct): 
+                            $inBk = breakdown_base_pieces((float)$stats['total_units_in'], (float)$selectedProduct['carton_qty'], (float)$selectedProduct['pack_qty'], $selectedProduct['major_unit_symbol']);
+                        ?>
+                            <div class="fs-4 fw-bold text-success mt-1">+<?= $inBk['formatted'] ?></div>
+                            <div class="small text-muted mt-1">+<?= number_format((float)$stats['total_units_in']) ?> base units</div>
+                        <?php else: ?>
+                            <div class="fs-4 fw-bold text-success mt-1">+<?= number_format((float)$stats['total_units_in']) ?> units</div>
+                            <div class="small text-success mt-1">Purchases, Opening & Returns</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -145,8 +166,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <div class="card border-0 shadow-sm h-100 border-start border-danger border-4">
                     <div class="card-body">
                         <div class="text-muted small text-uppercase fw-bold">Total Stock Dispatched (Out)</div>
-                        <div class="fs-4 fw-bold text-danger mt-1">-<?= number_format((float)$stats['total_units_out']) ?></div>
-                        <div class="small text-danger mt-1">Van loading & direct sales</div>
+                        <?php if ($selectedProduct): 
+                            $outBk = breakdown_base_pieces((float)$stats['total_units_out'], (float)$selectedProduct['carton_qty'], (float)$selectedProduct['pack_qty'], $selectedProduct['major_unit_symbol']);
+                        ?>
+                            <div class="fs-4 fw-bold text-danger mt-1">-<?= $outBk['formatted'] ?></div>
+                            <div class="small text-muted mt-1">-<?= number_format((float)$stats['total_units_out']) ?> base units</div>
+                        <?php else: ?>
+                            <div class="fs-4 fw-bold text-danger mt-1">-<?= number_format((float)$stats['total_units_out']) ?> units</div>
+                            <div class="small text-danger mt-1">Van loading & direct sales</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -154,7 +182,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <div class="card border-0 shadow-sm h-100 border-start border-info border-4">
                     <div class="card-body">
                         <div class="text-muted small text-uppercase fw-bold">Net Stock Balance Delta</div>
-                        <div class="fs-4 fw-bold text-navy mt-1"><?= number_format((float)$stats['total_units_in'] - (float)$stats['total_units_out']) ?> units</div>
+                        <?php 
+                        $netDelta = (float)$stats['total_units_in'] - (float)$stats['total_units_out'];
+                        if ($selectedProduct): 
+                            $netBk = breakdown_base_pieces($netDelta, (float)$selectedProduct['carton_qty'], (float)$selectedProduct['pack_qty'], $selectedProduct['major_unit_symbol']);
+                        ?>
+                            <div class="fs-4 fw-bold text-navy mt-1"><?= ($netDelta >= 0 ? '+' : '') . $netBk['formatted'] ?></div>
+                            <div class="small text-muted mt-1"><?= ($netDelta >= 0 ? '+' : '') . number_format($netDelta) ?> base units</div>
+                        <?php else: ?>
+                            <div class="fs-4 fw-bold text-navy mt-1"><?= ($netDelta >= 0 ? '+' : '') . number_format($netDelta) ?> units</div>
+                            <div class="small text-muted mt-1">Filter by product for packaging counts</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -210,11 +248,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th class="ps-3">Date & Time</th>
                                 <th>Movement Type</th>
                                 <th>Document Reference</th>
-                                <th>Product</th>
-                                <th class="text-center text-success">Qty In (+)</th>
-                                <th class="text-center text-danger">Qty Out (-)</th>
-                                <th class="text-center">Net Change</th>
-                                <th class="text-end">Unit Cost</th>
+                                <th>Product Details</th>
+                                <th class="text-center text-success" style="min-width: 140px;">Qty In (+) <br><span class="fw-normal text-muted" style="font-size: 0.7rem; text-transform: none;">Carton / Pack / Pcs</span></th>
+                                <th class="text-center text-danger" style="min-width: 140px;">Qty Out (-) <br><span class="fw-normal text-muted" style="font-size: 0.7rem; text-transform: none;">Carton / Pack / Pcs</span></th>
+                                <th class="text-center" style="min-width: 140px;">Net Change <br><span class="fw-normal text-muted" style="font-size: 0.7rem; text-transform: none;">Movement Delta</span></th>
+                                <th class="text-end">Valuation</th>
                                 <th>Remarks</th>
                             </tr>
                         </thead>
@@ -230,6 +268,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php foreach ($movements as $m): 
                                     $in  = (float)$m['qty_in'];
                                     $out = (float)$m['qty_out'];
+                                    $net = $in - $out;
+
+                                    $ctnRatio  = (float)$m['ctn_ratio'] > 0 ? (float)$m['ctn_ratio'] : 1;
+                                    $packRatio = (float)$m['pack_ratio'] > 0 ? (float)$m['pack_ratio'] : 1;
+                                    $majorUnit = !empty($m['major_unit_symbol']) ? $m['major_unit_symbol'] : 'Ctn';
+
+                                    $inBreakdown  = breakdown_base_pieces($in, $ctnRatio, $packRatio, $majorUnit);
+                                    $outBreakdown = breakdown_base_pieces($out, $ctnRatio, $packRatio, $majorUnit);
+                                    $netBreakdown = breakdown_base_pieces($net, $ctnRatio, $packRatio, $majorUnit);
                                 ?>
                                     <tr>
                                         <td class="ps-3 text-muted small">
@@ -254,19 +301,36 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             </span>
                                         </td>
                                         <td class="fw-semibold text-dark">
-                                            <?= htmlspecialchars($m['product_name']) ?>
+                                            <div><?= htmlspecialchars($m['product_name']) ?></div>
+                                            <small class="text-muted" style="font-size: 0.72rem;">
+                                                <span class="fw-bold"><?= htmlspecialchars($m['product_code']) ?></span> &bull; 
+                                                1 <?= htmlspecialchars($majorUnit) ?> = <?= (int)$ctnRatio ?> Pck<?= (int)$packRatio > 1 ? '*' . (int)$packRatio : '' ?> (<?= (int)($ctnRatio * $packRatio) ?> units)
+                                            </small>
                                         </td>
-                                        <td class="text-center fw-bold text-success">
-                                            <?= $in > 0 ? '+' . number_format($in) : '-' ?>
+                                        <td class="text-center">
+                                            <?php if ($in > 0): ?>
+                                                <div class="fw-bold text-success">+<?= $inBreakdown['formatted'] ?></div>
+                                                <div class="text-muted" style="font-size: 0.72rem;">(+<?= number_format($in) ?> units)</div>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
                                         </td>
-                                        <td class="text-center fw-bold text-danger">
-                                            <?= $out > 0 ? '-' . number_format($out) : '-' ?>
+                                        <td class="text-center">
+                                            <?php if ($out > 0): ?>
+                                                <div class="fw-bold text-danger">-<?= $outBreakdown['formatted'] ?></div>
+                                                <div class="text-muted" style="font-size: 0.72rem;">(-<?= number_format($out) ?> units)</div>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
                                         </td>
-                                        <td class="text-center fw-bold <?= ($in - $out) >= 0 ? 'text-success' : 'text-danger' ?>">
-                                            <?= ($in - $out) > 0 ? '+' . number_format($in - $out) : number_format($in - $out) ?>
+                                        <td class="text-center">
+                                            <div class="fw-bold <?= $net >= 0 ? 'text-success' : 'text-danger' ?>">
+                                                <?= ($net >= 0 ? '+' : '') . $netBreakdown['formatted'] ?>
+                                            </div>
+                                            <div class="text-muted" style="font-size: 0.72rem;">(<?= ($net >= 0 ? '+' : '') . number_format($net) ?> units)</div>
                                         </td>
                                         <td class="text-end text-muted">
-                                            <?= format_currency((float)$m['unit_cost']) ?>
+                                            <?= format_currency(((float)$m['unit_cost']) * ((float)$m['base_unit_qty'])) ?>
                                         </td>
                                         <td class="small text-muted">
                                             <?= htmlspecialchars($m['remarks'] ?: '') ?>

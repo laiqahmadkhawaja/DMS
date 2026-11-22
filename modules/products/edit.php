@@ -27,15 +27,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $supplierId      = !empty($_POST['supplier_id']) ? (int)$_POST['supplier_id'] : null;
     $brandId         = !empty($_POST['brand_id']) ? (int)$_POST['brand_id'] : null;
     $baseUnitId      = (int)($_POST['base_unit_id'] ?? 0);
-    $purchaseRate    = (float)($_POST['purchase_rate'] ?? 0);
-    $defaultSaleRate = (float)($_POST['default_sale_rate'] ?? 0);
-    $wholesaleRate   = (float)($_POST['wholesale_rate'] ?? 0);
-    $retailRate      = (float)($_POST['retail_rate'] ?? 0);
-    $cartonQty       = (float)($_POST['carton_qty'] ?? 1);
-    $packQty         = (float)($_POST['pack_qty'] ?? 1);
-    $minStockLevel   = (float)($_POST['min_stock_level'] ?? 0);
-    $description     = clean_input($_POST['description'] ?? '');
-    $isActive        = isset($_POST['is_active']) ? 1 : 0;
+    $purchaseRate       = (float)($_POST['purchase_rate'] ?? 0);
+    $defaultSaleRate    = (float)($_POST['default_sale_rate'] ?? 0);
+    $wholesaleRate      = (float)($_POST['wholesale_rate'] ?? 0);
+    $retailRate         = (float)($_POST['retail_rate'] ?? 0);
+    $cartonRate         = (float)($_POST['carton_rate'] ?? 0);
+    $pieceRate          = (float)($_POST['piece_rate'] ?? 0);
+    $purchaseCartonRate = (float)($_POST['purchase_carton_rate'] ?? 0);
+    $purchasePieceRate  = (float)($_POST['purchase_piece_rate'] ?? 0);
+    $retailCartonRate   = (float)($_POST['retail_carton_rate'] ?? 0);
+    $retailPieceRate    = (float)($_POST['retail_piece_rate'] ?? 0);
+    $cartonQty          = (float)($_POST['carton_qty'] ?? 1);
+    $packQty            = (float)($_POST['pack_qty'] ?? 1);
+    $minStockLevel      = (float)($_POST['min_stock_level'] ?? 0);
+    $description        = clean_input($_POST['description'] ?? '');
+    $isActive           = isset($_POST['is_active']) ? 1 : 0;
+
+    $totalPcsPerCtn = max(1.0, ($cartonQty > 0 ? $cartonQty : 1.0) * ($packQty > 0 ? $packQty : 1.0));
+
+    // Wholesale synchronization
+    if ($cartonRate <= 0 && $wholesaleRate > 0) {
+        $cartonRate = $wholesaleRate;
+    }
+    if ($cartonRate > 0 && $pieceRate <= 0) {
+        $pieceRate = round($cartonRate / $totalPcsPerCtn, 2);
+    } elseif ($pieceRate > 0 && $cartonRate <= 0) {
+        $cartonRate = round($pieceRate * $totalPcsPerCtn, 2);
+    }
+    if ($wholesaleRate <= 0 && $cartonRate > 0) {
+        $wholesaleRate = $cartonRate;
+    }
+
+    // Purchase cost synchronization
+    if ($purchaseCartonRate <= 0 && $purchaseRate > 0) {
+        $purchaseCartonRate = $purchaseRate;
+    }
+    if ($purchaseCartonRate > 0 && $purchasePieceRate <= 0) {
+        $purchasePieceRate = round($purchaseCartonRate / $totalPcsPerCtn, 2);
+    } elseif ($purchasePieceRate > 0 && $purchaseCartonRate <= 0) {
+        $purchaseCartonRate = round($purchasePieceRate * $totalPcsPerCtn, 2);
+    }
+    if ($purchaseRate <= 0 && $purchaseCartonRate > 0) {
+        $purchaseRate = $purchaseCartonRate;
+    }
+
+    // Retail MRP synchronization
+    if ($retailCartonRate <= 0 && $retailRate > 0) {
+        $retailCartonRate = $retailRate;
+    }
+    if ($retailCartonRate > 0 && $retailPieceRate <= 0) {
+        $retailPieceRate = round($retailCartonRate / $totalPcsPerCtn, 2);
+    } elseif ($retailPieceRate > 0 && $retailCartonRate <= 0) {
+        $retailCartonRate = round($retailPieceRate * $totalPcsPerCtn, 2);
+    }
+    if ($retailRate <= 0 && $retailCartonRate > 0) {
+        $retailRate = $retailCartonRate;
+    }
 
     $validator = new Validator();
     $validator->required('product_code', $productCode)
@@ -45,7 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               ->exists('category_id', $categoryId, 'product_categories', 'id')
               ->required('base_unit_id', $baseUnitId)
               ->exists('base_unit_id', $baseUnitId, 'units', 'id')
-              ->numeric('wholesale_rate', $wholesaleRate, 0)
               ->numeric('carton_qty', $cartonQty, 0.01);
 
     if ($validator->passes()) {
@@ -54,12 +100,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 UPDATE products 
                 SET product_code = ?, barcode = ?, product_name = ?, category_id = ?, supplier_id = ?, brand_id = ?, base_unit_id = ?,
                     purchase_rate = ?, default_sale_rate = ?, wholesale_rate = ?, retail_rate = ?,
+                    carton_rate = ?, piece_rate = ?, purchase_carton_rate = ?, purchase_piece_rate = ?, retail_carton_rate = ?, retail_piece_rate = ?,
                     carton_qty = ?, pack_qty = ?, min_stock_level = ?, description = ?, is_active = ?, updated_at = NOW()
                 WHERE id = ?
             ");
             $stmt->execute([
                 $productCode, $barcode, $productName, $categoryId, $supplierId, $brandId, $baseUnitId,
                 $purchaseRate, $defaultSaleRate, $wholesaleRate, $retailRate,
+                $cartonRate, $pieceRate, $purchaseCartonRate, $purchasePieceRate, $retailCartonRate, $retailPieceRate,
                 $cartonQty, $packQty, $minStockLevel, $description, $isActive, $id
             ]);
 
@@ -229,10 +277,66 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </div>
                 <div class="card-dms-body">
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold">Wholesale Rate <span class="text-danger">*</span></label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
-                            <input type="number" step="0.01" name="wholesale_rate" class="form-control fw-bold" value="<?= e($product['wholesale_rate']) ?>" required>
+                        <label class="form-label small fw-semibold text-primary">Wholesale / Selling Rate <span class="text-danger">*</span></label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="text-muted small" style="font-size:0.75rem;">Carton Rate (Rs. / Ctn)</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
+                                    <input type="number" step="0.01" name="carton_rate" id="input_carton_rate" class="form-control fw-bold" value="<?= e($product['carton_rate'] ?? $product['wholesale_rate']) ?>" required oninput="syncRatesFromCarton('wholesale')">
+                                </div>
+                                <input type="hidden" name="wholesale_rate" id="hidden_wholesale_rate" value="<?= e($product['wholesale_rate']) ?>">
+                            </div>
+                            <div class="col-6">
+                                <label class="text-muted small" style="font-size:0.75rem;">Piece Rate (Rs. / Pc)</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
+                                    <input type="number" step="0.01" name="piece_rate" id="input_piece_rate" class="form-control" value="<?= e($product['piece_rate'] ?? '') ?>" oninput="syncRatesFromPiece('wholesale')">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Purchase / Cost Rate</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="text-muted small" style="font-size:0.75rem;">Purchase Ctn Rate</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
+                                    <input type="number" step="0.01" name="purchase_carton_rate" id="input_purchase_carton_rate" class="form-control" value="<?= e($product['purchase_carton_rate'] ?? $product['purchase_rate']) ?>" oninput="syncRatesFromCarton('purchase')">
+                                </div>
+                                <input type="hidden" name="purchase_rate" id="hidden_purchase_rate" value="<?= e($product['purchase_rate']) ?>">
+                            </div>
+                            <div class="col-6">
+                                <label class="text-muted small" style="font-size:0.75rem;">Purchase Pc Rate</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
+                                    <input type="number" step="0.01" name="purchase_piece_rate" id="input_purchase_piece_rate" class="form-control" value="<?= e($product['purchase_piece_rate'] ?? '') ?>" oninput="syncRatesFromPiece('purchase')">
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.72rem;">Cost used for purchase orders and gross profit calculation</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Printed MRP / Retail Rate</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="text-muted small" style="font-size:0.75rem;">Retail Ctn Rate</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
+                                    <input type="number" step="0.01" name="retail_carton_rate" id="input_retail_carton_rate" class="form-control" value="<?= e($product['retail_carton_rate'] ?? $product['retail_rate']) ?>" oninput="syncRatesFromCarton('retail')">
+                                </div>
+                                <input type="hidden" name="retail_rate" id="hidden_retail_rate" value="<?= e($product['retail_rate']) ?>">
+                            </div>
+                            <div class="col-6">
+                                <label class="text-muted small" style="font-size:0.75rem;">Retail Pc Rate</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
+                                    <input type="number" step="0.01" name="retail_piece_rate" id="input_retail_piece_rate" class="form-control" value="<?= e($product['retail_piece_rate'] ?? '') ?>" oninput="syncRatesFromPiece('retail')">
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -245,16 +349,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold">Purchase Cost Rate</label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text"><?= DEFAULT_CURRENCY ?></span>
-                            <input type="number" step="0.01" name="purchase_rate" class="form-control" value="<?= e($product['purchase_rate']) ?>">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
                         <label class="form-label small fw-semibold">Minimum Stock Alert Level</label>
                         <input type="number" step="0.01" name="min_stock_level" class="form-control form-control-sm" value="<?= e($product['min_stock_level']) ?>">
+                        <small class="text-muted">Triggers low stock alerts on the dashboard</small>
                     </div>
                 </div>
                 <div class="card-footer bg-light p-3 text-end border-top">
@@ -432,10 +529,74 @@ function updateConversionPreview() {
 
     const packs = parseFloat(packsInput ? packsInput.value : 10) || 1;
     const pcs = parseFloat(pcsInput ? pcsInput.value : 1) || 1;
-    const totalPcs = packs * pcs;
+    const totalPcs = Math.max(1, packs * pcs);
 
     if (prevPacks) prevPacks.textContent = packs.toLocaleString();
     if (prevPieces) prevPieces.textContent = totalPcs.toLocaleString();
+}
+
+function syncRatesFromCarton(type) {
+    const packs = parseFloat(document.getElementById('input_carton_qty')?.value) || 1;
+    const pcs = parseFloat(document.getElementById('input_pack_qty')?.value) || 1;
+    const totalPcs = Math.max(1, packs * pcs);
+
+    if (type === 'wholesale') {
+        const ctnInput = document.getElementById('input_carton_rate');
+        const pcInput = document.getElementById('input_piece_rate');
+        const hid = document.getElementById('hidden_wholesale_rate');
+        const val = parseFloat(ctnInput?.value) || 0;
+        if (hid) hid.value = val;
+        if (val > 0 && pcInput) pcInput.value = (val / totalPcs).toFixed(2);
+    } else if (type === 'purchase') {
+        const ctnInput = document.getElementById('input_purchase_carton_rate');
+        const pcInput = document.getElementById('input_purchase_piece_rate');
+        const hid = document.getElementById('hidden_purchase_rate');
+        const val = parseFloat(ctnInput?.value) || 0;
+        if (hid) hid.value = val;
+        if (val > 0 && pcInput) pcInput.value = (val / totalPcs).toFixed(2);
+    } else if (type === 'retail') {
+        const ctnInput = document.getElementById('input_retail_carton_rate');
+        const pcInput = document.getElementById('input_retail_piece_rate');
+        const hid = document.getElementById('hidden_retail_rate');
+        const val = parseFloat(ctnInput?.value) || 0;
+        if (hid) hid.value = val;
+        if (val > 0 && pcInput) pcInput.value = (val / totalPcs).toFixed(2);
+    }
+}
+
+function syncRatesFromPiece(type) {
+    const packs = parseFloat(document.getElementById('input_carton_qty')?.value) || 1;
+    const pcs = parseFloat(document.getElementById('input_pack_qty')?.value) || 1;
+    const totalPcs = Math.max(1, packs * pcs);
+
+    if (type === 'wholesale') {
+        const ctnInput = document.getElementById('input_carton_rate');
+        const pcInput = document.getElementById('input_piece_rate');
+        const hid = document.getElementById('hidden_wholesale_rate');
+        const val = parseFloat(pcInput?.value) || 0;
+        if (val > 0 && ctnInput) {
+            ctnInput.value = (val * totalPcs).toFixed(2);
+            if (hid) hid.value = ctnInput.value;
+        }
+    } else if (type === 'purchase') {
+        const ctnInput = document.getElementById('input_purchase_carton_rate');
+        const pcInput = document.getElementById('input_purchase_piece_rate');
+        const hid = document.getElementById('hidden_purchase_rate');
+        const val = parseFloat(pcInput?.value) || 0;
+        if (val > 0 && ctnInput) {
+            ctnInput.value = (val * totalPcs).toFixed(2);
+            if (hid) hid.value = ctnInput.value;
+        }
+    } else if (type === 'retail') {
+        const ctnInput = document.getElementById('input_retail_carton_rate');
+        const pcInput = document.getElementById('input_retail_piece_rate');
+        const hid = document.getElementById('hidden_retail_rate');
+        const val = parseFloat(pcInput?.value) || 0;
+        if (val > 0 && ctnInput) {
+            ctnInput.value = (val * totalPcs).toFixed(2);
+            if (hid) hid.value = ctnInput.value;
+        }
+    }
 }
 document.addEventListener('DOMContentLoaded', updateConversionPreview);
 </script>

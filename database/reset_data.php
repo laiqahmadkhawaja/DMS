@@ -103,24 +103,24 @@ try {
         if ($opBal > 0) {
             // Debit Accounts Receivable 1020, Credit Opening Balance Equity 3010
             $stmt = $pdo->prepare("
-                INSERT INTO journal_entries (entry_number, entry_date, reference_type, reference_id, total_amount, narration, is_posted, created_by, created_at)
-                VALUES (?, CURDATE(), 'opening', ?, ?, ?, 1, 1, NOW())
+                INSERT INTO journal_entries (entry_number, entry_date, reference_type, reference_id, narration, created_by, created_at)
+                VALUES (?, CURDATE(), 'opening', ?, ?, 1, NOW())
             ");
             $entryNum = 'JV-OP-' . date('Ymd') . '-' . str_pad($c['id'], 4, '0', STR_PAD_LEFT);
-            $stmt->execute([$entryNum, $c['id'], $opBal, "Opening balance for customer: " . $c['shop_name']]);
+            $stmt->execute([$entryNum, $c['id'], "Opening balance for customer: " . $c['shop_name']]);
             $jvId = $pdo->lastInsertId();
 
             // Line 1: Debit AR 1020
-            $accAR = $pdo->query("SELECT id FROM chart_of_accounts WHERE account_code = '1020'")->fetchColumn();
+            $accAR = $pdo->query("SELECT id FROM accounts WHERE account_code = '1020'")->fetchColumn();
             if ($accAR) {
-                $pdo->prepare("INSERT INTO journal_entry_lines (journal_entry_id, account_id, debit, credit, line_narration) VALUES (?, ?, ?, 0, ?)")
-                    ->execute([$jvId, $accAR, $opBal, "Opening AR balance - " . $c['shop_name']]);
+                $pdo->prepare("INSERT INTO journal_entry_lines (journal_entry_id, account_id, debit, credit, description, party_type, party_id, created_at) VALUES (?, ?, ?, 0, ?, 'customer', ?, NOW())")
+                    ->execute([$jvId, $accAR, $opBal, "Opening AR balance - " . $c['shop_name'], $c['id']]);
             }
 
             // Line 2: Credit Equity 3010
-            $accEq = $pdo->query("SELECT id FROM chart_of_accounts WHERE account_code = '3010'")->fetchColumn();
+            $accEq = $pdo->query("SELECT id FROM accounts WHERE account_code = '3010'")->fetchColumn();
             if ($accEq) {
-                $pdo->prepare("INSERT INTO journal_entry_lines (journal_entry_id, account_id, debit, credit, line_narration) VALUES (?, ?, 0, ?, ?)")
+                $pdo->prepare("INSERT INTO journal_entry_lines (journal_entry_id, account_id, debit, credit, description, party_type, party_id, created_at) VALUES (?, ?, 0, ?, ?, NULL, NULL, NOW())")
                     ->execute([$jvId, $accEq, $opBal, "Opening equity offset - " . $c['shop_name']]);
             }
         }

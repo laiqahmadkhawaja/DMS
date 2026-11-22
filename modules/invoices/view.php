@@ -203,7 +203,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-center"><?= (float)$item['pack_qty'] > 0 ? (float)$item['pack_qty'] : '-' ?></td>
                                             <td class="text-center"><?= (float)$item['pcs_qty'] > 0 ? (float)$item['pcs_qty'] : '-' ?></td>
                                             <td class="text-center fw-semibold text-navy"><?= (float)$item['quantity'] ?></td>
-                                            <td class="text-center"><?= format_currency((float)$item['rate']) ?></td>
+                                            <td class="text-center">
+                                                <?= format_currency((float)$item['rate']) ?>
+                                                <small class="text-muted d-block" style="font-size: 0.72rem;"><?= ($item['unit_code'] === 'PCS' || (int)$item['unit_id'] === 4) ? '/ Piece' : '/ Carton' ?></small>
+                                            </td>
                                             <td class="text-end pe-3 fw-bold text-dark"><?= format_currency((float)$item['line_total']) ?></td>
                                         </tr>
                                     <?php endforeach; ?>

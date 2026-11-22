@@ -169,7 +169,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-center fw-bold text-dark"><?= $cQty > 0 ? number_format($cQty) : '-' ?></td>
                                     <td class="text-center fw-bold text-dark"><?= $pkQty > 0 ? number_format($pkQty) : '-' ?></td>
                                     <td class="text-center fw-bold text-dark"><?= $pQty > 0 ? number_format($pQty) : '-' ?></td>
-                                    <td class="text-center fw-semibold text-primary"><?= number_format((float)$item['quantity'], 2) ?> Ctn</td>
+                                    <td class="text-center fw-semibold text-primary"><?= number_format((float)$item['quantity'], 2) ?> <?= ($item['unit_code'] === 'PCS' || (int)$item['unit_id'] === 4) ? 'Pcs' : 'Ctn' ?></td>
                                     <td class="text-center">
                                         <?php if ((float)$item['received_quantity'] >= (float)$item['quantity']): ?>
                                             <span class="badge bg-success-subtle text-success"><?= (float)$item['received_quantity'] ?></span>
@@ -179,7 +179,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <span class="text-muted">0.00</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-center"><?= format_currency((float)$item['rate']) ?></td>
+                                    <td class="text-center">
+                                        <?= format_currency((float)$item['rate']) ?>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;"><?= ($item['unit_code'] === 'PCS' || (int)$item['unit_id'] === 4) ? '/ Piece' : '/ Carton' ?></small>
+                                    </td>
                                     <td class="text-end pe-3 fw-bold text-dark"><?= format_currency((float)$item['line_total']) ?></td>
                                 </tr>
                             <?php endforeach; ?>
