@@ -35,6 +35,9 @@ require_once INCLUDES_PATH . '/topbar.php';
         <small class="text-muted">Dynamic item classifications (e.g. Nimko, Snacks, Confectionery, Biscuits)</small>
     </div>
     <div class="d-flex gap-2">
+        <a href="<?= APP_URL ?>/modules/categories/bulk_update.php" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-tags-fill me-1"></i> Bulk Category Updater
+        </a>
         <a href="<?= APP_URL ?>/modules/brands/index.php" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-bookmark-star me-1"></i> Manage Brands
         </a>

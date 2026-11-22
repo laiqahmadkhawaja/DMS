@@ -56,7 +56,7 @@ $productSales = db_fetch_all("
             WHERE sri.product_id = p.id AND sr.return_date >= '{$fromDate}' AND sr.return_date <= '{$toDate}'
         ), 0) as return_units,
         COALESCE((
-            SELECT SUM(sri.line_total)
+            SELECT SUM(sri.amount)
             FROM sales_return_items sri
             JOIN sales_returns sr ON sri.sales_return_id = sr.id
             WHERE sri.product_id = p.id AND sr.return_date >= '{$fromDate}' AND sr.return_date <= '{$toDate}'

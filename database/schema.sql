@@ -279,6 +279,7 @@ CREATE TABLE `products` (
   `retail_rate` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `carton_qty` DECIMAL(10,2) NOT NULL DEFAULT 1.00,
   `pack_qty` DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+  `packing_description` VARCHAR(100) DEFAULT NULL,
   `min_stock_level` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `description` TEXT DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,

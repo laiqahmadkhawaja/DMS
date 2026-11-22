@@ -41,12 +41,14 @@ $categories = db_fetch_all("
 
 $products = db_fetch_all("
     SELECT 
-        p.id, p.product_name, p.product_code, p.category_id, cat.category_name,
-        p.purchase_rate as cost_price, p.wholesale_rate, p.carton_qty, p.pack_qty, p.base_unit_id, u.symbol as unit_symbol,
+        p.id, p.product_name, p.product_code, p.barcode, p.category_id, p.brand_id, cat.category_name, b.brand_name,
+        p.purchase_rate, p.purchase_rate as cost_price, p.default_sale_rate, p.wholesale_rate, p.retail_rate,
+        p.carton_qty, p.pack_qty, p.packing_description, p.base_unit_id, u.symbol as unit_symbol,
         COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
     JOIN units u ON u.id = p.base_unit_id
     LEFT JOIN product_categories cat ON cat.id = p.category_id
+    LEFT JOIN brands b ON b.id = p.brand_id AND b.is_deleted = 0
     LEFT JOIN stock_balances sb ON p.id = sb.product_id AND sb.warehouse_id = 1
     WHERE p.is_deleted = 0 AND p.is_active = 1
     ORDER BY p.product_name ASC
@@ -452,6 +454,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                      onclick="addProductToCart(<?= $p['id'] ?>)">
                                     
                                     <span class="card-badge-cart d-none" id="badge_cart_<?= $p['id'] ?>">0 in return</span>
+                                    <button type="button" class="btn-card-info" title="View Prices & Rates (خرید/ہول سیل/پرچون)" onclick="showProductPriceModal(event, <?= $p['id'] ?>)">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
                                     
                                     <div>
                                         <div class="prod-name"><?= htmlspecialchars($p['product_name']) ?></div>
@@ -1262,5 +1267,6 @@ function recalculateCartSummary() {
 </script>
 
 <?php
+require_once INCLUDES_PATH . '/drawers/product_price_modal.php';
 require_once INCLUDES_PATH . '/footer.php';
 ?>

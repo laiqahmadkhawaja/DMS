@@ -35,6 +35,9 @@ require_once INCLUDES_PATH . '/topbar.php';
         <small class="text-muted">Master product brands, FMCG principals, and manufacturers</small>
     </div>
     <div class="d-flex gap-2">
+        <a href="<?= APP_URL ?>/modules/brands/bulk_update.php" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-bookmark-star-fill me-1"></i> Bulk Brand Updater
+        </a>
         <a href="<?= APP_URL ?>/modules/categories/index.php" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-tags me-1"></i> Manage Categories
         </a>

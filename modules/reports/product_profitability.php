@@ -129,7 +129,7 @@ if ($selectedCategoryId > 0) {
 $returnsRaw = db_fetch_all("
     SELECT 
         sri.product_id,
-        COALESCE(SUM(sri.line_total), 0) as return_amount
+        COALESCE(SUM(sri.amount), 0) as return_amount
     FROM sales_return_items sri
     JOIN sales_returns sr ON sri.sales_return_id = sr.id
     JOIN products p ON sri.product_id = p.id

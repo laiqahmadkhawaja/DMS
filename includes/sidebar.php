@@ -19,7 +19,7 @@ $activeMenu = get_active_menu();
 $isSalesActive      = in_array($activeMenu, ['orders', 'loading', 'invoices', 'delivery', 'settlements', 'returns']) || $activeMenu === 'dashboard';
 $isCustomersActive  = in_array($activeMenu, ['customers', 'cust_ledger', 'customer_payments', 'rpt_aging']);
 $isPurchasesActive  = in_array($activeMenu, ['suppliers', 'purchases', 'goods_receiving', 'supplier_payments', 'supplier_ledger']);
-$isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'categories', 'brands', 'warehouses']);
+$isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'products_import', 'categories', 'brands', 'warehouses', 'bulk_brands', 'bulk_categories']);
 $isAccountsActive   = in_array($activeMenu, ['accounts', 'manage_accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger']);
 $isOperationsActive = in_array($activeMenu, ['areas', 'bookers', 'salesmen']);
 $isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_company', 'rpt_profitability', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
@@ -226,6 +226,11 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                             <i class="bi bi-tag"></i> Products & Pricing
                         </a>
                     </li>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/products/import.php" class="dms-menu-item <?= $activeMenu === 'products_import' ? 'active' : '' ?>">
+                            <i class="bi bi-file-earmark-excel text-success"></i> Import / Export Excel
+                        </a>
+                    </li>
                     <?php endif; ?>
 
                     <?php if (has_permission('masters_manage')): ?>
@@ -235,8 +240,18 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                         </a>
                     </li>
                     <li>
+                        <a href="<?= APP_URL ?>/modules/categories/bulk_update.php" class="dms-menu-item <?= $activeMenu === 'bulk_categories' ? 'active' : '' ?>">
+                            <i class="bi bi-tags-fill text-info"></i> Bulk Category Updater
+                        </a>
+                    </li>
+                    <li>
                         <a href="<?= APP_URL ?>/modules/brands/index.php" class="dms-menu-item <?= $activeMenu === 'brands' ? 'active' : '' ?>">
                             <i class="bi bi-bookmark-star"></i> Brands
+                        </a>
+                    </li>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/brands/bulk_update.php" class="dms-menu-item <?= $activeMenu === 'bulk_brands' ? 'active' : '' ?>">
+                            <i class="bi bi-bookmark-star-fill text-warning"></i> Bulk Brand Updater
                         </a>
                     </li>
                     <li>
