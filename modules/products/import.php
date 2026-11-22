@@ -296,7 +296,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <div>
                             <div class="text-muted small fw-bold text-uppercase">Supplier Companies</div>
                             <div class="h3 fw-bold text-success mb-0 mt-1"><?= number_format($totalSuppliers) ?></div>
-                            <small class="text-muted">Active Suppliers (Ujab, Kunafa, Hashim)</small>
+                            <small class="text-muted">Active Suppliers (Ujab Enterprises & SMS)</small>
                         </div>
                         <div class="bg-success-subtle text-success p-3 rounded-circle fs-3">
                             <i class="bi bi-building"></i>
