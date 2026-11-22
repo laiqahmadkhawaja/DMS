@@ -87,64 +87,93 @@ $settlement = db_fetch_one("
 ", [$id, $id]);
 
 $isSettled = !empty($settlement) || $sheet['status'] === 'returned_closed';
-$fillFigures = isset($_GET['filled']) ? ($_GET['filled'] == '1') : $isSettled;
 
-// Calculate per-product settled returns & credits
+// Calculate per-product returns & credits
 $productCredits = [];
 $productReturns = [];
 $productReturnQtys = [];
+$productReturnBreakdown = [];
 
-if ($settlement) {
-    $retItems = db_fetch_all("
-        SELECT 
-            sri.product_id,
-            SUM(sri.quantity) as return_base_units,
-            SUM(sri.amount) as return_amount
-        FROM sales_returns sr
-        JOIN sales_return_items sri ON sr.id = sri.sales_return_id
-        WHERE sr.settlement_id = ?
-        GROUP BY sri.product_id
-    ", [$settlement['id']]);
+// 1. Fetch itemized sales returns for this load sheet's invoices OR linked to its settlement
+$retQuery = "
+    SELECT 
+        sri.product_id,
+        SUM(sri.carton_qty) as return_cartons,
+        SUM(sri.pack_qty) as return_packs,
+        SUM(sri.pcs_qty) as return_pcs,
+        SUM(sri.quantity) as return_base_units,
+        SUM(sri.amount) as return_amount
+    FROM sales_returns sr
+    JOIN sales_return_items sri ON sr.id = sri.sales_return_id
+    WHERE sr.status != 'cancelled'
+      AND (
+          (sr.invoice_id IS NOT NULL AND sr.invoice_id IN (
+              SELECT id FROM sales_invoices 
+              WHERE load_sheet_id = ? 
+                 OR (order_id IS NOT NULL AND order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?))
+          ))
+          " . (!empty($settlement) ? "OR (sr.settlement_id = ?)" : "") . "
+      )
+    GROUP BY sri.product_id
+";
+$retParams = [$id, $id];
+if (!empty($settlement)) {
+    $retParams[] = (int)$settlement['id'];
+}
+$retItems = db_fetch_all($retQuery, $retParams);
 
-    foreach ($retItems as $ri) {
-        $productReturns[(int)$ri['product_id']] = (float)$ri['return_amount'];
-        $productReturnQtys[(int)$ri['product_id']] = (float)$ri['return_base_units'];
-    }
+foreach ($retItems as $ri) {
+    $pid = (int)$ri['product_id'];
+    $productReturns[$pid] = (float)$ri['return_amount'];
+    $productReturnQtys[$pid] = (float)$ri['return_cartons'] + ((float)$ri['return_pcs'] > 0 ? ((float)$ri['return_pcs'] / 100) : 0);
+    $productReturnBreakdown[$pid] = [
+        'cartons' => (float)$ri['return_cartons'],
+        'pcs'     => (float)$ri['return_pcs'],
+        'amount'  => (float)$ri['return_amount']
+    ];
+}
 
-    $invoiceLines = db_fetch_all("
-        SELECT 
-            sii.product_id,
-            sii.invoice_id,
-            sii.line_total,
-            p.wholesale_rate,
-            inv.net_amount,
-            COALESCE(si.credit_amount, inv.credit_amount) as invoice_credit,
-            COALESCE(si.return_amount, inv.return_amount) as invoice_return
-        FROM sales_invoice_items sii
-        JOIN sales_invoices inv ON sii.invoice_id = inv.id
-        JOIN products p ON sii.product_id = p.id
-        LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
-        WHERE inv.load_sheet_id = ? 
-           OR inv.order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?)
-    ", [$settlement['id'], $id, $id]);
+// 2. Invoice line distributions for credits and returns
+$settleId = !empty($settlement) ? (int)$settlement['id'] : 0;
+$invoiceLines = db_fetch_all("
+    SELECT 
+        sii.product_id,
+        sii.invoice_id,
+        sii.line_total,
+        sii.carton_qty,
+        sii.pcs_qty,
+        p.wholesale_rate,
+        inv.net_amount,
+        COALESCE(si.credit_amount, inv.credit_amount) as invoice_credit,
+        COALESCE(si.return_amount, inv.return_amount) as invoice_return
+    FROM sales_invoice_items sii
+    JOIN sales_invoices inv ON sii.invoice_id = inv.id
+    JOIN products p ON sii.product_id = p.id
+    LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
+    WHERE inv.load_sheet_id = ? 
+       OR inv.order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?)
+", [$settleId, $id, $id]);
 
-    foreach ($invoiceLines as $il) {
-        $pid = (int)$il['product_id'];
-        $lineTot = (float)$il['line_total'];
-        $invNet = (float)$il['net_amount'] > 0 ? (float)$il['net_amount'] : 1;
-        $ratio = min(1.0, $lineTot / $invNet);
+foreach ($invoiceLines as $il) {
+    $pid = (int)$il['product_id'];
+    $lineTot = (float)$il['line_total'];
+    $invNet = (float)$il['net_amount'] > 0 ? (float)$il['net_amount'] : 1;
+    $ratio = min(1.0, $lineTot / $invNet);
 
-        $lineCredit = (float)$il['invoice_credit'] * $ratio;
-        $productCredits[$pid] = ($productCredits[$pid] ?? 0.0) + $lineCredit;
+    $lineCredit = (float)$il['invoice_credit'] * $ratio;
+    $productCredits[$pid] = ($productCredits[$pid] ?? 0.0) + $lineCredit;
 
-        if (!isset($productReturns[$pid])) {
-            $lineRet = (float)$il['invoice_return'] * $ratio;
-            $productReturns[$pid] = ($productReturns[$pid] ?? 0.0) + $lineRet;
-            $rate = (float)$il['wholesale_rate'] > 0 ? (float)$il['wholesale_rate'] : 1;
-            $productReturnQtys[$pid] = ($productReturnQtys[$pid] ?? 0.0) + ($lineRet / $rate);
-        }
+    if (!isset($productReturns[$pid]) && (float)$il['invoice_return'] > 0) {
+        $lineRet = (float)$il['invoice_return'] * $ratio;
+        $productReturns[$pid] = ($productReturns[$pid] ?? 0.0) + $lineRet;
+        $rate = (float)$il['wholesale_rate'] > 0 ? (float)$il['wholesale_rate'] : 1;
+        $productReturnQtys[$pid] = ($productReturnQtys[$pid] ?? 0.0) + ($lineRet / $rate);
     }
 }
+
+$totalReturnAmountVal = array_sum($productReturns);
+$hasRecordedReturns   = ($totalReturnAmountVal > 0) || !empty($settlement) || ($sheet['status'] === 'returned_closed');
+$fillFigures          = isset($_GET['filled']) ? ($_GET['filled'] == '1') : $hasRecordedReturns;
 ?>
 <!DOCTYPE html>
 <html lang="en">

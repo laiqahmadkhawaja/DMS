@@ -25,11 +25,14 @@ $ret = db_fetch_one("
         c.customer_code,
         c.address as customer_address,
         inv.invoice_number,
+        inv.load_sheet_id,
+        ls.load_number,
         st.settlement_number,
         u.full_name as creator_name
     FROM sales_returns sr
     JOIN customers c ON sr.customer_id = c.id
     LEFT JOIN sales_invoices inv ON sr.invoice_id = inv.id
+    LEFT JOIN load_sheets ls ON inv.load_sheet_id = ls.id
     LEFT JOIN settlements st ON sr.settlement_id = st.id
     LEFT JOIN users u ON sr.created_by = u.id
     WHERE sr.id = ?
@@ -106,13 +109,30 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body p-4">
                 <div class="row g-3 mb-4 pb-3 border-bottom">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="text-muted small text-uppercase fw-bold">Customer</div>
                         <div class="fs-5 fw-bold text-dark mt-1"><?= htmlspecialchars($ret['customer_name']) ?> (<?= htmlspecialchars($ret['customer_code']) ?>)</div>
                         <div class="small text-muted"><?= htmlspecialchars($ret['customer_address'] ?: 'N/A') ?></div>
                     </div>
                     <div class="col-md-3">
-                        <div class="text-muted small text-uppercase fw-bold">Return Classification</div>
+                        <div class="text-muted small text-uppercase fw-bold">Linked Documents</div>
+                        <div class="mt-1 small">
+                            <?php if (!empty($ret['invoice_number'])): ?>
+                                <div>Bill: <a href="../invoices/view.php?id=<?= $ret['invoice_id'] ?>" class="fw-bold text-decoration-none"><i class="bi bi-receipt me-1"></i><?= htmlspecialchars($ret['invoice_number']) ?></a></div>
+                            <?php endif; ?>
+                            <?php if (!empty($ret['load_number'])): ?>
+                                <div>Load Form: <a href="../loading/view.php?id=<?= $ret['load_sheet_id'] ?>" class="fw-bold text-decoration-none"><i class="bi bi-truck me-1"></i><?= htmlspecialchars($ret['load_number']) ?></a></div>
+                            <?php endif; ?>
+                            <?php if (!empty($ret['settlement_number'])): ?>
+                                <div>Settlement: <span class="fw-bold"><?= htmlspecialchars($ret['settlement_number']) ?></span></div>
+                            <?php endif; ?>
+                            <?php if (empty($ret['invoice_number']) && empty($ret['load_number'])): ?>
+                                <span class="text-muted">General Market Return</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted small text-uppercase fw-bold">Classification</div>
                         <div class="mt-1">
                             <?php if ($ret['condition_type'] === 'saleable'): ?>
                                 <span class="badge bg-success">Saleable (Restocked)</span>

@@ -24,6 +24,40 @@ $preInvoiceId    = isset($_GET['invoice_id']) ? (int)$_GET['invoice_id'] : 0;
 $preSettlementId = isset($_GET['settlement_id']) ? (int)$_GET['settlement_id'] : 0;
 $targetAmount    = isset($_GET['amount']) ? (float)$_GET['amount'] : 0.0;
 
+$preInvoice = null;
+if ($preInvoiceId > 0) {
+    $preInvoice = db_fetch_one("
+        SELECT 
+            inv.*, 
+            c.shop_name, c.customer_code, c.current_balance, c.phone as customer_phone, c.address as customer_address,
+            a.area_name, b.booker_name, sm.salesman_name, ls.load_number
+        FROM sales_invoices inv
+        JOIN customers c ON inv.customer_id = c.id
+        LEFT JOIN areas a ON inv.area_id = a.id
+        LEFT JOIN bookers b ON inv.booker_id = b.id
+        LEFT JOIN salesmen sm ON inv.salesman_id = sm.id
+        LEFT JOIN load_sheets ls ON inv.load_sheet_id = ls.id
+        WHERE inv.id = ?
+    ", [$preInvoiceId]);
+    if ($preInvoice) {
+        $preCustomerId = (int)$preInvoice['customer_id'];
+    }
+}
+
+$recentInvoices = db_fetch_all("
+    SELECT 
+        inv.id, inv.invoice_number, inv.invoice_date, inv.customer_id, inv.net_amount, inv.return_amount, 
+        c.shop_name, c.customer_code, a.area_name, ls.load_number, sm.salesman_name
+    FROM sales_invoices inv
+    JOIN customers c ON inv.customer_id = c.id
+    LEFT JOIN areas a ON inv.area_id = a.id
+    LEFT JOIN salesmen sm ON inv.salesman_id = sm.id
+    LEFT JOIN load_sheets ls ON inv.load_sheet_id = ls.id
+    WHERE inv.status != 'cancelled'
+    ORDER BY inv.id DESC
+    LIMIT 60
+");
+
 $customers = db_fetch_all("
     SELECT c.id, c.customer_code, c.shop_name, c.current_balance, c.credit_limit, c.phone, c.address, a.area_name
     FROM customers c
@@ -297,6 +331,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
 
+            // 4. Update Sales Invoice & Linked Load Sheet / Delivery Runs
+            if ($invoiceId > 0 && $status === 'processed') {
+                db_execute("
+                    UPDATE sales_invoices 
+                    SET return_amount = return_amount + ?,
+                        credit_amount = GREATEST(0, net_amount - paid_amount - (return_amount + ?)),
+                        payment_status = CASE 
+                            WHEN (paid_amount + return_amount + ?) >= net_amount THEN 'paid' 
+                            WHEN (paid_amount + return_amount + ?) > 0 THEN 'partial' 
+                            ELSE 'unpaid' 
+                        END,
+                        updated_at = NOW() 
+                    WHERE id = ?
+                ", [$totalAmount, $totalAmount, $totalAmount, $totalAmount, $invoiceId]);
+
+                // Find linked load sheet id (direct or via order)
+                $linkedLsId = (int)db_fetch_val("
+                    SELECT COALESCE(inv.load_sheet_id, lso.load_sheet_id) 
+                    FROM sales_invoices inv
+                    LEFT JOIN load_sheet_orders lso ON inv.order_id = lso.order_id
+                    WHERE inv.id = ?
+                    LIMIT 1
+                ", [$invoiceId]);
+
+                if ($linkedLsId > 0) {
+                    foreach ($validItems as $vi) {
+                        $pInfo = db_fetch_one("SELECT carton_qty, pack_qty FROM products WHERE id = ?", [$vi['product_id']]);
+                        $pPerC = (float)($pInfo['carton_qty'] ?? 1);
+                        $pcPerP = (float)($pInfo['pack_qty'] ?? 1);
+                        if ($pPerC <= 0) $pPerC = 1.0;
+                        if ($pcPerP <= 0) $pcPerP = 1.0;
+                        $pcsPerCtnTotal = $pPerC * $pcPerP;
+
+                        $cQty = (float)$vi['carton_qty'];
+                        $pkQty = (float)$vi['pack_qty'];
+                        $pcQty = (float)$vi['pcs_qty'];
+                        $ctnEquivalent = $cQty + ($pkQty / $pPerC) + ($pcQty / $pcsPerCtnTotal);
+
+                        $existsLsi = db_fetch_val("SELECT id FROM load_sheet_items WHERE load_sheet_id = ? AND product_id = ?", [$linkedLsId, $vi['product_id']]);
+                        if ($existsLsi) {
+                            db_execute("
+                                UPDATE load_sheet_items 
+                                SET returned_qty = returned_qty + ?
+                                WHERE load_sheet_id = ? AND product_id = ?
+                            ", [$ctnEquivalent, $linkedLsId, $vi['product_id']]);
+                        } else {
+                            db_execute("
+                                INSERT INTO load_sheet_items (load_sheet_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, ordered_qty, required_qty, loaded_qty, short_qty, returned_qty, rate, total_amount, created_at)
+                                VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, ?, ?, ?, NOW())
+                            ", [$linkedLsId, $vi['product_id'], $vi['unit_id'], $ctnEquivalent, $vi['rate'], $vi['amount']]);
+                        }
+                    }
+                }
+
+                // If invoice exists on delivery run bills, update return value
+                db_execute("
+                    UPDATE delivery_run_bills 
+                    SET return_value = return_value + ?
+                    WHERE invoice_id = ?
+                ", [$totalAmount, $invoiceId]);
+            }
+
             if (function_exists('audit_log')) {
                 audit_log('create_return', 'sales_returns', (string)$returnId, "Created sales return {$returnNumber} for {$totalAmount} Rs., stock checked into warehouse.");
             }
@@ -369,79 +465,250 @@ require_once INCLUDES_PATH . '/topbar.php';
             <input type="hidden" name="return_number" value="<?= e($nextReturnNumber) ?>">
             <input type="hidden" name="settlement_id" value="<?= $preSettlementId > 0 ? $preSettlementId : '' ?>">
 
-            <!-- Customer & Return Setup Card -->
+            <!-- Return Workflow Mode Switcher & Top Header -->
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body py-2 px-3">
-                    <div class="row g-2 align-items-center">
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold mb-1 d-flex justify-content-between align-items-center">
-                                <span>Customer / Retailer <span class="text-danger">*</span></span>
-                                <?php if (has_permission('customers_create')): ?>
-                                <a href="javascript:void(0)" onclick="openQuickCustomerDrawer('customerSelect')" class="text-primary text-decoration-none" title="Quick Add Customer">
-                                    <i class="bi bi-plus-circle-fill"></i> New
-                                </a>
-                                <?php endif; ?>
-                            </label>
-                            <div class="input-group input-group-sm">
-                                <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
-                                    <option value="">-- Choose Retailer --</option>
-                                    <?php foreach ($customers as $c): ?>
-                                        <option value="<?= $c['id'] ?>"
-                                                data-code="<?= htmlspecialchars($c['customer_code'] ?? '') ?>"
-                                                data-balance="<?= (float)$c['current_balance'] ?>"
-                                                data-limit="<?= (float)$c['credit_limit'] ?>"
-                                                data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>"
-                                                data-area="<?= htmlspecialchars($c['area_name'] ?? '') ?>"
-                                                <?= ($preCustomerId === (int)$c['id']) ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($c['shop_name']) ?> <?= !empty($c['area_name']) ? '(' . htmlspecialchars($c['area_name']) . ')' : '' ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <?php if (has_permission('customers_create')): ?>
-                                <button type="button" class="btn btn-outline-primary" onclick="openQuickCustomerDrawer('customerSelect')" title="Add New Customer in Real-Time">
-                                    <i class="bi bi-plus-lg"></i>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="small fw-bold text-muted text-uppercase me-1"><i class="bi bi-shuffle me-1"></i> Mode:</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-primary fw-bold" id="tabBtnBillWise" onclick="switchReturnMode('bill_wise')">
+                                    <i class="bi bi-receipt me-1"></i> Bill-Wise Return (بل کے مطابق مال واپسی)
                                 </button>
-                                <?php endif; ?>
+                                <button type="button" class="btn btn-outline-secondary" id="tabBtnLoose" onclick="switchReturnMode('loose')">
+                                    <i class="bi bi-grid me-1"></i> Loose Market Return (بغیر بل ریٹرن)
+                                </button>
                             </div>
                         </div>
 
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Direct Bill / Invoice</label>
-                            <select name="invoice_id" id="invoiceSelect" class="form-select form-select-sm">
-                                <option value="">-- General Market Return --</option>
-                            </select>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted fw-bold">Date:</span>
+                                <input type="date" name="return_date" id="commonReturnDate" class="form-control form-control-sm" style="width: 140px;" value="<?= date('Y-m-d') ?>" required>
+                            </div>
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="small text-muted fw-bold">Stock Condition:</span>
+                                <select name="condition_type" id="conditionSelect" class="form-select form-select-sm" style="width: 170px;">
+                                    <option value="saleable">Saleable (Restock)</option>
+                                    <option value="damaged">Damaged (Quarantine)</option>
+                                    <option value="expired">Expired (Quarantine)</option>
+                                </select>
+                            </div>
+                            <span class="badge bg-navy text-white font-monospace py-2 px-2" style="font-size: 11px;">Voucher: <?= e($nextReturnNumber) ?></span>
                         </div>
-
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Return Date <span class="text-danger">*</span></label>
-                            <input type="date" name="return_date" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>" required>
-                        </div>
-
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Condition</label>
-                            <select name="condition_type" id="conditionSelect" class="form-select form-select-sm">
-                                <option value="saleable">Saleable (Restock to Saleable)</option>
-                                <option value="damaged">Damaged (Quarantine Stock)</option>
-                                <option value="expired">Expired (Quarantine Stock)</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Return Reason</label>
-                            <input type="text" name="reason" id="returnReason" class="form-control form-control-sm" placeholder="e.g. Route Return, Damaged, Replaced">
-                        </div>
-
-                        <div class="col-md-1 text-end">
-                            <span class="badge bg-navy text-white font-monospace py-2 px-2" style="font-size: 11px;"><?= e($nextReturnNumber) ?></span>
-                        </div>
-                    </div>
-
-                    <!-- Customer Financial & Rate Matching Info Banner -->
-                    <div id="customerAlert" class="mt-2 py-1 px-2 rounded small bg-light border text-secondary" style="display:none;">
-                        <span id="customerInfo"></span>
                     </div>
                 </div>
             </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW 1: BILL-WISE SALES RETURN             -->
+            <!-- ========================================== -->
+            <div id="viewBillWise">
+                <input type="hidden" name="customer_id" id="bwCustomerId" value="<?= (int)$preCustomerId ?>">
+
+                <!-- Invoice Search & Picker Bar -->
+                <div class="card border-0 shadow-sm mb-3 border-start border-4 border-primary">
+                    <div class="card-body p-3">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-5">
+                                <label class="form-label small fw-bold mb-1 text-primary">
+                                    <i class="bi bi-receipt me-1"></i> Select Invoice / Bill (بل منتخب کریں) <span class="text-danger">*</span>
+                                </label>
+                                <select name="invoice_id" id="billWiseInvoiceSelect" class="form-select form-select-sm" onchange="onBillWiseInvoiceSelected(this.value)">
+                                    <option value="">-- Choose Sales Bill / Invoice --</option>
+                                    <?php foreach ($recentInvoices as $rInv): ?>
+                                        <option value="<?= $rInv['id'] ?>" <?= ($preInvoiceId === (int)$rInv['id']) ? 'selected' : '' ?>>
+                                            #<?= htmlspecialchars($rInv['invoice_number']) ?> (<?= date('d-M', strtotime($rInv['invoice_date'])) ?>) - <?= htmlspecialchars($rInv['shop_name']) ?> - Rs. <?= number_format((float)$rInv['net_amount'], 0) ?> <?= !empty($rInv['load_number']) ? '[' . htmlspecialchars($rInv['load_number']) . ']' : '' ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold mb-1 text-secondary">Quick Search Bill # / Shop</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" id="quickBillSearchInput" class="form-control" placeholder="Type Bill #, Shop...">
+                                    <button type="button" class="btn btn-outline-primary" onclick="performQuickBillSearch()"><i class="bi bi-search"></i></button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold mb-1 text-secondary">Return Reason / Remarks</label>
+                                <input type="text" name="reason" id="billWiseReason" class="form-control form-control-sm" placeholder="e.g. Route Return, Damaged, Customer Rejected">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bill Details & Meta Banner -->
+                <div id="billWiseDetailsCard" class="card border-0 shadow-sm mb-3 bg-light d-none">
+                    <div class="card-body py-2 px-3">
+                        <div class="row g-2 align-items-center text-dark">
+                            <div class="col-md-3 border-end">
+                                <div class="small text-muted text-uppercase fw-bold">Customer / Shop</div>
+                                <div class="fw-bold fs-6 text-navy" id="bwMetaShopName">-</div>
+                                <div class="small text-muted" id="bwMetaAreaPhone">-</div>
+                            </div>
+                            <div class="col-md-2 border-end text-center">
+                                <div class="small text-muted text-uppercase fw-bold">Bill & Date</div>
+                                <div class="fw-bold fs-6 text-dark" id="bwMetaBillNo">-</div>
+                                <div class="small text-muted" id="bwMetaDate">-</div>
+                            </div>
+                            <div class="col-md-3 border-end">
+                                <div class="small text-muted text-uppercase fw-bold">Staff & Load Sheet</div>
+                                <div class="small">Salesman: <strong id="bwMetaSalesman">-</strong></div>
+                                <div class="small">Load Form: <span class="badge bg-primary" id="bwMetaLoadSheet">No Load Sheet</span></div>
+                            </div>
+                            <div class="col-md-2 border-end text-center">
+                                <div class="small text-muted text-uppercase fw-bold">Bill Net Total</div>
+                                <div class="fs-5 fw-bold text-dark" id="bwMetaNetTotal">Rs. 0.00</div>
+                                <div class="small text-warning fw-semibold" id="bwMetaPrevReturns">0 Prev Returns</div>
+                            </div>
+                            <div class="col-md-2 text-center">
+                                <div class="small text-muted text-uppercase fw-bold">Customer Balance</div>
+                                <div class="fs-5 fw-bold text-danger" id="bwMetaBalance">Rs. 0.00</div>
+                                <div class="small text-muted">Current Ledger</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dedicated Billed Items Return Table -->
+                <div id="billWiseTableCard" class="card border-0 shadow-sm mb-3 d-none">
+                    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-navy">
+                            <i class="bi bi-box-seam me-1 text-primary"></i> Billed Items on this Invoice (اس بل کے آئٹمز)
+                        </span>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-xs btn-outline-success" onclick="billWiseReturnAll()">
+                                <i class="bi bi-check-all me-1"></i> Return All Available
+                            </button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary" onclick="billWiseResetAll()">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i> Reset to 0
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover align-middle mb-0" id="billWiseItemsTable">
+                                <thead class="table-light text-center small text-uppercase">
+                                    <tr>
+                                        <th style="width: 40px;">#</th>
+                                        <th class="text-start ps-3" style="width: 25%;">Product Description</th>
+                                        <th style="width: 10%;">Billed Qty</th>
+                                        <th style="width: 10%;">Sold Rate</th>
+                                        <th style="width: 8%;">Prev Ret.</th>
+                                        <th style="width: 11%;" class="bg-warning-subtle text-dark">Return Cartons</th>
+                                        <th style="width: 11%;" class="bg-warning-subtle text-dark">Return Pieces</th>
+                                        <th style="width: 12%;">Condition</th>
+                                        <th style="width: 13%;" class="text-end pe-3">Credit Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="billWiseTableBody">
+                                    <!-- Populated dynamically via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Bill-Wise Summary Footer -->
+                    <div class="card-footer bg-white p-3">
+                        <div class="row g-2 align-items-center mb-3">
+                            <div class="col-md-3 text-center border-end">
+                                <div class="text-muted small">Total Return Cartons</div>
+                                <div class="fw-bold fs-5 text-dark" id="bwSummaryCartons">0 Ctns</div>
+                            </div>
+                            <div class="col-md-3 text-center border-end">
+                                <div class="text-muted small">Total Return Pieces</div>
+                                <div class="fw-bold fs-5 text-dark" id="bwSummaryPieces">0 Pcs</div>
+                            </div>
+                            <div class="col-md-3 text-center border-end">
+                                <div class="text-muted small">Expected New Balance</div>
+                                <div class="fw-bold fs-5 text-primary" id="bwSummaryNewBalance">Rs. 0.00</div>
+                                <small class="text-muted" id="bwSummaryBalanceDiff">Reduction: -Rs. 0.00</small>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="text-muted small">Total Return Credit Amount</div>
+                                <div class="fw-bold fs-4 text-danger" id="bwSummaryTotalAmount">Rs. 0.00</div>
+                            </div>
+                        </div>
+
+                        <div id="bwLoadSheetAlert" class="alert alert-info py-2 px-3 small mb-3 d-none">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            <span id="bwLoadSheetText"></span>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="text-muted small">
+                                <i class="bi bi-shield-check text-success me-1"></i>
+                                Physical stock will be immediately restocked into Warehouse & balances updated safely.
+                            </div>
+                            <button type="submit" name="confirm_now" class="btn btn-danger btn-lg px-4 fw-bold shadow">
+                                <i class="bi bi-check2-circle me-1"></i> Save Bill Return & Update Load Sheet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State Prompt -->
+                <div id="billWiseEmptyPrompt" class="card border-0 shadow-sm mb-3">
+                    <div class="card-body text-center py-5 text-muted">
+                        <i class="bi bi-receipt fs-1 text-primary opacity-50 d-block mb-2"></i>
+                        <h6 class="fw-bold text-dark">Please select a Sales Bill above to start Bill-Wise Return</h6>
+                        <p class="small text-secondary mb-0">Select from the dropdown or search by Bill # or shop name. All billed products with their exact rates will appear automatically.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- VIEW 2: LOOSE MARKET RETURN (LEGACY / POS) -->
+            <!-- ========================================== -->
+            <div id="viewLoose" class="d-none">
+                <!-- Customer & Loose Setup Card -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body py-2 px-3">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-5">
+                                <label class="form-label small fw-bold mb-1 d-flex justify-content-between align-items-center">
+                                    <span>Customer / Retailer <span class="text-danger">*</span></span>
+                                    <?php if (has_permission('customers_create')): ?>
+                                    <a href="javascript:void(0)" onclick="openQuickCustomerDrawer('customerSelect')" class="text-primary text-decoration-none" title="Quick Add Customer">
+                                        <i class="bi bi-plus-circle-fill"></i> New
+                                    </a>
+                                    <?php endif; ?>
+                                </label>
+                                <div class="input-group input-group-sm">
+                                    <select name="customer_id" id="customerSelect" class="form-select form-select-sm" disabled>
+                                        <option value="">-- Choose Retailer --</option>
+                                        <?php foreach ($customers as $c): ?>
+                                            <option value="<?= $c['id'] ?>"
+                                                    data-code="<?= htmlspecialchars($c['customer_code'] ?? '') ?>"
+                                                    data-balance="<?= (float)$c['current_balance'] ?>"
+                                                    data-limit="<?= (float)$c['credit_limit'] ?>"
+                                                    data-phone="<?= htmlspecialchars($c['phone'] ?? '') ?>"
+                                                    data-area="<?= htmlspecialchars($c['area_name'] ?? '') ?>"
+                                                    <?= ($preCustomerId === (int)$c['id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($c['shop_name']) ?> <?= !empty($c['area_name']) ? '(' . htmlspecialchars($c['area_name']) . ')' : '' ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <?php if (has_permission('customers_create')): ?>
+                                    <button type="button" class="btn btn-outline-primary" onclick="openQuickCustomerDrawer('customerSelect')" title="Add New Customer in Real-Time">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="col-md-7">
+                                <label class="form-label small fw-bold mb-1">Loose Return Reason</label>
+                                <input type="text" name="reason" id="looseReturnReason" class="form-control form-control-sm" placeholder="e.g. Market Return, Damaged, Expired">
+                            </div>
+                        </div>
+
+                        <!-- Customer Financial & Rate Matching Info Banner -->
+                        <div id="customerAlert" class="mt-2 py-1 px-2 rounded small bg-light border text-secondary" style="display:none;">
+                            <span id="customerInfo"></span>
+                        </div>
+                    </div>
+                </div>
 
             <!-- Main Working Area: Split 5-Cols Product Catalog vs 7-Cols Cart -->
             <div class="row g-3 mb-3">
@@ -632,6 +899,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                     </div>
                 </div>
             </div>
+            </div><!-- /#viewLoose -->
         </form>
     </div>
 </div>
@@ -648,12 +916,324 @@ require_once INCLUDES_PATH . '/topbar.php';
 <script>
 let customerRateMap = {}; // product_id -> { rate, discount_percent, invoice_number, invoice_date }
 let currentInvoiceItems = [];
+let currentReturnMode = 'bill_wise';
+let currentBillData = null;
+
+function switchReturnMode(mode) {
+    currentReturnMode = mode;
+    const viewBillWise = document.getElementById('viewBillWise');
+    const viewLoose = document.getElementById('viewLoose');
+    const tabBtnBillWise = document.getElementById('tabBtnBillWise');
+    const tabBtnLoose = document.getElementById('tabBtnLoose');
+    const bwCustomerId = document.getElementById('bwCustomerId');
+    const customerSelect = document.getElementById('customerSelect');
+
+    if (mode === 'bill_wise') {
+        viewBillWise.classList.remove('d-none');
+        viewLoose.classList.add('d-none');
+        tabBtnBillWise.className = 'btn btn-primary fw-bold';
+        tabBtnLoose.className = 'btn btn-outline-secondary';
+        if (bwCustomerId) bwCustomerId.disabled = false;
+        if (customerSelect) customerSelect.disabled = true;
+    } else {
+        viewBillWise.classList.add('d-none');
+        viewLoose.classList.remove('d-none');
+        tabBtnBillWise.className = 'btn btn-outline-secondary';
+        tabBtnLoose.className = 'btn btn-primary fw-bold';
+        if (bwCustomerId) bwCustomerId.disabled = true;
+        if (customerSelect) customerSelect.disabled = false;
+    }
+}
+
+function onBillWiseInvoiceSelected(invoiceId) {
+    if (!invoiceId) {
+        document.getElementById('billWiseDetailsCard').classList.add('d-none');
+        document.getElementById('billWiseTableCard').classList.add('d-none');
+        document.getElementById('billWiseEmptyPrompt').classList.remove('d-none');
+        currentBillData = null;
+        return;
+    }
+
+    fetch(`../../ajax/returns/get_invoice_items.php?invoice_id=${invoiceId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                alert('Error loading invoice: ' + (data.message || 'Unknown error'));
+                return;
+            }
+
+            currentBillData = data.data;
+            const inv = currentBillData.invoice;
+            const items = currentBillData.items || [];
+
+            // Update customer id
+            const bwCustomerId = document.getElementById('bwCustomerId');
+            if (bwCustomerId) bwCustomerId.value = inv.customer_id;
+
+            // Update Meta Card
+            document.getElementById('bwMetaShopName').innerText = `${inv.shop_name} (${inv.customer_code})`;
+            document.getElementById('bwMetaAreaPhone').innerText = `Area: ${inv.area_name || 'N/A'} | Phone: ${inv.customer_phone || 'N/A'}`;
+            document.getElementById('bwMetaBillNo').innerText = `#${inv.invoice_number}`;
+            document.getElementById('bwMetaDate').innerText = `Date: ${inv.invoice_date}`;
+            document.getElementById('bwMetaSalesman').innerText = inv.salesman_name || 'Route Salesman';
+            
+            const lsElem = document.getElementById('bwMetaLoadSheet');
+            if (inv.load_number) {
+                lsElem.innerText = `Load Form: #${inv.load_number}`;
+                lsElem.className = 'badge bg-primary';
+            } else {
+                lsElem.innerText = 'No Direct Load Sheet';
+                lsElem.className = 'badge bg-secondary';
+            }
+
+            document.getElementById('bwMetaNetTotal').innerText = `Rs. ${parseFloat(inv.net_amount).toLocaleString('en-US', {minimumFractionDigits:2})}`;
+            const retAmt = parseFloat(inv.return_amount || 0);
+            document.getElementById('bwMetaPrevReturns').innerText = retAmt > 0 ? `Rs. ${retAmt.toLocaleString()} Already Returned` : '0 Prev Returns';
+            
+            const balance = parseFloat(inv.current_balance || 0);
+            document.getElementById('bwMetaBalance').innerText = `Rs. ${balance.toLocaleString('en-US', {minimumFractionDigits:2})}`;
+
+            // Load Sheet Alert
+            const lsAlert = document.getElementById('bwLoadSheetAlert');
+            const lsText = document.getElementById('bwLoadSheetText');
+            if (inv.load_number) {
+                lsAlert.classList.remove('d-none');
+                lsText.innerHTML = `This return is tied to <strong>Load Form #${inv.load_number}</strong> (${inv.salesman_name || 'Salesman'}). Returned quantities and deductions will automatically update on the loading summary!`;
+            } else {
+                lsAlert.classList.add('d-none');
+            }
+
+            // Render Table Rows
+            const tbody = document.getElementById('billWiseTableBody');
+            tbody.innerHTML = '';
+
+            items.forEach((it, idx) => {
+                const tr = document.createElement('tr');
+                tr.id = `bw_row_${idx}`;
+                const isFullyRet = it.is_fully_returned;
+                if (isFullyRet) tr.classList.add('table-secondary', 'opacity-75');
+
+                tr.innerHTML = `
+                    <td class="text-center text-muted small">${idx + 1}</td>
+                    <td class="ps-3">
+                        <input type="hidden" name="item_product_id[]" value="${it.product_id}">
+                        <input type="hidden" name="item_unit[]" value="ctn">
+                        <input type="hidden" name="item_pack_qty[]" value="0">
+                        <input type="hidden" name="item_rate[]" value="${it.rate}">
+                        <input type="hidden" name="item_discount_percent[]" value="${it.discount_percent}">
+                        <div class="fw-bold text-dark">${escapeHtml(it.product_name)}</div>
+                        <small class="text-muted">Pack: ${escapeHtml(it.packing_desc)} &bull; Code: ${escapeHtml(it.product_code)}</small>
+                    </td>
+                    <td class="text-center fw-semibold">
+                        ${it.billed_carton_qty} Ctn
+                        ${it.billed_pcs_qty > 0 ? `<small class="text-muted d-block">+${it.billed_pcs_qty} Pcs</small>` : ''}
+                    </td>
+                    <td class="text-center fw-bold">
+                        Rs. ${parseFloat(it.rate).toFixed(0)}
+                        ${parseFloat(it.discount_percent) > 0 ? `<small class="text-danger d-block">-${it.discount_percent}%</small>` : ''}
+                    </td>
+                    <td class="text-center small text-muted">
+                        ${(it.returned_cartons > 0 || it.returned_pcs > 0) ? `<span class="badge bg-warning-subtle text-dark">${it.returned_cartons}c ${it.returned_pcs}p</span>` : '0'}
+                    </td>
+                    <td class="bg-warning-subtle">
+                        <input type="number" step="1" min="0" max="${it.remaining_cartons}" name="item_carton_qty[]" id="bw_ctn_${idx}" 
+                               class="form-control form-control-sm text-center fw-bold ${it.remaining_cartons <= 0 ? 'bg-light' : ''}" 
+                               value="0" ${it.remaining_cartons <= 0 ? 'readonly' : ''} oninput="recalcBillWiseRow(${idx})">
+                        <small class="text-muted d-block text-center" style="font-size:10px;">Max: ${it.remaining_cartons}</small>
+                    </td>
+                    <td class="bg-warning-subtle">
+                        <input type="number" step="1" min="0" max="${it.remaining_pcs}" name="item_pcs_qty[]" id="bw_pcs_${idx}" 
+                               class="form-control form-control-sm text-center fw-bold ${it.remaining_pcs <= 0 ? 'bg-light' : ''}" 
+                               value="0" ${it.remaining_pcs <= 0 ? 'readonly' : ''} oninput="recalcBillWiseRow(${idx})">
+                        <small class="text-muted d-block text-center" style="font-size:10px;">Max: ${it.remaining_pcs}</small>
+                    </td>
+                    <td>
+                        <select name="item_condition[]" id="bw_cond_${idx}" class="form-select form-select-sm py-0 px-1" style="font-size: 11px;">
+                            <option value="saleable">Saleable (Restock)</option>
+                            <option value="damaged">Damaged</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                    </td>
+                    <td class="text-end pe-3 fw-bold text-muted fs-6" id="bw_line_total_${idx}">
+                        Rs. 0.00
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('billWiseDetailsCard').classList.remove('d-none');
+            document.getElementById('billWiseTableCard').classList.remove('d-none');
+            document.getElementById('billWiseEmptyPrompt').classList.add('d-none');
+
+            recalcBillWiseSummary();
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Failed to load invoice items. Check internet connection or server.');
+        });
+}
+
+function recalcBillWiseRow(idx) {
+    if (!currentBillData || !currentBillData.items || !currentBillData.items[idx]) return;
+    const it = currentBillData.items[idx];
+
+    const ctnInput = document.getElementById(`bw_ctn_${idx}`);
+    const pcsInput = document.getElementById(`bw_pcs_${idx}`);
+
+    let ctn = parseFloat(ctnInput?.value || 0);
+    let pcs = parseFloat(pcsInput?.value || 0);
+
+    if (ctn < 0) { ctn = 0; if (ctnInput) ctnInput.value = 0; }
+    if (pcs < 0) { pcs = 0; if (pcsInput) pcsInput.value = 0; }
+
+    if (ctn > it.remaining_cartons) {
+        ctn = it.remaining_cartons;
+        if (ctnInput) ctnInput.value = ctn;
+    }
+    if (pcs > it.remaining_pcs) {
+        pcs = it.remaining_pcs;
+        if (pcsInput) pcsInput.value = pcs;
+    }
+
+    const pcsPerCtn = it.pcs_per_ctn > 0 ? it.pcs_per_ctn : 1;
+    const equivCartons = ctn + (pcs / pcsPerCtn);
+
+    const gross = equivCartons * it.rate;
+    const disc = (gross * it.discount_percent) / 100;
+    const net = Math.max(0, gross - disc);
+
+    const lineTotalElem = document.getElementById(`bw_line_total_${idx}`);
+    if (lineTotalElem) {
+        lineTotalElem.innerText = `Rs. ${net.toFixed(2)}`;
+        lineTotalElem.className = net > 0 ? 'text-end pe-3 fw-bold text-danger fs-6' : 'text-end pe-3 fw-bold text-muted fs-6';
+    }
+
+    recalcBillWiseSummary();
+}
+
+function recalcBillWiseSummary() {
+    if (!currentBillData || !currentBillData.items) return;
+
+    let totCartons = 0;
+    let totPieces = 0;
+    let totAmount = 0;
+
+    currentBillData.items.forEach((it, idx) => {
+        const ctn = parseFloat(document.getElementById(`bw_ctn_${idx}`)?.value || 0);
+        const pcs = parseFloat(document.getElementById(`bw_pcs_${idx}`)?.value || 0);
+        const pcsPerCtn = it.pcs_per_ctn > 0 ? it.pcs_per_ctn : 1;
+        const equivCartons = ctn + (pcs / pcsPerCtn);
+        const gross = equivCartons * it.rate;
+        const disc = (gross * it.discount_percent) / 100;
+        const net = Math.max(0, gross - disc);
+
+        totCartons += ctn;
+        totPieces += pcs;
+        totAmount += net;
+    });
+
+    document.getElementById('bwSummaryCartons').innerText = `${totCartons} Ctns`;
+    document.getElementById('bwSummaryPieces').innerText = `${totPieces} Pcs`;
+    document.getElementById('bwSummaryTotalAmount').innerText = `Rs. ${totAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+    const curBal = parseFloat(currentBillData.invoice.current_balance || 0);
+    const newBal = curBal - totAmount;
+    document.getElementById('bwSummaryNewBalance').innerText = `Rs. ${newBal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    document.getElementById('bwSummaryBalanceDiff').innerText = `Reduction: -Rs. ${totAmount.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+}
+
+function billWiseReturnAll() {
+    if (!currentBillData || !currentBillData.items) return;
+    currentBillData.items.forEach((it, idx) => {
+        const ctnInput = document.getElementById(`bw_ctn_${idx}`);
+        const pcsInput = document.getElementById(`bw_pcs_${idx}`);
+        if (ctnInput) ctnInput.value = it.remaining_cartons;
+        if (pcsInput) pcsInput.value = it.remaining_pcs;
+        recalcBillWiseRow(idx);
+    });
+}
+
+function billWiseResetAll() {
+    if (!currentBillData || !currentBillData.items) return;
+    currentBillData.items.forEach((it, idx) => {
+        const ctnInput = document.getElementById(`bw_ctn_${idx}`);
+        const pcsInput = document.getElementById(`bw_pcs_${idx}`);
+        if (ctnInput) ctnInput.value = 0;
+        if (pcsInput) pcsInput.value = 0;
+        recalcBillWiseRow(idx);
+    });
+}
+
+function performQuickBillSearch() {
+    const q = document.getElementById('quickBillSearchInput').value.trim();
+    if (!q) return;
+
+    fetch(`../../ajax/returns/search_invoices.php?q=${encodeURIComponent(q)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.data && data.data.length > 0) {
+                const select = document.getElementById('billWiseInvoiceSelect');
+                let found = false;
+                for (let i = 0; i < select.options.length; i++) {
+                    if (parseInt(select.options[i].value, 10) === parseInt(data.data[0].id, 10)) {
+                        select.selectedIndex = i;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    const inv = data.data[0];
+                    const opt = document.createElement('option');
+                    opt.value = inv.id;
+                    opt.text = `#${inv.invoice_number} (${inv.invoice_date}) - ${inv.shop_name} - Rs. ${parseFloat(inv.net_amount).toFixed(0)}`;
+                    select.appendChild(opt);
+                    select.value = inv.id;
+                }
+                onBillWiseInvoiceSelected(data.data[0].id);
+            } else {
+                alert(`No bills found matching "${q}"`);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error searching bills.');
+        });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
 document.addEventListener('DOMContentLoaded', function () {
     const customerSelect = document.getElementById('customerSelect');
-    const invoiceSelect  = document.getElementById('invoiceSelect');
     const conditionSelect = document.getElementById('conditionSelect');
     const productSearch  = document.getElementById('productSearch');
+
+    // Default mode: bill_wise
+    if (PRE_INVOICE_ID > 0) {
+        switchReturnMode('bill_wise');
+        const sel = document.getElementById('billWiseInvoiceSelect');
+        if (sel) sel.value = PRE_INVOICE_ID;
+        onBillWiseInvoiceSelected(PRE_INVOICE_ID);
+    } else {
+        switchReturnMode('bill_wise');
+    }
+
+    const quickInput = document.getElementById('quickBillSearchInput');
+    if (quickInput) {
+        quickInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performQuickBillSearch();
+            }
+        });
+    }
 
     // Customer change loads billing history & exact rates
     customerSelect.addEventListener('change', function () {

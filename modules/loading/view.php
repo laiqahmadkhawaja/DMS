@@ -70,8 +70,6 @@ $settlement = db_fetch_one("
 ", [$id, $id]);
 
 $isSettled = !empty($settlement) || $sheet['status'] === 'returned_closed';
-$viewMode = $_GET['mode'] ?? ($isSettled ? 'filled' : 'blank');
-$showFilled = ($viewMode === 'filled');
 
 // Fetch included orders with recovery data
 $orders = db_fetch_all("
@@ -107,66 +105,93 @@ $orders = db_fetch_all("
     ORDER BY a.area_name ASC, c.shop_name ASC
 ", [$settlement ? $settlement['id'] : 0, $id]);
 
-// Calculate per-product settled returns & credits
+// Calculate per-product returns & credits
 $productCredits = [];
 $productReturns = [];
 $productReturnQtys = [];
+$productReturnBreakdown = [];
 
-if ($settlement) {
-    // 1. Direct sales return items if itemized
-    $retItems = db_fetch_all("
-        SELECT 
-            sri.product_id,
-            SUM(sri.quantity) as return_base_units,
-            SUM(sri.amount) as return_amount
-        FROM sales_returns sr
-        JOIN sales_return_items sri ON sr.id = sri.sales_return_id
-        WHERE sr.settlement_id = ?
-        GROUP BY sri.product_id
-    ", [$settlement['id']]);
+// 1. Fetch itemized sales returns for this load sheet's invoices OR linked to its settlement
+$retQuery = "
+    SELECT 
+        sri.product_id,
+        SUM(sri.carton_qty) as return_cartons,
+        SUM(sri.pack_qty) as return_packs,
+        SUM(sri.pcs_qty) as return_pcs,
+        SUM(sri.quantity) as return_base_units,
+        SUM(sri.amount) as return_amount
+    FROM sales_returns sr
+    JOIN sales_return_items sri ON sr.id = sri.sales_return_id
+    WHERE sr.status != 'cancelled'
+      AND (
+          (sr.invoice_id IS NOT NULL AND sr.invoice_id IN (
+              SELECT id FROM sales_invoices 
+              WHERE load_sheet_id = ? 
+                 OR (order_id IS NOT NULL AND order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?))
+          ))
+          " . (!empty($settlement) ? "OR (sr.settlement_id = ?)" : "") . "
+      )
+    GROUP BY sri.product_id
+";
+$retParams = [$id, $id];
+if (!empty($settlement)) {
+    $retParams[] = (int)$settlement['id'];
+}
+$retItems = db_fetch_all($retQuery, $retParams);
 
-    foreach ($retItems as $ri) {
-        $productReturns[(int)$ri['product_id']] = (float)$ri['return_amount'];
-        $productReturnQtys[(int)$ri['product_id']] = (float)$ri['return_base_units'];
-    }
+foreach ($retItems as $ri) {
+    $pid = (int)$ri['product_id'];
+    $productReturns[$pid] = (float)$ri['return_amount'];
+    $productReturnQtys[$pid] = (float)$ri['return_cartons'] + ((float)$ri['return_pcs'] > 0 ? ((float)$ri['return_pcs'] / 100) : 0);
+    $productReturnBreakdown[$pid] = [
+        'cartons' => (float)$ri['return_cartons'],
+        'pcs'     => (float)$ri['return_pcs'],
+        'amount'  => (float)$ri['return_amount']
+    ];
+}
 
-    // 2. Invoice line distributions for credits and returns
-    $invoiceLines = db_fetch_all("
-        SELECT 
-            sii.product_id,
-            sii.invoice_id,
-            sii.line_total,
-            sii.carton_qty,
-            sii.pcs_qty,
-            p.wholesale_rate,
-            inv.net_amount,
-            COALESCE(si.credit_amount, inv.credit_amount) as invoice_credit,
-            COALESCE(si.return_amount, inv.return_amount) as invoice_return
-        FROM sales_invoice_items sii
-        JOIN sales_invoices inv ON sii.invoice_id = inv.id
-        JOIN products p ON sii.product_id = p.id
-        LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
-        WHERE inv.load_sheet_id = ? 
-           OR inv.order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?)
-    ", [$settlement['id'], $id, $id]);
+// 2. Invoice line distributions for credits and returns
+$settleId = !empty($settlement) ? (int)$settlement['id'] : 0;
+$invoiceLines = db_fetch_all("
+    SELECT 
+        sii.product_id,
+        sii.invoice_id,
+        sii.line_total,
+        sii.carton_qty,
+        sii.pcs_qty,
+        p.wholesale_rate,
+        inv.net_amount,
+        COALESCE(si.credit_amount, inv.credit_amount) as invoice_credit,
+        COALESCE(si.return_amount, inv.return_amount) as invoice_return
+    FROM sales_invoice_items sii
+    JOIN sales_invoices inv ON sii.invoice_id = inv.id
+    JOIN products p ON sii.product_id = p.id
+    LEFT JOIN settlement_items si ON (si.invoice_id = inv.id AND si.settlement_id = ?)
+    WHERE inv.load_sheet_id = ? 
+       OR inv.order_id IN (SELECT order_id FROM load_sheet_orders WHERE load_sheet_id = ?)
+", [$settleId, $id, $id]);
 
-    foreach ($invoiceLines as $il) {
-        $pid = (int)$il['product_id'];
-        $lineTot = (float)$il['line_total'];
-        $invNet = (float)$il['net_amount'] > 0 ? (float)$il['net_amount'] : 1;
-        $ratio = min(1.0, $lineTot / $invNet);
+foreach ($invoiceLines as $il) {
+    $pid = (int)$il['product_id'];
+    $lineTot = (float)$il['line_total'];
+    $invNet = (float)$il['net_amount'] > 0 ? (float)$il['net_amount'] : 1;
+    $ratio = min(1.0, $lineTot / $invNet);
 
-        $lineCredit = (float)$il['invoice_credit'] * $ratio;
-        $productCredits[$pid] = ($productCredits[$pid] ?? 0.0) + $lineCredit;
+    $lineCredit = (float)$il['invoice_credit'] * $ratio;
+    $productCredits[$pid] = ($productCredits[$pid] ?? 0.0) + $lineCredit;
 
-        if (!isset($productReturns[$pid])) {
-            $lineRet = (float)$il['invoice_return'] * $ratio;
-            $productReturns[$pid] = ($productReturns[$pid] ?? 0.0) + $lineRet;
-            $rate = (float)$il['wholesale_rate'] > 0 ? (float)$il['wholesale_rate'] : 1;
-            $productReturnQtys[$pid] = ($productReturnQtys[$pid] ?? 0.0) + ($lineRet / $rate);
-        }
+    if (!isset($productReturns[$pid]) && (float)$il['invoice_return'] > 0) {
+        $lineRet = (float)$il['invoice_return'] * $ratio;
+        $productReturns[$pid] = ($productReturns[$pid] ?? 0.0) + $lineRet;
+        $rate = (float)$il['wholesale_rate'] > 0 ? (float)$il['wholesale_rate'] : 1;
+        $productReturnQtys[$pid] = ($productReturnQtys[$pid] ?? 0.0) + ($lineRet / $rate);
     }
 }
+
+$totalReturnAmountVal = array_sum($productReturns);
+$hasRecordedReturns   = ($totalReturnAmountVal > 0) || !empty($settlement) || ($sheet['status'] === 'returned_closed');
+$viewMode             = $_GET['mode'] ?? ($hasRecordedReturns ? 'filled' : 'blank');
+$showFilled           = ($viewMode === 'filled');
 
 // Booker names for header
 $bookerNames = array_unique(array_column($orders, 'booker_name'));
@@ -440,6 +465,52 @@ require_once INCLUDES_PATH . '/topbar.php';
                     </table>
                 </div>
 
+                <!-- Financial Settlement & Recovery Summary (Excel TOTAL STOCK ISSUE SUMMARY match) -->
+                <div class="row g-3 mt-3 no-print">
+                    <div class="col-md-3">
+                        <div class="card border-0 shadow-sm bg-light border-start border-4 border-primary">
+                            <div class="card-body p-3 text-center">
+                                <div class="text-muted small text-uppercase fw-bold">Gross Stock Issued (کل مال لوڈ)</div>
+                                <div class="fs-4 fw-bold text-navy mt-1"><?= format_currency($grandTotalAmount) ?></div>
+                                <small class="text-muted"><?= $totalCtn ?> Ctns <?= $totalPcs > 0 ? " + {$totalPcs} Pcs" : "" ?></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-0 shadow-sm bg-warning bg-opacity-10 border-start border-4 border-warning">
+                            <div class="card-body p-3 text-center">
+                                <div class="text-warning-emphasis small text-uppercase fw-bold">Stock Returns (مال واپسی)</div>
+                                <div class="fs-4 fw-bold text-danger mt-1">
+                                    <?= $grandTotalReturnAmt > 0 ? '-' . format_currency($grandTotalReturnAmt) : format_currency(0) ?>
+                                </div>
+                                <small class="text-muted"><?= $grandTotalReturnQty > 0 ? number_format($grandTotalReturnQty, 1) . " Ctns returned" : "0 Returns" ?></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-0 shadow-sm bg-danger bg-opacity-10 border-start border-4 border-danger">
+                            <div class="card-body p-3 text-center">
+                                <div class="text-danger small text-uppercase fw-bold">Market Credit (ادھار مارکیٹ)</div>
+                                <div class="fs-4 fw-bold text-danger mt-1">
+                                    <?= $grandTotalCreditAmt > 0 ? '-' . format_currency($grandTotalCreditAmt) : format_currency(0) ?>
+                                </div>
+                                <small class="text-muted">Uncollected customer balance</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-0 shadow-sm bg-success bg-opacity-10 border-start border-4 border-success">
+                            <div class="card-body p-3 text-center">
+                                <div class="text-success small text-uppercase fw-bold">Net Cash to Recover (نیٹ کیش وصولی)</div>
+                                <div class="fs-4 fw-bold text-success mt-1">
+                                    <?= format_currency(max(0, $grandTotalAmount - $grandTotalReturnAmt - $grandTotalCreditAmt)) ?>
+                                </div>
+                                <small class="text-muted">Payable to warehouse cash counter</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Signatures Row for Dispatch Audit -->
                 <div class="row mt-5 pt-4 text-center small fw-bold">
                     <div class="col-4">
@@ -531,8 +602,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <?php endif; ?>
                                         </td>
                                     <?php endif; ?>
-                                    <td class="text-end pe-3">
+                                    <td class="text-end pe-3 text-nowrap">
                                         <?php if (!empty($o['invoice_id'])): ?>
+                                            <a href="../returns/create.php?invoice_id=<?= $o['invoice_id'] ?>" class="btn btn-xs btn-outline-danger me-1 fw-bold" title="Bill-Wise Sales Return (مال واپسی)">
+                                                <i class="bi bi-arrow-return-left"></i> Return
+                                            </a>
                                             <a href="../invoices/print.php?id=<?= $o['invoice_id'] ?>" target="_blank" class="btn btn-xs btn-outline-secondary" title="Print Customer Memo">
                                                 <i class="bi bi-printer"></i> Bill
                                             </a>

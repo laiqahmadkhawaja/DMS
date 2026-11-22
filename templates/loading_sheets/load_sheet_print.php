@@ -180,6 +180,28 @@ if (!defined('DMS_RUNNING')) {
         </tfoot>
     </table>
 
+    <?php if (!empty($fillFigures)): ?>
+    <!-- Financial Settlement Summary Table (Matches Client Photo 5 & Photo 9) -->
+    <div class="d-flex justify-content-end my-1">
+        <table class="table table-bordered table-sm mb-0" style="border: 1.5px solid #000; font-size: 9.5px; font-weight: bold; width: 65%; line-height: 1.2;">
+            <tr>
+                <td style="border: 1px solid #000; background-color: #f8f9fa; width: 25%; padding: 1px 4px;">Total Gross Issued:</td>
+                <td class="text-end" style="border: 1px solid #000; width: 25%; padding: 1px 4px;"><?= number_format($grandTotalAmount, 0) ?></td>
+                <td style="border: 1px solid #000; background-color: #f8f9fa; width: 25%; padding: 1px 4px;">Total Return Amount:</td>
+                <td class="text-end text-danger" style="border: 1px solid #000; width: 25%; padding: 1px 4px;"><?= $grandTotalReturnAmt > 0 ? '-' . number_format($grandTotalReturnAmt, 0) : '0' ?></td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; background-color: #f8f9fa; padding: 1px 4px;">Market Credit:</td>
+                <td class="text-end text-danger" style="border: 1px solid #000; padding: 1px 4px;"><?= $grandTotalCreditAmt > 0 ? '-' . number_format($grandTotalCreditAmt, 0) : '0' ?></td>
+                <td style="border: 1px solid #000; background-color: #d1b80d; color: #000; padding: 1px 4px;">Net Cash / Recoverable:</td>
+                <td class="text-end fw-bold" style="border: 1px solid #000; background-color: #d1b80d; color: #000; padding: 1px 4px;">
+                    <?= number_format(max(0, $grandTotalAmount - $grandTotalReturnAmt - $grandTotalCreditAmt), 0) ?>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <?php endif; ?>
+
     <!-- Gate Pass & Audit Signatures -->
     <div class="row mt-2 pt-1 text-center small fw-bold" style="font-size: 9.5px; color: #222;">
         <div class="col-4">

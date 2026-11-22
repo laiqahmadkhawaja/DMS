@@ -335,6 +335,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 <a href="print.php?id=<?= $inv['id'] ?>" target="_blank" class="btn btn-outline-secondary" title="Print Customer Memo">
                                                     <i class="bi bi-printer"></i>
                                                 </a>
+                                                <?php if ($inv['status'] !== 'cancelled'): ?>
+                                                    <a href="../returns/create.php?invoice_id=<?= $inv['id'] ?>" class="btn btn-outline-danger" title="Sales Return (مال واپسی)">
+                                                        <i class="bi bi-arrow-return-left"></i>
+                                                    </a>
+                                                <?php endif; ?>
                                                 <?php if ($inv['status'] !== 'cancelled' && $inv['status'] !== 'settled' && has_permission('invoices_cancel')): ?>
                                                     <a href="action.php?action=cancel&id=<?= $inv['id'] ?>" class="btn btn-outline-danger" title="Cancel Invoice" onclick="return confirm('Are you sure you want to cancel this invoice?');">
                                                         <i class="bi bi-x-circle"></i>

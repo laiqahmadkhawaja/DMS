@@ -107,6 +107,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="edit.php?id=<?= $invoice['id'] ?>" class="btn btn-outline-warning btn-sm shadow-sm">
                     <i class="bi bi-pencil me-1"></i> Edit Bill
                 </a>
+                <a href="../returns/create.php?invoice_id=<?= $invoice['id'] ?>" class="btn btn-outline-danger btn-sm shadow-sm fw-bold">
+                    <i class="bi bi-arrow-return-left me-1"></i> Sales Return (مال واپسی)
+                </a>
                 <div class="btn-group btn-group-sm">
                     <a href="print.php?id=<?= $invoice['id'] ?>" target="_blank" class="btn btn-primary shadow-sm">
                         <i class="bi bi-printer me-1"></i> Print Bill (Photo 2/7)
