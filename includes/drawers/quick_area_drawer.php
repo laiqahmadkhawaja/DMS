@@ -15,7 +15,7 @@ $allowRealtimeRoutes = get_setting('allow_realtime_routes', '1');
 <div id="drawer-quick-add-area" class="dms-drawer">
     <div class="dms-drawer-header bg-navy text-white d-flex justify-content-between align-items-center">
         <span><i class="bi bi-geo-alt-fill text-warning me-2"></i> Quick Add Delivery Route / Beat</span>
-        <button type="button" class="btn-close btn-close-white" onclick="closeDrawer()"></button>
+        <button type="button" class="btn-close btn-close-white" onclick="closeDrawer('drawer-quick-add-area')"></button>
     </div>
     <div class="dms-drawer-body p-3">
         <p class="text-muted small mb-3">
@@ -54,7 +54,7 @@ $allowRealtimeRoutes = get_setting('allow_realtime_routes', '1');
         </form>
     </div>
     <div class="dms-drawer-footer d-flex justify-content-between">
-        <button type="button" class="btn btn-sm btn-secondary" onclick="closeDrawer()">Cancel (ESC)</button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="closeDrawer('drawer-quick-add-area')">Cancel (ESC)</button>
         <button type="button" class="btn btn-sm btn-primary fw-bold" id="quickAreaSubmitBtn" onclick="submitQuickAreaForm()">
             <i class="bi bi-check2-circle me-1"></i> Save & Select Route
         </button>
@@ -158,7 +158,7 @@ window.submitQuickAreaForm = async function () {
             }
 
             // Also synchronize any other open area select lists on the page
-            document.querySelectorAll('select[name="area_id"], select[name="assigned_area_id"]').forEach(sel => {
+            document.querySelectorAll('select[name="area_id"], select[name="assigned_area_id"], select#quickCustArea, select#areaSelect, select#custAreaSelect, select#custEditAreaSelect').forEach(sel => {
                 if (sel !== targetSelect) {
                     if (!Array.from(sel.options).some(o => o.value == optionVal)) {
                         sel.add(new Option(optionText, optionVal, false, false));
@@ -166,7 +166,7 @@ window.submitQuickAreaForm = async function () {
                 }
             });
 
-            closeDrawer();
+            closeDrawer('drawer-quick-add-area');
             if (typeof showToast === 'function') {
                 showToast(data.message, "success");
             }

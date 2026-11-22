@@ -15,7 +15,7 @@ $drawerBookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_dele
 <div id="drawer-quick-add-customer" class="dms-drawer">
     <div class="dms-drawer-header bg-navy text-white d-flex justify-content-between align-items-center">
         <span><i class="bi bi-shop text-warning me-2"></i> Quick Register Retailer / Shop</span>
-        <button type="button" class="btn-close btn-close-white" onclick="closeDrawer()"></button>
+        <button type="button" class="btn-close btn-close-white" onclick="closeDrawer('drawer-quick-add-customer')"></button>
     </div>
     <div class="dms-drawer-body p-3">
         <p class="text-muted small mb-3">
@@ -50,9 +50,9 @@ $drawerBookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_dele
                         Delivery Route / Area <span class="text-danger">*</span>
                     </label>
                     <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
-                    <a href="javascript:void(0)" onclick="openQuickAreaDrawer('quickCustArea')" class="text-primary text-decoration-none small" style="font-size: 0.75rem;">
-                        <i class="bi bi-plus-circle-fill"></i> New Route
-                    </a>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold" onclick="openQuickAreaDrawer('quickCustArea')" title="Create and assign new route">
+                        <i class="bi bi-plus-circle me-1"></i> New Route
+                    </button>
                     <?php endif; ?>
                 </div>
                 <select id="quickCustArea" class="form-select form-select-sm" required>
@@ -96,7 +96,7 @@ $drawerBookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_dele
         </form>
     </div>
     <div class="dms-drawer-footer d-flex justify-content-between">
-        <button type="button" class="btn btn-sm btn-secondary" onclick="closeDrawer()">Cancel (ESC)</button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="closeDrawer('drawer-quick-add-customer')">Cancel (ESC)</button>
         <button type="button" class="btn btn-sm btn-primary fw-bold" id="quickCustSubmitBtn" onclick="submitQuickCustomerForm()">
             <i class="bi bi-check2-circle me-1"></i> Save & Select Retailer
         </button>
@@ -265,7 +265,7 @@ window.submitQuickCustomerForm = async function () {
                 }
             });
 
-            closeDrawer();
+            closeDrawer('drawer-quick-add-customer');
             if (typeof showToast === 'function') {
                 showToast(data.message, "success");
             }

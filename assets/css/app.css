@@ -431,6 +431,11 @@ html, body {
     flex-direction: column;
 }
 
+/* Specific stacked drawers - ensure child drawer always slides on top of parent drawer */
+#drawer-quick-add-area {
+    z-index: 1070;
+}
+
 .dms-drawer.open {
     right: 0;
 }

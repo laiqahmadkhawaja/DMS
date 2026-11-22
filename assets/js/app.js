@@ -34,33 +34,79 @@
         }, 4000);
     };
 
-    // 2. Non-Modal Drawer System
+    // 2. Non-Modal Drawer System with Stacking Support
+    window.drawerStack = window.drawerStack || [];
+
     window.openDrawer = function (drawerId) {
         const drawer = document.getElementById(drawerId);
+        if (!drawer) return;
+
         let backdrop = document.getElementById('dms-drawer-backdrop');
         if (!backdrop) {
             backdrop = document.createElement('div');
             backdrop.id = 'dms-drawer-backdrop';
             backdrop.className = 'dms-drawer-backdrop';
-            backdrop.onclick = window.closeDrawer;
+            backdrop.onclick = function() { window.closeDrawer(); };
             document.body.appendChild(backdrop);
         }
-        if (drawer) {
-            backdrop.style.display = 'block';
-            drawer.classList.add('open');
-            const firstInput = drawer.querySelector('input, select, textarea');
-            if (firstInput) {
-                setTimeout(() => firstInput.focus(), 250);
-            }
+
+        // Maintain active drawer stack
+        if (!window.drawerStack.includes(drawerId)) {
+            window.drawerStack.push(drawerId);
+        }
+
+        const stackLevel = window.drawerStack.indexOf(drawerId);
+        const zIndex = 1050 + (stackLevel * 20); // 1050, 1070, 1090...
+        drawer.style.zIndex = zIndex;
+
+        backdrop.style.zIndex = Math.max(1040, zIndex - 5);
+        backdrop.style.display = 'block';
+
+        drawer.classList.add('open');
+        const firstInput = drawer.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+        if (firstInput) {
+            setTimeout(() => firstInput.focus(), 250);
         }
     };
 
-    window.closeDrawer = function () {
-        const openDrawers = document.querySelectorAll('.dms-drawer.open');
-        openDrawers.forEach(d => d.classList.remove('open'));
+    window.closeDrawer = function (drawerId) {
+        window.drawerStack = window.drawerStack || [];
+
+        if (drawerId) {
+            const drawer = document.getElementById(drawerId);
+            if (drawer) {
+                drawer.classList.remove('open');
+                drawer.style.zIndex = '';
+            }
+            window.drawerStack = window.drawerStack.filter(id => id !== drawerId);
+        } else if (window.drawerStack.length > 0) {
+            const topId = window.drawerStack.pop();
+            const drawer = document.getElementById(topId);
+            if (drawer) {
+                drawer.classList.remove('open');
+                drawer.style.zIndex = '';
+            }
+        } else {
+            const openDrawers = document.querySelectorAll('.dms-drawer.open');
+            openDrawers.forEach(d => {
+                d.classList.remove('open');
+                d.style.zIndex = '';
+            });
+            window.drawerStack = [];
+        }
+
         const backdrop = document.getElementById('dms-drawer-backdrop');
         if (backdrop) {
-            backdrop.style.display = 'none';
+            if (window.drawerStack.length > 0) {
+                const topId = window.drawerStack[window.drawerStack.length - 1];
+                const topDrawer = document.getElementById(topId);
+                const currentZ = topDrawer && topDrawer.style.zIndex ? parseInt(topDrawer.style.zIndex, 10) : 1050;
+                backdrop.style.zIndex = Math.max(1040, currentZ - 5);
+                backdrop.style.display = 'block';
+            } else {
+                backdrop.style.display = 'none';
+                backdrop.style.zIndex = '1040';
+            }
         }
     };
 
