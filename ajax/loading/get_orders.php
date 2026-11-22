@@ -24,6 +24,8 @@ $salesmanId   = isset($_GET['salesman_id']) ? (int)$_GET['salesman_id'] : 0;
 $areaId       = isset($_GET['area_id']) ? (int)$_GET['area_id'] : 0;
 $bookerId     = isset($_GET['booker_id']) ? (int)$_GET['booker_id'] : 0;
 $deliveryDate = isset($_GET['delivery_date']) ? trim(sanitize_input($_GET['delivery_date'])) : '';
+$warehouseId  = isset($_GET['warehouse_id']) ? (int)$_GET['warehouse_id'] : 1;
+if ($warehouseId <= 0) $warehouseId = 1;
 
 $where = ["o.status = 'confirmed'"];
 $params = [];
@@ -126,9 +128,29 @@ try {
     }
     unset($ord);
 
+    // Fetch warehouse stock balances for all products in these orders
+    $stockBalances = [];
+    if (!empty($items)) {
+        $productIds = array_unique(array_column($items, 'product_id'));
+        if (!empty($productIds)) {
+            $prodPlaceholders = implode(',', array_fill(0, count($productIds), '?'));
+            $sbParams = array_merge([$warehouseId], $productIds);
+            $stocks = db_fetch_all("
+                SELECT product_id, saleable_qty 
+                FROM stock_balances 
+                WHERE warehouse_id = ? AND product_id IN ({$prodPlaceholders})
+            ", $sbParams);
+            foreach ($stocks as $s) {
+                $stockBalances[(int)$s['product_id']] = (float)$s['saleable_qty'];
+            }
+        }
+    }
+
     json_success('Orders fetched successfully', [
-        'count'  => count($orders),
-        'orders' => $orders
+        'count'          => count($orders),
+        'orders'         => $orders,
+        'warehouse_id'   => $warehouseId,
+        'stock_balances' => $stockBalances
     ]);
 
 } catch (Exception $e) {

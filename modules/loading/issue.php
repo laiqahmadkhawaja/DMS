@@ -34,7 +34,35 @@ try {
     db()->beginTransaction();
     $userId = current_user_id();
 
-    // 1. Update load sheet header
+    // 1. Fetch load sheet items and check warehouse stock availability
+    $items = db_fetch_all("
+        SELECT lsi.*, p.product_name 
+        FROM load_sheet_items lsi
+        JOIN products p ON lsi.product_id = p.id
+        WHERE lsi.load_sheet_id = ?
+    ", [$id]);
+
+    $stockErrors = [];
+    foreach ($items as $item) {
+        $reqQty = (float)$item['required_qty'];
+        $stockBal = db_fetch_one("
+            SELECT saleable_qty 
+            FROM stock_balances 
+            WHERE warehouse_id = ? AND product_id = ?
+        ", [(int)$sheet['warehouse_id'], (int)$item['product_id']]);
+        $availQty = $stockBal ? (float)$stockBal['saleable_qty'] : 0.0;
+
+        if ($availQty < $reqQty) {
+            $shortage = $reqQty - $availQty;
+            $stockErrors[] = "• " . htmlspecialchars($item['product_name']) . ": Required {$reqQty} pcs, Available {$availQty} pcs (Shortage: {$shortage} pcs)";
+        }
+    }
+
+    if (!empty($stockErrors)) {
+        throw new Exception("لوڈ فارم جاری نہیں ہو سکتا کیونکہ گودام میں مطلوبہ اسٹاک کم ہے!<br>Cannot issue Load Sheet! Insufficient warehouse stock:<br>" . implode("<br>", $stockErrors));
+    }
+
+    // 2. Update load sheet header
     $stmt = db()->prepare("
         UPDATE load_sheets 
         SET status = 'issued', issued_at = NOW(), issued_by = ?, updated_at = NOW()
@@ -42,8 +70,7 @@ try {
     ");
     $stmt->execute([$userId, $id]);
 
-    // 2. Fetch load sheet items
-    $items = db_fetch_all("SELECT * FROM load_sheet_items WHERE load_sheet_id = ?", [$id]);
+    // 3. Update load sheet items & record stock movements
     $stmtUpdItem = db()->prepare("UPDATE load_sheet_items SET loaded_qty = required_qty WHERE id = ?");
 
     foreach ($items as $item) {

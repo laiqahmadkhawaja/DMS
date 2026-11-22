@@ -106,6 +106,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $totalLoadAmount += (float)$item['line_total'];
             }
 
+            // STRICT STOCK RESTRICTION: Load Form CANNOT be created or issued if warehouse stock is insufficient!
+            $stockErrors = [];
+            foreach ($aggregated as $pid => $agg) {
+                $requiredQty = (float)$agg['total_base_qty'];
+                $stockBal = db_fetch_one("
+                    SELECT saleable_qty 
+                    FROM stock_balances 
+                    WHERE warehouse_id = ? AND product_id = ?
+                ", [$warehouseId, $pid]);
+                $availQty = $stockBal ? (float)$stockBal['saleable_qty'] : 0.0;
+
+                if ($availQty < $requiredQty) {
+                    $shortage = $requiredQty - $availQty;
+                    $pName = $agg['product_name'];
+                    $stockErrors[] = "• " . htmlspecialchars($pName) . ": Required {$requiredQty} pcs, Available in Warehouse {$availQty} pcs (Shortage: {$shortage} pcs)";
+                }
+            }
+
+            if (!empty($stockErrors)) {
+                $errorMsg = "<strong>لوڈ فارم نہیں بن سکتا کیونکہ گودام میں مطلوبہ اسٹاک دستیاب نہیں ہے!</strong><br>" .
+                            "Cannot create Load Form! Warehouse has insufficient stock for the following items:<br>" . 
+                            implode("<br>", $stockErrors);
+                throw new Exception($errorMsg);
+            }
+
             $sheetStatus = ($actionType === 'issue') ? 'issued' : 'draft';
             $issuedAt    = ($actionType === 'issue') ? date('Y-m-d H:i:s') : null;
             $issuedBy    = ($actionType === 'issue') ? $userId : null;
@@ -438,22 +463,37 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <span class="badge bg-light text-navy fw-bold" id="badgeUniqueProducts">0 Products</span>
                 </div>
                 <div class="card-body p-0">
+                    <!-- Stock Shortage Alert Banner -->
+                    <div id="stockShortageAlert" class="alert alert-danger d-none m-3 p-3 border-start border-4 border-danger shadow-sm">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-exclamation-triangle-fill fs-2 text-danger me-3"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1 text-danger">اسٹاک کی کمی — لوڈ فارم نہیں بن سکتا! (Stock Shortage Detected)</h6>
+                                <p class="mb-0 small text-dark">
+                                    Selected orders require more items than currently available in warehouse stock. As per system restriction, <strong>Load Form cannot be created or dispatched</strong> until sufficient warehouse stock is available. Please add/receive stock or uncheck out-of-stock orders.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover align-middle mb-0" id="summaryTable">
                             <thead class="bg-light text-navy small text-uppercase text-center">
                                 <tr>
-                                    <th style="width: 50px;">Sr.</th>
+                                    <th style="width: 45px;">Sr.</th>
                                     <th class="text-start">Product Description</th>
-                                    <th style="width: 120px;">Ctn Qty</th>
-                                    <th style="width: 120px;">Pcs Qty</th>
-                                    <th style="width: 130px;">Total Base Units</th>
-                                    <th style="width: 140px;">Wholesale Rate</th>
-                                    <th style="width: 160px;" class="text-end pe-3">Total Amount (Rs.)</th>
+                                    <th style="width: 100px;">Ctn Qty</th>
+                                    <th style="width: 100px;">Pcs Qty</th>
+                                    <th style="width: 110px;">Req. Pcs</th>
+                                    <th style="width: 130px;">Available Stock (موجود اسٹاک)</th>
+                                    <th style="width: 140px;">Stock Status (حیثیت)</th>
+                                    <th style="width: 120px;">Wholesale Rate</th>
+                                    <th style="width: 150px;" class="text-end pe-3">Total Amount (Rs.)</th>
                                 </tr>
                             </thead>
                             <tbody id="summaryTbody">
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">
+                                    <td colspan="9" class="text-center py-4 text-muted">
                                         Select confirmed orders above to automatically calculate consolidated warehouse dispatch requirements.
                                     </td>
                                 </tr>
@@ -464,6 +504,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-center" id="footCtn">0</td>
                                     <td class="text-center" id="footPcs">0</td>
                                     <td class="text-center" id="footUnits">0</td>
+                                    <td colspan="2"></td>
                                     <td></td>
                                     <td class="text-end pe-3 text-navy fs-6" id="footTotal">Rs. 0.00</td>
                                 </tr>
@@ -538,6 +579,8 @@ require_once INCLUDES_PATH . '/topbar.php';
 
 <script>
 let fetchedOrders = [];
+let warehouseStockBalances = {};
+let hasStockShortage = false;
 
 function openWarehouseDrawer() {
     const drawer = document.getElementById('drawer-add-warehouse');
@@ -579,6 +622,7 @@ function submitQuickWarehouse(e) {
             }
             closeWarehouseDrawer();
             form.reset();
+            loadConfirmedOrders();
         } else {
             alertEl.textContent = data.message || 'Error creating warehouse';
             alertEl.classList.remove('d-none');
@@ -596,6 +640,7 @@ function loadConfirmedOrders() {
     const areaId = document.getElementById('filterArea').value;
     const bookerId = document.getElementById('filterBooker').value;
     const dateFilter = document.getElementById('filterDeliveryDate').value;
+    const warehouseId = document.getElementById('warehouseSelect') ? document.getElementById('warehouseSelect').value : 1;
     let deliveryDateParam = 'all';
 
     if (dateFilter === 'match') {
@@ -609,12 +654,14 @@ function loadConfirmedOrders() {
     const tbody = document.getElementById('ordersTbody');
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-1"></i> Fetching confirmed orders...</td></tr>`;
 
-    fetch(`../../ajax/loading/get_orders.php?area_id=${areaId}&booker_id=${bookerId}&delivery_date=${encodeURIComponent(deliveryDateParam)}`)
+    fetch(`../../ajax/loading/get_orders.php?area_id=${areaId}&booker_id=${bookerId}&delivery_date=${encodeURIComponent(deliveryDateParam)}&warehouse_id=${encodeURIComponent(warehouseId)}`)
         .then(res => res.json())
         .then(data => {
             if (data.success) {
                 fetchedOrders = data.data.orders || [];
+                warehouseStockBalances = data.data.stock_balances || {};
                 renderOrdersTable();
+                recalculateSummary();
             } else {
                 tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-danger">${data.message}</td></tr>`;
             }
@@ -731,13 +778,20 @@ function renderSummaryTable(consolidated) {
     const tbody = document.getElementById('summaryTbody');
     const tfoot = document.getElementById('summaryTfoot');
     const badge = document.getElementById('badgeUniqueProducts');
+    const alertBox = document.getElementById('stockShortageAlert');
+    const btnDraft = document.getElementById('btnSaveDraft');
+    const btnIssue = document.getElementById('btnIssueStock');
 
     const keys = Object.keys(consolidated);
     badge.innerText = `${keys.length} Products`;
+    hasStockShortage = false;
 
     if (keys.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No orders selected. Please select at least one order above.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">No orders selected. Please select at least one order above.</td></tr>`;
         tfoot.style.display = 'none';
+        if (alertBox) alertBox.classList.add('d-none');
+        if (btnDraft) { btnDraft.disabled = false; btnDraft.classList.remove('disabled'); btnDraft.removeAttribute('title'); }
+        if (btnIssue) { btnIssue.disabled = false; btnIssue.classList.remove('disabled'); btnIssue.removeAttribute('title'); }
         return;
     }
 
@@ -750,18 +804,37 @@ function renderSummaryTable(consolidated) {
 
     keys.forEach(pid => {
         const p = consolidated[pid];
+        const availStock = warehouseStockBalances[pid] !== undefined ? parseFloat(warehouseStockBalances[pid]) : 0;
+        const reqQty = p.total_base_qty;
+        const shortage = reqQty - availStock;
+        const isShort = shortage > 0;
+
+        if (isShort) {
+            hasStockShortage = true;
+        }
+
         sumCtn += p.carton_qty;
         sumPcs += p.pcs_qty;
         sumUnits += p.total_base_qty;
         sumTotal += p.total_amount;
 
+        const rowClass = isShort ? 'table-danger' : '';
+        const statusBadge = isShort 
+            ? `<span class="badge bg-danger text-white"><i class="bi bi-x-circle me-1"></i>Short (${shortage} pcs)</span>`
+            : `<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle me-1"></i>Sufficient</span>`;
+
         html += `
-            <tr>
+            <tr class="${rowClass}">
                 <td class="text-center">${sr++}</td>
-                <td class="fw-semibold text-dark">${escapeHtml(p.name)}</td>
+                <td class="fw-semibold text-dark">
+                    ${escapeHtml(p.name)}
+                    ${isShort ? '<div class="small text-danger fw-bold"><i class="bi bi-exclamation-octagon-fill me-1"></i>گودام میں اسٹاک کم ہے</div>' : ''}
+                </td>
                 <td class="text-center fw-bold">${p.carton_qty > 0 ? p.carton_qty : '-'}</td>
                 <td class="text-center">${p.pcs_qty > 0 ? p.pcs_qty : '-'}</td>
                 <td class="text-center fw-bold text-navy">${p.total_base_qty}</td>
+                <td class="text-center fw-bold ${isShort ? 'text-danger' : 'text-success'}">${availStock}</td>
+                <td class="text-center">${statusBadge}</td>
                 <td class="text-center">Rs. ${p.rate.toFixed(2)}</td>
                 <td class="text-end pe-3 fw-bold">Rs. ${p.total_amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
             </tr>
@@ -774,6 +847,34 @@ function renderSummaryTable(consolidated) {
     document.getElementById('footPcs').innerText = sumPcs;
     document.getElementById('footUnits').innerText = sumUnits;
     document.getElementById('footTotal').innerText = 'Rs. ' + sumTotal.toLocaleString('en-US', {minimumFractionDigits: 2});
+
+    if (hasStockShortage) {
+        if (alertBox) {
+            alertBox.classList.remove('d-none');
+        }
+        if (btnDraft) {
+            btnDraft.disabled = true;
+            btnDraft.classList.add('disabled');
+            btnDraft.title = "Cannot save load form: Warehouse stock shortage detected.";
+        }
+        if (btnIssue) {
+            btnIssue.disabled = true;
+            btnIssue.classList.add('disabled');
+            btnIssue.title = "Cannot issue stock: Warehouse stock shortage detected.";
+        }
+    } else {
+        if (alertBox) alertBox.classList.add('d-none');
+        if (btnDraft) {
+            btnDraft.disabled = false;
+            btnDraft.classList.remove('disabled');
+            btnDraft.removeAttribute('title');
+        }
+        if (btnIssue) {
+            btnIssue.disabled = false;
+            btnIssue.classList.remove('disabled');
+            btnIssue.removeAttribute('title');
+        }
+    }
 }
 
 function escapeHtml(text) {
@@ -793,6 +894,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('filterArea').addEventListener('change', loadConfirmedOrders);
     document.getElementById('filterBooker').addEventListener('change', loadConfirmedOrders);
     document.getElementById('filterDeliveryDate').addEventListener('change', loadConfirmedOrders);
+    
+    const whSelect = document.getElementById('warehouseSelect');
+    if (whSelect) {
+        whSelect.addEventListener('change', loadConfirmedOrders);
+    }
+
     document.getElementById('deliveryDate').addEventListener('change', function() {
         if (document.getElementById('filterDeliveryDate').value === 'match') {
             loadConfirmedOrders();
@@ -835,6 +942,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function validateForm() {
+        if (hasStockShortage) {
+            alert('لوڈ فارم نہیں بن سکتا کیونکہ گودام میں مطلوبہ اسٹاک دستیاب نہیں ہے!\n\nCannot create Load Form! Selected orders exceed available warehouse stock. Please add inventory to the warehouse or deselect short orders.');
+            return false;
+        }
         const sm = document.getElementById('salesmanSelect').value;
         if (!sm) {
             alert('Please select a delivery salesman.');
