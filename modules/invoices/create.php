@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ctnQty    = (float)($line['carton_qty'] ?? 0);
         $packQty   = (float)($line['pack_qty'] ?? 0);
         $pcsQty    = (float)($line['pcs_qty'] ?? 0);
+        $unitCode  = strtolower(trim((string)($line['unit'] ?? 'ctn')));
         $rate      = (float)($line['rate'] ?? 0);
         $discPct   = (float)($line['discount_percent'] ?? 0);
 
@@ -87,7 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $totalBaseUnits = calculate_base_pieces($ctnQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
         $baseCartons = calculate_carton_equivalent($ctnQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
-        $lineGross = $baseCartons * $rate;
+
+        if ($unitCode === 'pcs') {
+            $lineGross = $totalBaseUnits * $rate;
+            $unitId = 4; // Piece unit
+        } else {
+            $lineGross = $baseCartons * $rate;
+            $unitId = (int)$prod['base_unit_id']; // Carton unit
+        }
 
         if ($discountMode === 'subtotal') {
             $itemDiscPct = 0.0;
@@ -104,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $validItems[] = [
             'product_id'       => $productId,
-            'unit_id'          => (int)$prod['base_unit_id'],
+            'unit_id'          => $unitId,
             'carton_qty'       => $ctnQty,
             'pack_qty'         => $packQty,
             'pcs_qty'          => $pcsQty,
@@ -197,6 +205,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 // Record stock movement (Direct spot sale dispatch)
+                $qtyOut = (float)$vi['quantity'];
+                $lineTot = (float)$vi['line_total'];
+                $pieceCost = $qtyOut > 0 ? round($lineTot / $qtyOut, 6) : 0;
                 record_stock_movement([
                     'product_id'     => $vi['product_id'],
                     'warehouse_id'   => 1, // Default Central Warehouse
@@ -204,8 +215,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'reference_type' => 'invoice',
                     'reference_id'   => $invoiceId,
                     'qty_in'         => 0,
-                    'qty_out'        => $vi['quantity'],
-                    'unit_cost'      => $vi['rate'],
+                    'qty_out'        => $qtyOut,
+                    'unit_cost'      => $pieceCost,
+                    'total_cost'     => $lineTot,
                     'remarks'        => "Stock dispatch for Direct Invoice #{$invoiceNumber}",
                     'condition_type' => 'saleable'
                 ]);
@@ -309,8 +321,8 @@ $liquidAccounts = db_fetch_all("
 $products   = db_fetch_all("
     SELECT p.id, p.product_code, p.barcode, p.product_name, p.category_id, p.supplier_id, p.brand_id,
            cat.category_name, b.brand_name,
-           p.purchase_rate, p.default_sale_rate, p.wholesale_rate, p.retail_rate,
-           p.carton_qty, p.pack_qty, p.packing_description,
+           p.purchase_rate, p.purchase_carton_rate, p.purchase_piece_rate, p.default_sale_rate, p.wholesale_rate, p.carton_rate, p.piece_rate, p.retail_rate,
+           p.carton_qty, p.pack_qty, p.packing_description, p.base_unit_id,
            COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
     LEFT JOIN product_categories cat ON cat.id = p.category_id
@@ -507,7 +519,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                      data-code="<?= htmlspecialchars($p['product_code']) ?>"
                                      data-cat="<?= $p['category_id'] ?>"
                                      data-supplier-id="<?= (int)($p['supplier_id'] ?? 0) ?>"
-                                     data-rate="<?= (float)$p['wholesale_rate'] ?>"
+                                     data-rate="<?= (float)$p['carton_rate'] ?>"
+                                     data-carton-rate="<?= (float)$p['carton_rate'] ?>"
+                                     data-piece-rate="<?= (float)$p['piece_rate'] ?>"
                                      data-packs-per-ctn="<?= $packsPerCtn ?>"
                                      data-pcs-per-pack="<?= $pcsPerPack ?>"
                                      data-pcs-per-ctn="<?= $pcsPerCtn ?>"
@@ -527,8 +541,15 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     </div>
 
                                     <div class="prod-price-stock">
-                                        <div class="prod-price"><?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['wholesale_rate'], 0) ?></div>
-                                        <div class="prod-stock">
+                                        <div>
+                                            <div class="prod-price" style="font-size: 13px; line-height: 1.2;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['carton_rate'], 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
+                                            </div>
+                                            <div class="text-secondary fw-semibold" style="font-size: 11px;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['piece_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Pc</span>
+                                            </div>
+                                        </div>
+                                        <div class="prod-stock text-end">
                                             <?= $isOutOfStock ? 'Out of stock' : htmlspecialchars($stockBreakdown['formatted']) . ' avail' ?>
                                         </div>
                                     </div>
@@ -581,19 +602,20 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <table class="table pos-cart-table table-hover align-middle" id="invoiceTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 28%;">Product Description</th>
-                                        <th style="width: 11%;" class="text-center">Ctn Qty</th>
-                                        <th style="width: 11%;" class="text-center">Packs</th>
-                                        <th style="width: 11%;" class="text-center">Extra Pcs</th>
-                                        <th style="width: 15%;" class="text-end">Rate / Ctn</th>
-                                        <th style="width: 9%;" class="text-end">Disc %</th>
+                                        <th style="width: 25%;">Product Description</th>
+                                        <th style="width: 9%;" class="text-center">Unit</th>
+                                        <th style="width: 10%;" class="text-center">Ctn Qty</th>
+                                        <th style="width: 9%;" class="text-center">Packs</th>
+                                        <th style="width: 9%;" class="text-center">Extra Pcs</th>
+                                        <th style="width: 15%;" class="text-end">Rate</th>
+                                        <th style="width: 8%;" class="text-end">Disc %</th>
                                         <th style="width: 12%;" class="text-end">Line Total</th>
                                         <th style="width: 30px;" class="text-center"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="invoiceItemsBody">
                                     <tr id="emptyInvoiceRow">
-                                        <td colspan="8" class="text-center py-5 text-muted">
+                                        <td colspan="9" class="text-center py-5 text-muted">
                                             <i class="bi bi-cart-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                             <div class="fw-semibold">No items added to invoice yet.</div>
                                             <small>Click on product cards on the left or search to add items.</small>
@@ -789,6 +811,16 @@ function onDiscountModeChange() {
     recalculateInvoiceSummary();
 }
 
+function calculateInvoiceLineGross(item) {
+    if (item.unit === 'pcs') {
+        const totalPieces = (item.carton_qty * item.pcs_per_ctn) + (item.pack_qty * item.pcs_per_pack) + item.pcs_qty;
+        return totalPieces * item.rate;
+    } else {
+        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
+        return baseCartons * item.rate;
+    }
+}
+
 function onSubtotalPercentChange() {
     const mode = getDiscountMode();
     if (mode !== 'subtotal') return;
@@ -796,8 +828,7 @@ function onSubtotalPercentChange() {
     const pctVal = parseFloat(document.getElementById('subtotalDiscountPercent')?.value) || 0;
     let grossAmount = 0;
     Object.values(invoiceItems).forEach(item => {
-        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
-        grossAmount += (baseCartons * item.rate);
+        grossAmount += calculateInvoiceLineGross(item);
     });
 
     const amt = Math.round(((grossAmount * pctVal) / 100.0) * 100) / 100;
@@ -816,8 +847,7 @@ function onSubtotalAmountChange() {
     const amtVal = parseFloat(document.getElementById('subtotalDiscountAmount')?.value) || 0;
     let grossAmount = 0;
     Object.values(invoiceItems).forEach(item => {
-        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
-        grossAmount += (baseCartons * item.rate);
+        grossAmount += calculateInvoiceLineGross(item);
     });
 
     const pct = grossAmount > 0 ? Math.round(((amtVal / grossAmount) * 100.0) * 100) / 100 : 0;
@@ -833,8 +863,7 @@ function recalculateAllRows() {
     const mode = getDiscountMode();
     Object.keys(invoiceItems).forEach(productId => {
         const item = invoiceItems[productId];
-        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
-        const lineGross = baseCartons * item.rate;
+        const lineGross = calculateInvoiceLineGross(item);
         const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
         item.line_total = lineGross - lineDisc;
 
@@ -853,13 +882,19 @@ function addProductToInvoice(productId) {
     if (!prod) return;
 
     if (invoiceItems[productId]) {
-        invoiceItems[productId].carton_qty += 1;
+        if (invoiceItems[productId].unit === 'pcs') {
+            invoiceItems[productId].pcs_qty += invoiceItems[productId].pcs_per_ctn > 0 ? invoiceItems[productId].pcs_per_ctn : 1;
+        } else {
+            invoiceItems[productId].carton_qty += 1;
+        }
         updateInvoiceRow(productId);
     } else {
         const packsPerCtn = parseFloat(prod.carton_qty) > 0 ? parseFloat(prod.carton_qty) : 1;
         const pcsPerPack  = parseFloat(prod.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
         const pcsPerCtn   = packsPerCtn * pcsPerPack;
-        const rate = parseFloat(prod.wholesale_rate) || 0;
+        const cartonRate  = parseFloat(prod.carton_rate) || parseFloat(prod.wholesale_rate) || 0;
+        const pieceRate   = parseFloat(prod.piece_rate) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate);
+        const rate        = cartonRate;
         itemIdxCounter++;
 
         invoiceItems[productId] = {
@@ -870,6 +905,9 @@ function addProductToInvoice(productId) {
             packs_per_ctn: packsPerCtn,
             pcs_per_pack: pcsPerPack,
             pcs_per_ctn: pcsPerCtn,
+            unit: 'ctn',
+            carton_rate: cartonRate,
+            piece_rate: pieceRate,
             carton_qty: 1,
             pack_qty: 0,
             pcs_qty: 0,
@@ -889,6 +927,46 @@ function addProductToInvoice(productId) {
         rowInput.focus();
         rowInput.select();
     }
+}
+
+function onInvoiceUnitChange(productId) {
+    const item = invoiceItems[productId];
+    if (!item) return;
+
+    const unitSel = document.getElementById('inv_unit_' + productId);
+    const unit = unitSel ? unitSel.value : 'ctn';
+    item.unit = unit;
+
+    if (unit === 'pcs') {
+        item.rate = item.piece_rate;
+        if (item.carton_qty > 0 && item.pcs_qty === 0) {
+            item.pcs_qty = item.carton_qty * item.pcs_per_ctn;
+            item.carton_qty = 0;
+            const inputCarton = document.getElementById('inv_carton_' + productId);
+            const inputPcs = document.getElementById('inv_pcs_' + productId);
+            if (inputCarton) inputCarton.value = 0;
+            if (inputPcs) inputPcs.value = item.pcs_qty;
+        }
+    } else {
+        item.rate = item.carton_rate;
+        if (item.carton_qty === 0 && item.pcs_qty > 0 && item.pcs_per_ctn > 0) {
+            item.carton_qty = Math.floor(item.pcs_qty / item.pcs_per_ctn);
+            item.pcs_qty = item.pcs_qty % item.pcs_per_ctn;
+            const inputCarton = document.getElementById('inv_carton_' + productId);
+            const inputPcs = document.getElementById('inv_pcs_' + productId);
+            if (inputCarton) inputCarton.value = item.carton_qty;
+            if (inputPcs) inputPcs.value = item.pcs_qty;
+        }
+    }
+
+    const inputRate = document.getElementById('inv_rate_' + productId);
+    if (inputRate) inputRate.value = item.rate.toFixed(2);
+
+    const lblRateUnit = document.getElementById('inv_lbl_rate_unit_' + productId);
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (unit === 'pcs' ? 'Piece' : 'Carton');
+
+    updateInvoiceRow(productId);
+    recalculateInvoiceSummary();
 }
 
 function renderNewInvoiceRow(productId) {
@@ -913,19 +991,25 @@ function renderNewInvoiceRow(productId) {
             <small class="text-muted">Pack: ${ratioText} &bull; ${item.product_code}</small>
         </td>
         <td class="text-center">
-            <input type="number" step="0.01" name="items[${idx}][carton_qty]" id="inv_carton_${productId}" 
+            <select name="items[${idx}][unit]" id="inv_unit_${productId}" class="form-select form-select-sm text-center py-0 px-1" onchange="onInvoiceUnitChange(${productId})">
+                <option value="ctn" ${item.unit === 'ctn' ? 'selected' : ''}>Ctn</option>
+                <option value="pcs" ${item.unit === 'pcs' ? 'selected' : ''}>Pcs</option>
+            </select>
+        </td>
+        <td class="text-center">
+            <input type="number" step="1" min="0" name="items[${idx}][carton_qty]" id="inv_carton_${productId}" 
                    class="form-control form-control-sm text-center fw-bold pos-cart-input" 
                    value="${item.carton_qty}" 
                    oninput="onInvoiceRowChange(${productId})" required>
         </td>
         <td class="text-center">
-            <input type="number" step="1" name="items[${idx}][pack_qty]" id="inv_pack_${productId}" 
+            <input type="number" step="1" min="0" name="items[${idx}][pack_qty]" id="inv_pack_${productId}" 
                    class="form-control form-control-sm text-center pos-cart-input" 
                    value="${item.pack_qty}" 
                    oninput="onInvoiceRowChange(${productId})">
         </td>
         <td class="text-center">
-            <input type="number" step="1" name="items[${idx}][pcs_qty]" id="inv_pcs_${productId}" 
+            <input type="number" step="1" min="0" name="items[${idx}][pcs_qty]" id="inv_pcs_${productId}" 
                    class="form-control form-control-sm text-center pos-cart-input" 
                    value="${item.pcs_qty}" 
                    oninput="onInvoiceRowChange(${productId})">
@@ -935,6 +1019,7 @@ function renderNewInvoiceRow(productId) {
                    class="form-control form-control-sm text-end fw-semibold pos-cart-input" 
                    value="${item.rate.toFixed(2)}" 
                    oninput="onInvoiceRowChange(${productId})" required>
+            <span class="small text-muted" id="inv_lbl_rate_unit_${productId}" style="font-size: 10px;">/ ${item.unit === 'pcs' ? 'Piece' : 'Carton'}</span>
         </td>
         <td class="text-end">
             <input type="number" step="0.01" name="items[${idx}][discount_percent]" id="inv_disc_${productId}" 
@@ -970,18 +1055,21 @@ function updateInvoiceRow(productId) {
     const inputCarton = document.getElementById('inv_carton_' + productId);
     const inputPack   = document.getElementById('inv_pack_' + productId);
     const inputPcs    = document.getElementById('inv_pcs_' + productId);
+    const inputUnit   = document.getElementById('inv_unit_' + productId);
     const inputRate   = document.getElementById('inv_rate_' + productId);
     const inputDisc   = document.getElementById('inv_disc_' + productId);
+    const lblRateUnit = document.getElementById('inv_lbl_rate_unit_' + productId);
     const lblTotal    = document.getElementById('inv_lbl_total_' + productId);
 
     if (inputCarton) inputCarton.value = item.carton_qty;
     if (inputPack) inputPack.value = item.pack_qty;
     if (inputPcs) inputPcs.value = item.pcs_qty;
+    if (inputUnit) inputUnit.value = item.unit || 'ctn';
     if (inputRate) inputRate.value = item.rate.toFixed(2);
     if (inputDisc) inputDisc.value = item.discount_percent;
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : 'Carton');
 
-    const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
-    const lineGross = baseCartons * item.rate;
+    const lineGross = calculateInvoiceLineGross(item);
     const mode = getDiscountMode();
     const lineDisc  = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
     item.line_total = lineGross - lineDisc;
@@ -1007,8 +1095,37 @@ function onInvoiceRowChange(productId) {
     item.rate = rateVal;
     item.discount_percent = discVal;
 
-    const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
-    const lineGross = baseCartons * item.rate;
+    // Keep carton_rate and piece_rate in sync if rate input was edited
+    if (item.unit === 'pcs') {
+        item.piece_rate = rateVal;
+        item.carton_rate = rateVal * item.pcs_per_ctn;
+    } else {
+        item.carton_rate = rateVal;
+        item.piece_rate = item.pcs_per_ctn > 0 ? (rateVal / item.pcs_per_ctn) : rateVal;
+    }
+
+    // Auto-switch unit if user specifically entered 0 Cartons and >0 Pieces
+    if (item.unit === 'ctn' && ctnVal === 0 && pcsVal > 0) {
+        item.unit = 'pcs';
+        item.rate = item.piece_rate;
+        const unitSel = document.getElementById('inv_unit_' + productId);
+        if (unitSel) unitSel.value = 'pcs';
+        const inputRate = document.getElementById('inv_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('inv_lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Piece';
+    } else if (item.unit === 'pcs' && ctnVal > 0 && pcsVal === 0) {
+        item.unit = 'ctn';
+        item.rate = item.carton_rate;
+        const unitSel = document.getElementById('inv_unit_' + productId);
+        if (unitSel) unitSel.value = 'ctn';
+        const inputRate = document.getElementById('inv_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('inv_lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Carton';
+    }
+
+    const lineGross = calculateInvoiceLineGross(item);
     const mode = getDiscountMode();
     const lineDisc  = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
     item.line_total = lineGross - lineDisc;
@@ -1103,8 +1220,7 @@ function recalculateInvoiceSummary() {
         totalPacks   += item.pack_qty;
         totalPieces  += item.pcs_qty;
 
-        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
-        const lineGross = baseCartons * item.rate;
+        const lineGross = calculateInvoiceLineGross(item);
         const lineDisc  = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
 
         grossAmount += lineGross;
