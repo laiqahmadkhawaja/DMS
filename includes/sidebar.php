@@ -19,7 +19,7 @@ $activeMenu = get_active_menu();
 $isSalesActive      = in_array($activeMenu, ['orders', 'loading', 'invoices', 'delivery', 'settlements', 'returns']) || $activeMenu === 'dashboard';
 $isCustomersActive  = in_array($activeMenu, ['customers', 'cust_ledger', 'customer_payments', 'rpt_aging']);
 $isPurchasesActive  = in_array($activeMenu, ['suppliers', 'purchases', 'goods_receiving', 'supplier_payments', 'supplier_ledger']);
-$isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'products_import', 'categories', 'brands', 'warehouses', 'bulk_brands', 'bulk_categories']);
+$isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'products_import', 'categories', 'brands', 'warehouses', 'bulk_brands', 'bulk_categories', 'import_stock', 'bulk_prices']);
 $isAccountsActive   = in_array($activeMenu, ['accounts', 'manage_accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger']);
 $isOperationsActive = in_array($activeMenu, ['areas', 'bookers', 'salesmen']);
 $isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_company', 'rpt_profitability', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
@@ -218,6 +218,13 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                             <i class="bi bi-journal-check"></i> Stock Movement Ledger
                         </a>
                     </li>
+                    <?php if (has_permission('inventory_adjust') || has_permission('excel_import')): ?>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/inventory/import_stock.php" class="dms-menu-item <?= $activeMenu === 'import_stock' ? 'active' : '' ?>">
+                            <i class="bi bi-file-earmark-arrow-up text-success"></i> Import Opening Stock
+                        </a>
+                    </li>
+                    <?php endif; ?>
                     <?php endif; ?>
 
                     <?php if (has_permission('products_view')): ?>
@@ -226,6 +233,13 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                             <i class="bi bi-tag"></i> Products & Pricing
                         </a>
                     </li>
+                    <?php if (has_permission('products_edit') || has_permission('masters_manage')): ?>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/products/bulk_prices.php" class="dms-menu-item <?= $activeMenu === 'bulk_prices' ? 'active' : '' ?>">
+                            <i class="bi bi-currency-dollar text-success"></i> Bulk Price Setting
+                        </a>
+                    </li>
+                    <?php endif; ?>
                     <li>
                         <a href="<?= APP_URL ?>/modules/products/import.php" class="dms-menu-item <?= $activeMenu === 'products_import' ? 'active' : '' ?>">
                             <i class="bi bi-file-earmark-excel text-success"></i> Import / Export Excel

@@ -59,7 +59,10 @@ require_once INCLUDES_PATH . '/topbar.php';
         <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-tag-fill me-2 text-primary"></i>Customer Special Rates & Price Lists</h5>
         <small class="text-muted">Override default wholesale rates for specific retailers (snapshots saved permanently on bills)</small>
     </div>
-    <div>
+    <div class="d-flex gap-2">
+        <a href="<?= APP_URL ?>/modules/products/bulk_prices.php" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-currency-dollar me-1"></i> Bulk Price Setting
+        </a>
         <button type="button" class="btn btn-sm btn-primary" onclick="openDrawer('drawer-add-custom-price')">
             <i class="bi bi-plus-lg me-1"></i> Add Special Rate (Ctrl+N)
         </button>

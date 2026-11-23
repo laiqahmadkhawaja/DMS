@@ -428,6 +428,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <div class="fw-bold"><i class="bi bi-download me-2"></i>Customer Import Template (.xlsx)</div>
                                 <div class="small text-muted">Shop Name, Owner, Phone, Route, Credit Limit, Opening Balance</div>
                             </a>
+                            <a href="<?= APP_URL ?>/modules/inventory/import_stock.php" class="btn btn-outline-success text-start p-3 border-2">
+                                <div class="fw-bold text-success"><i class="bi bi-file-earmark-arrow-up me-2"></i>Opening Stock Excel Importer (.xlsx/.csv)</div>
+                                <div class="small text-muted">Initialize warehouse physical stock with Cartons, Packs &amp; Loose Pieces (3-Tier hierarchy)</div>
+                            </a>
                             <a href="import.php?download_template=products" class="btn btn-outline-info text-start p-3">
                                 <div class="fw-bold text-dark"><i class="bi bi-download me-2"></i>Product Import Template (.xlsx)</div>
                                 <div class="small text-muted">Code, Name, Category, Carton Ratio, Wholesale Rate, Opening Stock</div>

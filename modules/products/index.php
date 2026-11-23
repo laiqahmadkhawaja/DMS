@@ -78,11 +78,20 @@ require_once INCLUDES_PATH . '/topbar.php';
             <i class="bi bi-file-earmark-excel me-1"></i> Import / Export Excel
         </a>
         <?php if (has_permission('masters_manage') || has_permission('products_edit')): ?>
+        <a href="<?= APP_URL ?>/modules/products/bulk_prices.php" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-currency-dollar me-1"></i> Bulk Price Setting
+        </a>
         <div class="btn-group">
             <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-pencil-square me-1"></i> Bulk Updaters
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <li>
+                    <a class="dropdown-item" href="<?= APP_URL ?>/modules/products/bulk_prices.php">
+                        <i class="bi bi-currency-dollar text-success me-2"></i> Bulk Price &amp; Rates Setting
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
                 <li>
                     <a class="dropdown-item" href="<?= APP_URL ?>/modules/brands/bulk_update.php">
                         <i class="bi bi-bookmark-star-fill text-warning me-2"></i> Bulk Brand Updater

@@ -132,6 +132,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <a href="ledger.php" class="btn btn-outline-primary shadow-sm">
                     <i class="bi bi-journal-text me-1"></i> Stock Movement Ledger
                 </a>
+                <?php if (has_permission('inventory_adjust') || has_permission('excel_import')): ?>
+                    <a href="import_stock.php" class="btn btn-outline-success shadow-sm">
+                        <i class="bi bi-file-earmark-arrow-up me-1"></i> Import Opening Stock
+                    </a>
+                <?php endif; ?>
                 <?php if (has_permission('inventory_adjust')): ?>
                     <a href="adjust.php" class="btn btn-warning text-dark shadow-sm fw-bold">
                         <i class="bi bi-sliders me-1"></i> Stock Audit / Adjust

@@ -31,7 +31,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </h4>
                 <p class="text-muted small mb-0">Export real operational and financial transactions into native Microsoft Excel (.xlsx) workbooks.</p>
             </div>
-            <div>
+            <div class="d-flex gap-2">
+                <a href="<?= APP_URL ?>/modules/inventory/import_stock.php" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i> Import Opening Stock
+                </a>
+                <a href="<?= APP_URL ?>/modules/products/bulk_prices.php" class="btn btn-outline-info btn-sm text-dark">
+                    <i class="bi bi-currency-dollar me-1"></i> Bulk Price Setting
+                </a>
                 <a href="import.php" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-upload me-1"></i> Import Masters from Excel
                 </a>
