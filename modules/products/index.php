@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/../../config/config.php';
+require_once INCLUDES_PATH . '/inventory_functions.php';
 require_permission('products_view');
 
 $pageTitle = 'Products & Pricing Catalog — ' . APP_NAME;
@@ -241,9 +242,19 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php endif; ?>
                             </td>
                             <td class="text-end">
-                                <span class="badge bg-<?= (float)$p['saleable_qty'] <= (float)$p['min_stock_level'] ? 'warning' : 'success' ?>-subtle text-<?= (float)$p['saleable_qty'] <= (float)$p['min_stock_level'] ? 'warning-emphasis' : 'success' ?> border">
-                                    <?= format_qty($p['saleable_qty']) ?> <?= e($p['unit_symbol']) ?>
+                                <?php
+                                $packsPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
+                                $pcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
+                                $stkBk = breakdown_base_pieces((float)$p['saleable_qty'], $packsPerCtn, $pcsPerPack, $p['unit_symbol'] ?? 'Ctn');
+                                $isOutOfStock = (float)$p['saleable_qty'] <= 0;
+                                $isLowStock   = ((float)$p['saleable_qty'] <= (float)$p['min_stock_level']);
+                                ?>
+                                <span class="badge bg-<?= $isOutOfStock ? 'secondary' : ($isLowStock ? 'warning' : 'success') ?>-subtle text-<?= $isOutOfStock ? 'dark' : ($isLowStock ? 'warning-emphasis' : 'success') ?> border" title="<?= number_format((float)$p['saleable_qty']) ?> Total Base Pieces">
+                                    <?= $stkBk['formatted'] ?>
                                 </span>
+                                <?php if (!$isOutOfStock && ($packsPerCtn * $pcsPerPack) > 1): ?>
+                                    <div class="text-muted" style="font-size:0.7rem;"><?= number_format((float)$p['saleable_qty']) ?> Pcs</div>
+                                <?php endif; ?>
                             </td>
                             <td class="text-center">
                                 <span class="badge bg-<?= $p['is_active'] ? 'success' : 'secondary' ?>-subtle text-<?= $p['is_active'] ? 'success' : 'dark' ?> border">

@@ -75,8 +75,13 @@ function breakdown_base_pieces(float $totalPieces, float $packsPerCtn, float $pc
 
     $cartons = floor($absPieces / $pcsPerCtn);
     $rem = fmod($absPieces, $pcsPerCtn);
-    $packs = floor($rem / $pcsPerPack);
-    $pieces = fmod($rem, $pcsPerPack);
+    if ($pcsPerPack <= 1.0) {
+        $packs = 0;
+        $pieces = $rem;
+    } else {
+        $packs = floor($rem / $pcsPerPack);
+        $pieces = fmod($rem, $pcsPerPack);
+    }
 
     $majorLabel  = !empty($majorUnit) ? trim($majorUnit) : 'Ctn';
     $mediumLabel = !empty($mediumUnit) ? trim($mediumUnit) : 'Pck';

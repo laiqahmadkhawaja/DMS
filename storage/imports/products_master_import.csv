@@ -1,231 +1,231 @@
-product_code,product_name,supplier_name,category_name,packing_description,carton_qty,pack_qty,purchase_rate,wholesale_rate,retail_rate,opening_stock
-UJB-001,UJAB NACHO CHIPS Maxican Chilli,Ujab Enterprises,Snacks & Puffs,36,36.0,1.0,1252.8,1566.0,1566.0,0.0
-UJB-002,UJAB NACHO CHIPS Tangy Cheese,Ujab Enterprises,Snacks & Puffs,36,36.0,1.0,1252.8,1566.0,1566.0,0.0
-UJB-003,UJAB NACHOS Chips SMOKEY BBQ,Ujab Enterprises,Snacks & Puffs,36,36.0,1.0,1252.8,1566.0,1566.0,0.0
-UJB-004,OTTO Vegetable SLANTY,Ujab Enterprises,Snacks & Puffs,24,24.0,1.0,835.2,1044.0,1044.0,0.0
-UJB-005,OTTO Jalapeno SLANTY,Ujab Enterprises,Snacks & Puffs,24,24.0,1.0,835.2,1044.0,1044.0,0.0
-UJB-006,OTTO Salted SLANTY,Ujab Enterprises,Snacks & Puffs,24,24.0,1.0,835.2,1044.0,1044.0,0.0
-UJB-007,POPCORN CLASSIC SALT 45GM+_5GM,Ujab Enterprises,Snacks & Puffs,24,24.0,1.0,1536.0,1920.0,1920.0,0.0
-UJB-008,ZORO Ring puff CHILLI STORM,Ujab Enterprises,Snacks & Puffs,12x35gm,12.0,1.0,417.6,522.0,522.0,0.0
-UJB-009,ZORO Ring puff Butter Cheese 35GM,Ujab Enterprises,Snacks & Puffs,12x35gm,12.0,1.0,417.6,522.0,522.0,0.0
-UJB-010,ZORO Ring Puff Urban BBQ 35gm,Ujab Enterprises,Snacks & Puffs,12x35gm,12.0,1.0,417.6,522.0,522.0,0.0
-UJB-011,ZORO Ring puff LEMON PEPPER mint,Ujab Enterprises,Snacks & Puffs,12x35gm,12.0,1.0,417.6,522.0,522.0,0.0
-UJB-012,POPCORN TOFFEE TWIST 70gm+_5gm,Ujab Enterprises,Snacks & Puffs,24,24.0,1.0,1862.4,2328.0,2328.0,0.0
-UJB-013,POPCORN Caramel Crunch 70gm+_5gm,Ujab Enterprises,Snacks & Puffs,24,24.0,1.0,1862.4,2328.0,2328.0,0.0
-UJB-014,UJAB Nimko twist Crispy crunchy-MIX 45g,Ujab Enterprises,Nimko & Savouries,36X45GM,36.0,1.0,1284.12,1566.0,1566.0,0.0
-UJB-015,UJAB Nimko twist Crispy crunchy-DAAL MO,Ujab Enterprises,Nimko & Savouries,36X45GM,36.0,1.0,1284.12,1566.0,1566.0,0.0
-UJB-016,UJAB Nimko twist Crispy crunchy-MIX 95g,Ujab Enterprises,Nimko & Savouries,24X95GM,24.0,1.0,1712.16,2088.0,2088.0,0.0
-UJB-017,UJAB Nimko twist Crispy crunchy-DAAL MO 95g,Ujab Enterprises,Nimko & Savouries,24X95GM,24.0,1.0,1712.16,2088.0,2088.0,0.0
-UJB-018,Ujab Baking Powder 50gm,Ujab Enterprises,Bakery & Dry Mixes,108x50gm,108.0,1.0,5702.4,7128.0,7128.0,0.0
-UJB-019,Ujab Baking Powder 100gm,Ujab Enterprises,Bakery & Dry Mixes,108x100gm,108.0,1.0,10800.0,13500.0,13500.0,0.0
-UJB-020,Ujab Baking Soda 100gm,Ujab Enterprises,Bakery & Dry Mixes,108x100gm,108.0,1.0,5702.4,7128.0,7128.0,0.0
-UJB-021,Ujab Barley Porridge 100gm,Ujab Enterprises,Bakery & Dry Mixes,68x100gm,68.0,1.0,4896.0,6120.0,6120.0,0.0
-UJB-022,Ujab Wheat Porridge 100gm,Ujab Enterprises,Bakery & Dry Mixes,68x100gm,68.0,1.0,4896.0,6120.0,6120.0,0.0
-UJB-023,Ujab Brown Sugar 250gm,Ujab Enterprises,Bakery & Dry Mixes,68x250gm,68.0,1.0,11560.0,14450.0,14450.0,0.0
-UJB-024,Ujab Chickern Powder 70gm,Ujab Enterprises,Grocery & Sauces,108x70gm,108.0,1.0,9072.0,11340.0,11340.0,0.0
-UJB-025,Ujab Brown Chocolate Chip 85gm,Ujab Enterprises,Confectionery,116x85gm,116.0,1.0,14848.0,18560.0,18560.0,0.0
-UJB-026,Ujab Cocoa Powder 50gm,Ujab Enterprises,Bakery & Dry Mixes,108x50gm,108.0,1.0,15120.0,18900.0,18900.0,0.0
-UJB-027,Ujab Cocoa Powder 100gm,Ujab Enterprises,Bakery & Dry Mixes,108x100gm,108.0,1.0,25833.6,32292.0,32292.0,0.0
-UJB-028,Ujab Cocoa Powder 200gm,Ujab Enterprises,Bakery & Dry Mixes,40x200gm,40.0,1.0,17920.0,22400.0,22400.0,0.0
-UJB-029,Ujab Color vermicilli 155gm,Ujab Enterprises,Bakery & Dry Mixes,68x155gm,68.0,1.0,4243.2,5304.0,5304.0,0.0
-UJB-030,Ujab Cooking Chocolate Dark 200gm,Ujab Enterprises,Confectionery,116x200gm,116.0,1.0,32016.0,40020.0,40020.0,0.0
-UJB-031,Ujab Cooking Chocolate Dark 500gm,Ujab Enterprises,Confectionery,40x500gm,40.0,1.0,24960.0,31200.0,31200.0,0.0
-UJB-032,Ujab Corn Flour 250gm,Ujab Enterprises,Bakery & Dry Mixes,40x250gm,40.0,1.0,5280.0,6600.0,6600.0,0.0
-UJB-033,Ujab Sher Khurma 125gm,Ujab Enterprises,Bakery & Dry Mixes,68x125gm,68.0,1.0,7072.0,8840.0,8840.0,0.0
-UJB-034,Ujab SPRINKLES 85GM,Ujab Enterprises,Confectionery,132X85GM,132.0,1.0,13728.0,17160.0,17160.0,0.0
-UJB-035,Ujab Chia Seed Premium Box 180gm,Ujab Enterprises,Grocery & Sauces,68x180gm,68.0,1.0,35904.0,44880.0,44880.0,0.0
-UJB-036,Ujab Flax Seed Premium 180gm Box,Ujab Enterprises,Grocery & Sauces,68x180gm,68.0,1.0,16265.6,20332.0,20332.0,0.0
-UJB-037,Ujab Yeast 3in1 Sachet Box 33gm,Ujab Enterprises,Bakery & Dry Mixes,108x33gm,108.0,1.0,10800.0,13500.0,13500.0,0.0
-UJB-038,Ujab White Chocolate chip 80gm,Ujab Enterprises,Confectionery,116x80gm,116.0,1.0,14848.0,18560.0,18560.0,0.0
-UJB-039,Catalogues of Ujab Enterprises,Ujab Enterprises,Grocery & Sauces,01,1.0,1.0,0.08,0.1,0.1,0.0
-UJB-040,UJAB Mango Jam Balty 1kg,Ujab Enterprises,Grocery & Sauces,12x1kg,12.0,1.0,4212.0,5265.0,5265.0,0.0
-UJB-041,UJAB Mixed Fruit Jam Balty 1kg,Ujab Enterprises,Grocery & Sauces,12x1kg,12.0,1.0,4212.0,5265.0,5265.0,0.0
-UJB-042,Ujab Chaat Masala JAR 60gm,Ujab Enterprises,Grocery & Sauces,96x60gm,96.0,1.0,13440.0,16800.0,16800.0,0.0
-UJB-043,Ujab French Fry JAR 60gm,Ujab Enterprises,Grocery & Sauces,96x60gm,96.0,1.0,13440.0,16800.0,16800.0,0.0
-UJB-044,Ujab Moringa Powder JAR 60gm,Ujab Enterprises,Grocery & Sauces,96x60gm,96.0,1.0,13440.0,16800.0,16800.0,0.0
-UJB-045,Ujab Paprika Powder JAR 60gm,Ujab Enterprises,Grocery & Sauces,96x60gm,96.0,1.0,13440.0,16800.0,16800.0,0.0
-UJB-046,Ujab Black Pepper powder JAR 60gm,Ujab Enterprises,Grocery & Sauces,96x60gm,96.0,1.0,26880.0,33600.0,33600.0,0.0
-UJB-047,Ujab Black Salt JAR 120gm,Ujab Enterprises,Grocery & Sauces,96x60gm,96.0,1.0,8064.0,10080.0,10080.0,0.0
-UJB-048,Ujab Bread Crumb Plain 200gm,Ujab Enterprises,Bakery & Dry Mixes,48X200gm,48.0,1.0,4608.0,5760.0,5760.0,0.0
-UJB-049,Ujab White Vinegar 750ml,Ujab Enterprises,Grocery & Sauces,16x750ml,16.0,1.0,1664.0,2080.0,2080.0,0.0
-UJB-050,Ujab Chilli Sauce 300ml,Ujab Enterprises,Grocery & Sauces,24x300ml,24.0,1.0,2496.0,3120.0,3120.0,0.0
-UJB-051,Ujab Soya Sauce 300ml,Ujab Enterprises,Grocery & Sauces,24x300ml,24.0,1.0,2496.0,3120.0,3120.0,0.0
-UJB-052,Ujab White Vinegar 300ml,Ujab Enterprises,Grocery & Sauces,24x300ml,24.0,1.0,1632.0,2040.0,2040.0,0.0
-UJB-053,UJAB Triopack Small 3x120ml,Ujab Enterprises,Grocery & Sauces,24xTriopack,24.0,1.0,3648.0,4560.0,4560.0,0.0
-UJB-054,UJAB Garlic Powder BOX 50gm,Ujab Enterprises,Grocery & Sauces,108X50GM,108.0,1.0,9072.0,11340.0,11340.0,0.0
-UJB-055,Ujab Ginger Powder BOX 50gm,Ujab Enterprises,Grocery & Sauces,108X50GM,108.0,1.0,11232.0,14040.0,14040.0,0.0
-UJB-056,Ujab Onion powder BOX 50gm,Ujab Enterprises,Grocery & Sauces,108X50GM,108.0,1.0,11232.0,14040.0,14040.0,0.0
-UJB-057,Ujab Chaat Masala BOX 50gm,Ujab Enterprises,Grocery & Sauces,108X50GM,108.0,1.0,9072.0,11340.0,11340.0,0.0
-UJB-058,Ujab French Fry BOX 50gm,Ujab Enterprises,Grocery & Sauces,108X50GM,108.0,1.0,9072.0,11340.0,11340.0,0.0
-UJB-059,Ujab Kashmiri Chilli BOX 50gm,Ujab Enterprises,Grocery & Sauces,108X50GM,108.0,1.0,11232.0,14040.0,14040.0,0.0
-UJB-060,Ujab Paprika Powder BOX 50gm,Ujab Enterprises,Grocery & Sauces,108X50GM,108.0,1.0,11232.0,14040.0,14040.0,0.0
-UJB-061,Ujab Black Pepper BOX 30gm,Ujab Enterprises,Grocery & Sauces,108x30gm,108.0,1.0,15120.0,18900.0,18900.0,0.0
-UJB-062,Ujab White Pepper BOX 30gm,Ujab Enterprises,Grocery & Sauces,108X30gm,108.0,1.0,15120.0,18900.0,18900.0,0.0
-UJB-063,Ujab Pink Salt Jar 120gm,Ujab Enterprises,Grocery & Sauces,96x120gm,96.0,1.0,8064.0,10080.0,10080.0,0.0
-UJB-064,UJAB SOYA SAUCE 800ml Pure Bottle,Ujab Enterprises,Grocery & Sauces,16X800ML,16.0,1.0,2720.0,3400.0,3400.0,0.0
-UJB-065,UJAB CHILLI SAUCE 800ML Pure Bottle,Ujab Enterprises,Grocery & Sauces,16X800ML,16.0,1.0,2720.0,3400.0,3400.0,0.0
-UJB-066,UJAB Mixed Pickles Jar 400gm,Ujab Enterprises,Grocery & Sauces,30pc/ctn,30.0,1.0,5916.0,7395.0,7395.0,0.0
-UJB-067,UJAB Mixed Pickles Jar 1000gm,Ujab Enterprises,Grocery & Sauces,24pc/ctn,24.0,1.0,9547.2,11934.0,11934.0,0.0
-UJB-068,Ujab KEWRA essence 25ml,Ujab Enterprises,Bakery & Dry Mixes,120x25ml,120.0,1.0,12000.0,15000.0,15000.0,0.0
-UJB-069,Ujab Vanilla Essence 25ml,Ujab Enterprises,Bakery & Dry Mixes,120x25ml,120.0,1.0,12000.0,15000.0,15000.0,0.0
-UJB-070,UJAB Once organic 200gm Chia seeds,Ujab Enterprises,Grocery & Sauces,72X200GM,72.0,1.0,42336.0,52920.0,52920.0,0.0
-UJB-071,UJAB Once Organic 200gm Flex seed,Ujab Enterprises,Grocery & Sauces,72x200gm,72.0,1.0,19584.0,24480.0,24480.0,0.0
-UJB-072,UJAB Once Organic 200gm Pumpkin Seeds,Ujab Enterprises,Grocery & Sauces,72x200gm,72.0,1.0,42336.0,52920.0,52920.0,0.0
-UJB-073,UJAB Once organic 100gm Moringa Powder,Ujab Enterprises,Grocery & Sauces,72X100G,72.0,1.0,15264.0,19080.0,19080.0,0.0
-UJB-074,UJAB Once Organic 25gm Oregano Leaves,Ujab Enterprises,Grocery & Sauces,96x25gm,96.0,1.0,13824.0,17280.0,17280.0,0.0
-UJB-075,UJAB Once Organic 50gm Oregano Leaves,Ujab Enterprises,Grocery & Sauces,72X50GM,72.0,1.0,19296.0,24120.0,24120.0,0.0
-UJB-076,UJAB PASTA Big Elbow BOX 250gm,Ujab Enterprises,Grocery & Sauces,40x250gm,40.0,1.0,4080.0,5100.0,5100.0,0.0
-UJB-077,Ujab Pasta Medium Elbow Box 250gm,Ujab Enterprises,Grocery & Sauces,40x250gm,40.0,1.0,4080.0,5100.0,5100.0,0.0
-UJB-078,Ujab Pasta pennie BOX 250gm,Ujab Enterprises,Grocery & Sauces,40x250gm,40.0,1.0,4080.0,5100.0,5100.0,0.0
-UJB-079,Ujab SUPER Black Binroll 16x22#20- 30 litre,Ujab Enterprises,Grocery & Sauces,50x20 Shppr,50.0,1.0,5100.0,6375.0,6375.0,0.0
-UJB-080,Ujab SUPER Black Binroll 18x20#22- 35 litre,Ujab Enterprises,Grocery & Sauces,50x22 Shppr,50.0,1.0,5100.0,6375.0,6375.0,0.0
-UJB-081,Ujab SUPER Black Binroll 20x21#19- 35 litre,Ujab Enterprises,Grocery & Sauces,50x19 Shppr,50.0,1.0,5100.0,6375.0,6375.0,0.0
-UJB-082,Ujab SUPER Black Binroll 20x24#15- 40 litre,Ujab Enterprises,Grocery & Sauces,50x15 Shppr,50.0,1.0,5100.0,6375.0,6375.0,0.0
-UJB-083,Ujab SUPER Black Binroll 24x30#11- 60 litre,Ujab Enterprises,Grocery & Sauces,50x11 Shppr,50.0,1.0,5100.0,6375.0,6375.0,0.0
-UJB-084,Ujab SUPER Black Binroll 25x35#09- 70 litre,Ujab Enterprises,Grocery & Sauces,50x09 Shppr,50.0,1.0,5100.0,6375.0,6375.0,0.0
-UJB-085,UJAB COCOLADA 13% Hazelnut Spread 350gm,Ujab Enterprises,Confectionery,12x350gm,12.0,1.0,10550.4,13188.0,13188.0,0.0
-UJB-086,UJAB COCOLADA Chocolate Spread 180gm,Ujab Enterprises,Confectionery,12x180gm,12.0,1.0,4224.0,5280.0,5280.0,0.0
-UJB-087,UJAB COCOLADA CHocolate Spread 350gm,Ujab Enterprises,Confectionery,12x350gm,12.0,1.0,7872.0,9840.0,9840.0,0.0
-UJB-088,UJAB Surprise Kids Egg Avengers,Ujab Enterprises,Confectionery,84x80gm,84.0,1.0,10752.0,13440.0,13440.0,0.0
-UJB-089,UJAB Surprise Kids Egg Barbie,Ujab Enterprises,Confectionery,84x80gm,84.0,1.0,10752.0,13440.0,13440.0,0.0
-UJB-090,UJAB Surprise Kids Egg Lion King,Ujab Enterprises,Confectionery,84x80gm,84.0,1.0,10752.0,13440.0,13440.0,0.0
-UJB-091,UJAB Surprise Kids Egg Masha & Bear,Ujab Enterprises,Confectionery,84x80gm,84.0,1.0,10752.0,13440.0,13440.0,0.0
-UJB-092,UJAB Surprise Kids Egg Pink Panther,Ujab Enterprises,Confectionery,84x80gm,84.0,1.0,10752.0,13440.0,13440.0,0.0
-UJB-093,UJAB Surprise kKds Egg Cindrella,Ujab Enterprises,Confectionery,84x80gm,84.0,1.0,10752.0,13440.0,13440.0,0.0
-UJB-094,UJAB-Surprise Kids Egg BEN 10 50gm,Ujab Enterprises,Confectionery,288x50gm,288.0,1.0,19584.0,24480.0,24480.0,0.0
-UJB-095,UJAB-Surprise Kids Egg BatMan 50GM,Ujab Enterprises,Confectionery,288x50gm,288.0,1.0,19584.0,24480.0,24480.0,0.0
-UJB-096,UJAB-Surprise Kids Egg MICKY Mouse 50g,Ujab Enterprises,Confectionery,288x50gm,288.0,1.0,19584.0,24480.0,24480.0,0.0
-UJB-097,UJAB-Surprise Kids Egg Motu Patlu 50gm,Ujab Enterprises,Confectionery,288x50gm,288.0,1.0,19584.0,24480.0,24480.0,0.0
-UJB-098,UJAB-Surprise Kids Egg Pinkie pie 50gm,Ujab Enterprises,Confectionery,288x50gm,288.0,1.0,19584.0,24480.0,24480.0,0.0
-UJB-099,UJAB-Surprise Kids Egg Princess 50gm,Ujab Enterprises,Confectionery,288x50gm,288.0,1.0,19584.0,24480.0,24480.0,0.0
-UJB-100,Ujab LMT Giant Lollypop Blue-AVENGERS,Ujab Enterprises,Confectionery,60pc/ctn,60.0,1.0,18960.0,23700.0,23700.0,0.0
-UJB-101,Ujab LMT Giant Lollypop Red-FROZEN,Ujab Enterprises,Confectionery,60pc/ctn,60.0,1.0,18960.0,23700.0,23700.0,0.0
-UJB-102,Ujab LMT Giant Lollypop Yellow-LOONEY T,Ujab Enterprises,Confectionery,60pc/ctn,60.0,1.0,18960.0,23700.0,23700.0,0.0
-UJB-103,Ujab LMT Giant Lollypop pink-PRINCESS,Ujab Enterprises,Confectionery,60pc/ctn,60.0,1.0,18960.0,23700.0,23700.0,0.0
-SMS-001,Jaan Double Dhamal,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-002,Donut Lollipop (Strawberry),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-003,Donut Lollipop (Mango),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-004,Donut Lollipop (Milk),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-005,Donut Lollipop (Chocolate),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-006,Badam Bar (Kulfi Lollipop),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-007,Choco Bar (Kulfi Lollipop),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-008,Pista Bar (Kulfi Lollipop),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-009,Lemon Up (Kulfi Lollipop),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-010,Swirl (Lollipop),SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-011,Mush Lollipop,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-012,Horror Fun Black Currant,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-013,Horror Fun Blue Berry,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-014,Horror Fun Green Apple,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-015,Strong Lollipop,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-016,Oppo,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-017,Silki,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-018,Levish,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-019,Daily Milk (Rs.20),SMS,Confectionery,1x15x24,15.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-020,Dairy Milk (Rs.50),SMS,Confectionery,1x12x12,12.0,12.0,5597.0,5597.0,5597.0,0.0
-SMS-021,Buddy,SMS,Confectionery,1x12x12,12.0,12.0,5597.0,5597.0,5597.0,0.0
-SMS-022,Bon Bon,SMS,Confectionery,1x12x12,12.0,12.0,5597.0,5597.0,5597.0,0.0
-SMS-023,Twin (Orange+Choc) Paste,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-024,Twin (Mango+Choc) Paste,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-025,Twin (Milk+Choc) Paste,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-026,Twin (Strawberry+Choc),SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-027,Twin (Vanilla+Choc) Paste,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-028,Conery Mango,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-029,Conery Chocolate,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-030,Conery Orange,SMS,Confectionery,1x24x24,24.0,24.0,4435.0,4435.0,4435.0,0.0
-SMS-031,Spark (Toffee),SMS,Confectionery,1x30x24,30.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-032,Chilli Imli (Toffee),SMS,Confectionery,1x30x24,30.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-033,Orlo (Toffee),SMS,Confectionery,1x30x24,30.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-034,New (Toffee),SMS,Confectionery,1x30x24,30.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-035,Narial (Toffee),SMS,Confectionery,1x30x24,30.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-036,SweetNut (Toffee),SMS,Confectionery,1x30x24,30.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-037,Choco Dip (Cup Chocolate),SMS,Confectionery,1x60x12,60.0,12.0,5702.0,5702.0,5702.0,0.0
-SMS-038,Masha & Bear (Bubblegum),SMS,Confectionery,1x120x12,120.0,12.0,5386.0,5386.0,5386.0,0.0
-SMS-039,Iphone (Bubblegum),SMS,Confectionery,1x120x12,120.0,12.0,5386.0,5386.0,5386.0,0.0
-SMS-040,Chat Pata (Candy),SMS,Confectionery,1x75x24,75.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-041,Amrood (Candy),SMS,Confectionery,1x75x24,75.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-042,Mango (Candy),SMS,Confectionery,1x75x24,75.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-043,Kacha Mango (Candy),SMS,Confectionery,1x75x24,75.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-044,Orange (Candy),SMS,Confectionery,1x75x24,75.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-045,Khopra (Candy),SMS,Confectionery,1x75x24,75.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-046,Chilli Milli (Toffee),SMS,Confectionery,1x75x24,75.0,24.0,2746.0,2746.0,2746.0,0.0
-SMS-047,Kunafa Rs.100 (24+1 Pcs),SMS,Confectionery,1x24x12,24.0,12.0,25344.0,25344.0,25344.0,0.0
-SMS-048,Kunafa Rs.200,SMS,Confectionery,1x6x24,6.0,24.0,25344.0,25344.0,25344.0,0.0
-SMS-049,Spark 10 wali,SMS,Confectionery,1x30x24,30.0,24.0,5491.0,5491.0,5491.0,0.0
-SMS-050,Spark 20 wali,SMS,Confectionery,1x24x24,24.0,24.0,8870.0,8870.0,8870.0,0.0
-SMS-051,Imli,SMS,Confectionery,1x12x12,12.0,12.0,5386.0,5386.0,5386.0,0.0
-SMS-052,Just Cream Wafer Choclate (1*24),SMS,Biscuits & Wafers,1x24x4,4.0,24.0,3200.0,3200.0,3200.0,0.0
-SMS-053,Just Cream Wafer Orange (1*24),SMS,Biscuits & Wafers,1x24x4,4.0,24.0,3200.0,3200.0,3200.0,0.0
-SMS-054,Just Cream Wafer Strawberry (1*24),SMS,Biscuits & Wafers,1x24x4,4.0,24.0,3200.0,3200.0,3200.0,0.0
-SMS-055,Just Cream Wafer Vanilla (1*24),SMS,Biscuits & Wafers,1x24x4,4.0,24.0,3200.0,3200.0,3200.0,0.0
-SMS-056,Just Cream Wafer Choclate Mega (1*12),SMS,Biscuits & Wafers,1x12x6,6.0,12.0,4800.0,4800.0,4800.0,0.0
-SMS-057,Just Cream Wafer Strawberry Mega (1*12),SMS,Biscuits & Wafers,1x12x6,6.0,12.0,4800.0,4800.0,4800.0,0.0
-SMS-058,Just Cream Wafer Vanilla Mega (1*12),SMS,Biscuits & Wafers,1x12x6,6.0,12.0,4800.0,4800.0,4800.0,0.0
-SMS-059,Booster Candy (1*100),SMS,Confectionery,1x100x12,12.0,100.0,7500.0,7800.0,7800.0,0.0
-SMS-060,Power Boost Candy (1*100),SMS,Confectionery,1x100x12,12.0,100.0,4000.0,4200.0,4200.0,0.0
-SMS-061,Just Eclair Pouch (1*100),SMS,Confectionery,1x100x18,18.0,100.0,6498.0,6498.0,6498.0,0.0
-SMS-062,Spark Coconut Large 30 Pcs,SMS,Confectionery,1x30x8,8.0,30.0,3450.0,3450.0,3450.0,0.0
-SMS-063,Spark Coconut Mini 100 Pcs,SMS,Confectionery,1x100x6,6.0,100.0,3970.0,3970.02,3970.02,0.0
-SMS-064,Hiss (1*24),SMS,Confectionery,1x24x9,9.0,24.0,4790.0,4789.98,4789.98,0.0
-SMS-065,Peanut Butter Fudge Candy (1*80),SMS,Confectionery,1x80x10,10.0,80.0,5155.0,5155.0,5155.0,0.0
-SMS-066,Dubai Kunafa 100g Gift Pack (1*6),SMS,Confectionery,1x6x12,12.0,6.0,27290.0,27290.04,27290.04,0.0
-SMS-067,Dubai Kunafa 40g Gift Pack (1*6),SMS,Confectionery,1x6x24,24.0,6.0,22032.0,22032.0,22032.0,0.0
-SMS-068,Brunik Biscuit Butter OL Rs 10 (1x16),SMS,Biscuits & Wafers,1x16x24,24.0,16.0,3120.0,3120.0,3120.0,0.0
-SMS-069,Brunik Biscuit Coconut OL Rs 10 (1x16),SMS,Biscuits & Wafers,1x16x24,24.0,16.0,2880.0,2880.0,2880.0,0.0
-SMS-070,Brunik Biscuit Super Star OL Rs 10 (1x16),SMS,Biscuits & Wafers,1x16x24,24.0,16.0,2880.0,2880.0,2880.0,0.0
-SMS-071,Brunik Biscuit Zeera OL Rs 10 (1x16),SMS,Biscuits & Wafers,1x16x24,24.0,16.0,2880.0,2880.0,2880.0,0.0
-SMS-072,Brunik Biscuit Peanut OL Rs 10 (1x16),SMS,Biscuits & Wafers,1x16x24,24.0,16.0,2880.0,2880.0,2880.0,0.0
-SMS-073,Brunik Biscuit Butter OL Rs 20 (1x8),SMS,Biscuits & Wafers,1x8x24,24.0,8.0,2880.0,2880.0,2880.0,0.0
-SMS-074,Brunik Biscuit Super Star OL Rs 20 (1x8),SMS,Biscuits & Wafers,1x8x24,24.0,8.0,2880.0,2880.0,2880.0,0.0
-SMS-075,Brunik Biscuit Zeera OL Rs 20 (1x8),SMS,Biscuits & Wafers,1x8x24,24.0,8.0,2880.0,2880.0,2880.0,0.0
-SMS-076,Brunik Biscuit Chip Choc OL Rs 20 (1x8),SMS,Biscuits & Wafers,1x8x24,24.0,8.0,2880.0,2880.0,2880.0,0.0
-SMS-077,Brunik Biscuit Peanut OL Rs 20 (1x8),SMS,Biscuits & Wafers,1x8x24,24.0,8.0,2880.0,2880.0,2880.0,0.0
-SMS-078,Mamas Mayonaise 200 Ml Pouch,SMS,Grocery & Sauces,48x200ml,48.0,1.0,5400.0,6000.0,6000.0,0.0
-SMS-079,Mamas Mayonaise 500 Ml Pouch,SMS,Grocery & Sauces,24x500ml,24.0,1.0,5832.0,6480.0,6480.0,0.0
-SMS-080,Mamas Tomato Ketchup 200 gm Pouch,SMS,Grocery & Sauces,24x200gm,24.0,1.0,2052.0,2280.0,2280.0,0.0
-SMS-081,Mamas Chili Garlic 200 gm Pouch,SMS,Grocery & Sauces,24x200gm,24.0,1.0,2052.0,2280.0,2280.0,0.0
-SMS-082,Mamas Tomato Ketchup 400 gm Pouch,SMS,Grocery & Sauces,24x400gm,24.0,1.0,3823.2,4248.0,4248.0,0.0
-SMS-083,Mamas Chili Garlic 800 Gm Pouch,SMS,Grocery & Sauces,12x800gm,12.0,1.0,3186.0,3840.0,3840.0,0.0
-SMS-084,Mamas Tomato Ketchup 800 Gm Pouch,SMS,Grocery & Sauces,12x800gm,12.0,1.0,3540.0,3840.0,3840.0,0.0
-SMS-085,Mamas Trio Pack 120 ml,SMS,Grocery & Sauces,24x120ml,24.0,1.0,3672.0,4560.0,4560.0,0.0
-SMS-086,Mamas Trio Pack 300 ml,SMS,Grocery & Sauces,8x300ml,8.0,1.0,2160.0,2400.0,2400.0,0.0
-SMS-087,Mamas Vinegar 300 ml,SMS,Grocery & Sauces,24x300ml,24.0,1.0,1728.0,1920.0,1920.0,0.0
-SMS-088,Mamas Chili Sause 300 ml,SMS,Grocery & Sauces,24x300ml,24.0,1.0,2160.0,2400.0,2400.0,0.0
-SMS-089,Mamas Soya Sause 300 ml,SMS,Grocery & Sauces,24x300ml,24.0,1.0,2160.0,2400.0,2400.0,0.0
-SMS-090,Mamas Mayonaise Dressing 2 kg Pouch,SMS,Grocery & Sauces,8x2kg,8.0,1.0,4032.0,4800.0,4800.0,0.0
-SMS-091,Mamas Mayo Choice 2 Kg,SMS,Grocery & Sauces,8x2kg,8.0,1.0,3672.0,4160.0,4160.0,0.0
-SMS-092,Mamas Mayonaise Burger 4 Ltr Pouch,SMS,Grocery & Sauces,4x4ltr,4.0,1.0,5445.0,6050.0,6050.0,0.0
-SMS-093,Mamas Chili Garlic 4 Kg Pouch,SMS,Grocery & Sauces,4x4kg,4.0,1.0,3492.0,4000.0,4000.0,0.0
-SMS-094,Mamas Tomato Ketchup 4 Kg Pouch,SMS,Grocery & Sauces,4x4kg,4.0,1.0,3492.0,4000.0,4000.0,0.0
-SMS-095,Mamas Chili 11 kg Bucket,SMS,Grocery & Sauces,1x11kg,1.0,1.0,2452.5,2725.0,2725.0,0.0
-SMS-096,Mamas Jam Mango 1.8 Kg Bucket,SMS,Grocery & Sauces,8x1.8kg,8.0,1.0,5040.0,5600.0,5600.0,0.0
-SMS-097,Mamas Jam Mix Fruit 1.8 Kg Bucket,SMS,Grocery & Sauces,8x1.8kg,8.0,1.0,5040.0,5600.0,5600.0,0.0
-SMS-098,Mamas Chili Garlic 10 gm Sachet,SMS,Grocery & Sauces,10x100sachet,10.0,1.0,2763.0,3250.0,3250.0,0.0
-SMS-099,Mamas Tomato Ketchup 10 gm Sachet,SMS,Grocery & Sauces,10x100sachet,10.0,1.0,2763.0,3250.0,3250.0,0.0
-SMS-100,4ME Soap 125gm Avocada,SMS,Cosmetics & Toiletries,48x125gm,48.0,1.0,4400.0,5040.0,5040.0,0.0
-SMS-101,4ME Soap 125gm Cucumber,SMS,Cosmetics & Toiletries,48x125gm,48.0,1.0,4400.0,5040.0,5040.0,0.0
-SMS-102,4ME Soap 125gm Lavender,SMS,Cosmetics & Toiletries,48x125gm,48.0,1.0,4400.0,5040.0,5040.0,0.0
-SMS-103,4ME Soap 125gm Lime & Alovera,SMS,Cosmetics & Toiletries,48x125gm,48.0,1.0,4400.0,5040.0,5040.0,0.0
-SMS-104,4ME Soap 125gm Luxry Rose,SMS,Cosmetics & Toiletries,48x125gm,48.0,1.0,4400.0,5040.0,5040.0,0.0
-SMS-105,4ME Soap 125gm Pearl,SMS,Cosmetics & Toiletries,48x125gm,48.0,1.0,4400.0,5040.0,5040.0,0.0
-SMS-106,4ME Air Freshener 300ml Bloming Flower,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-107,4ME Air Freshener 300ml Blue Rose,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-108,4ME Air Freshener 300ml Bright Flower,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-109,4ME Air Freshener 300ml English Rose,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-110,4ME Air Freshener 300ml Garden Love,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-111,4ME Air Freshener 300ml Jasmine,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-112,4ME Air Freshener 300ml Misty Lavender,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-113,4ME Air Freshener 300ml Red Bouquet,SMS,Cosmetics & Toiletries,24x300ml,24.0,1.0,5040.0,6120.0,6120.0,0.0
-SMS-114,Cocotea Daal Mong Party Pack,SMS,Nimko & Savouries,24xPck,24.0,1.0,800.0,1000.08,1000.08,0.0
-SMS-115,Cocotea Daal Moth Party Pack,SMS,Nimko & Savouries,24xPck,24.0,1.0,800.0,1000.08,1000.08,0.0
-SMS-116,Cocotea Gujrati Delight Party Pack,SMS,Nimko & Savouries,24xPck,24.0,1.0,800.0,1000.08,1000.08,0.0
-SMS-117,Cocotea Mix Nimko Party Pack,SMS,Nimko & Savouries,24xPck,24.0,1.0,800.0,1000.08,1000.08,0.0
-SMS-118,Cocotea Munchi Mix Party Pack,SMS,Nimko & Savouries,24xPck,24.0,1.0,800.0,1000.08,1000.08,0.0
-SMS-119,Cocotea Badshahi Delight Party Pack,SMS,Nimko & Savouries,24xPck,24.0,1.0,800.0,1000.08,1000.08,0.0
-SMS-120,Cocotea Salted Peanut Party Pack,SMS,Nimko & Savouries,24xPck,24.0,1.0,800.0,1000.08,1000.08,0.0
-SMS-121,Cocotea Salted Popcorn,SMS,Snacks & Puffs,24xPck,24.0,1.0,970.0,1080.0,1080.0,0.0
-SMS-122,Cocotea Caramel Popcorn,SMS,Snacks & Puffs,24xPck,24.0,1.0,970.0,1080.0,1080.0,0.0
-SMS-123,Cocotea Curls Puf Party Pack,SMS,Snacks & Puffs,24xPck,24.0,1.0,970.0,1080.0,1080.0,0.0
-SMS-124,Cocotea Jumbo Pops Party Pack,SMS,Snacks & Puffs,24xPck,24.0,1.0,970.0,1080.0,1080.0,0.0
-SMS-125,Cocotea Ring Pops Party Pack,SMS,Snacks & Puffs,24xPck,24.0,1.0,970.0,1080.0,1080.0,0.0
-SMS-126,Star Swad Nimko Mix Rs.10 (1x24),SMS,Nimko & Savouries,12x24,12.0,24.0,2088.0,2088.0,2088.0,0.0
-SMS-127,Star Swad Nimko Mix Rs.20 (1x13),SMS,Nimko & Savouries,12x13,12.0,13.0,2088.0,2088.0,2088.0,0.0
+product_code,product_name,supplier_name,category_name,packing_description,carton_qty,pack_qty,purchase_rate,wholesale_rate,retail_rate,opening_cartons,opening_loose_pcs,total_opening_pcs,opening_stock_breakdown
+UJB-001,"UJAB NACHO CHIPS Maxican Chilli","Ujab Enterprises","Snacks & Puffs",36,36,1,1566,1566,1566,120,0,4320,"120 Ctns"
+UJB-002,"UJAB NACHO CHIPS Tangy Cheese","Ujab Enterprises","Snacks & Puffs",36,36,1,1566,1566,1566,192,0,6912,"192 Ctns"
+UJB-003,"UJAB NACHOS Chips SMOKEY BBQ","Ujab Enterprises","Snacks & Puffs",36,36,1,1566,1566,1566,29,0,1044,"29 Ctns"
+UJB-004,"OTTO Vegetable SLANTY","Ujab Enterprises","Snacks & Puffs",24,24,1,1044,1044,1044,106,0,2544,"106 Ctns"
+UJB-005,"OTTO Jalapeno SLANTY","Ujab Enterprises","Snacks & Puffs",24,24,1,1044,1044,1044,100,0,2400,"100 Ctns"
+UJB-006,"OTTO Salted SLANTY","Ujab Enterprises","Snacks & Puffs",24,24,1,1044,1044,1044,51,0,1224,"51 Ctns"
+UJB-007,"POPCORN CLASSIC SALT 45GM+_5GM","Ujab Enterprises","Snacks & Puffs",24,24,1,1920,1920,1920,85,0,2040,"85 Ctns"
+UJB-008,"ZORO Ring puff CHILLI STORM","Ujab Enterprises","Snacks & Puffs",12x35gm,12,1,522,522,522,130,0,1560,"130 Ctns"
+UJB-009,"ZORO Ring puff Butter Cheese 35GM","Ujab Enterprises","Snacks & Puffs",12x35gm,12,1,522,522,522,114,0,1368,"114 Ctns"
+UJB-010,"ZORO Ring Puff Urban BBQ 35gm","Ujab Enterprises","Snacks & Puffs",12x35gm,12,1,522,522,522,130,0,1560,"130 Ctns"
+UJB-011,"ZORO Ring puff LEMON PEPPER mint","Ujab Enterprises","Snacks & Puffs",12x35gm,12,1,522,522,522,130,0,1560,"130 Ctns"
+UJB-012,"POPCORN TOFFEE TWIST 70gm+_5gm","Ujab Enterprises","Snacks & Puffs",24,24,1,2328,2328,2328,50,0,1200,"50 Ctns"
+UJB-013,"POPCORN Caramel Crunch 70gm+_5gm","Ujab Enterprises","Snacks & Puffs",24,24,1,2328,2328,2328,100,0,2400,"100 Ctns"
+UJB-014,"UJAB Nimko twist Crispy crunchy-MIX 45g","Ujab Enterprises","Nimko & Savouries",36X45GM,36,1,1566,1566,1566,30,0,1080,"30 Ctns"
+UJB-015,"UJAB Nimko twist Crispy crunchy-DAAL MO","Ujab Enterprises","Nimko & Savouries",36X45GM,36,1,1566,1566,1566,30,0,1080,"30 Ctns"
+UJB-016,"UJAB Nimko twist Crispy crunchy-MIX 95g","Ujab Enterprises","Nimko & Savouries",24X95GM,24,1,2088,2088,2088,30,0,720,"30 Ctns"
+UJB-017,"UJAB Nimko twist Crispy crunchy-DAAL MO 95g","Ujab Enterprises","Nimko & Savouries",24X95GM,24,1,2088,2088,2088,30,0,720,"30 Ctns"
+UJB-018,"Ujab Baking Powder 50gm","Ujab Enterprises","Bakery & Dry Mixes",108x50gm,108,1,7128,7128,7128,2,0,216,"2 Ctns"
+UJB-019,"Ujab Baking Powder 100gm","Ujab Enterprises","Bakery & Dry Mixes",108x100gm,108,1,13500,13500,13500,2,0,216,"2 Ctns"
+UJB-020,"Ujab Baking Soda 100gm","Ujab Enterprises","Bakery & Dry Mixes",108x100gm,108,1,7128,7128,7128,1,0,108,"1 Ctn"
+UJB-021,"Ujab Barley Porridge 100gm","Ujab Enterprises","Bakery & Dry Mixes",68x100gm,68,1,6120,6120,6120,5,0,340,"5 Ctns"
+UJB-022,"Ujab Wheat Porridge 100gm","Ujab Enterprises","Bakery & Dry Mixes",68x100gm,68,1,6120,6120,6120,5,0,340,"5 Ctns"
+UJB-023,"Ujab Brown Sugar 250gm","Ujab Enterprises","Bakery & Dry Mixes",68x250gm,68,1,14450,14450,14450,1,0,68,"1 Ctn"
+UJB-024,"Ujab Chickern Powder 70gm","Ujab Enterprises","Grocery & Sauces",108x70gm,108,1,11340,11340,11340,3,0,324,"3 Ctns"
+UJB-025,"Ujab Brown Chocolate Chip 85gm","Ujab Enterprises",Confectionery,116x85gm,116,1,18560,18560,18560,1,0,116,"1 Ctn"
+UJB-026,"Ujab Cocoa Powder 50gm","Ujab Enterprises","Bakery & Dry Mixes",108x50gm,108,1,18900,18900,18900,2,0,216,"2 Ctns"
+UJB-027,"Ujab Cocoa Powder 100gm","Ujab Enterprises","Bakery & Dry Mixes",108x100gm,108,1,32292,32292,32292,2,0,216,"2 Ctns"
+UJB-028,"Ujab Cocoa Powder 200gm","Ujab Enterprises","Bakery & Dry Mixes",40x200gm,40,1,22400,22400,22400,1,0,40,"1 Ctn"
+UJB-029,"Ujab Color vermicilli 155gm","Ujab Enterprises","Bakery & Dry Mixes",68x155gm,68,1,5304,5304,5304,2,0,136,"2 Ctns"
+UJB-030,"Ujab Cooking Chocolate Dark 200gm","Ujab Enterprises",Confectionery,116x200gm,116,1,40020,40020,40020,1,0,116,"1 Ctn"
+UJB-031,"Ujab Cooking Chocolate Dark 500gm","Ujab Enterprises",Confectionery,40x500gm,40,1,31200,31200,31200,0,17,17,"17 Pcs"
+UJB-032,"Ujab Corn Flour 250gm","Ujab Enterprises","Bakery & Dry Mixes",40x250gm,40,1,6600,6600,6600,3,0,120,"3 Ctns"
+UJB-033,"Ujab Sher Khurma 125gm","Ujab Enterprises","Bakery & Dry Mixes",68x125gm,68,1,8840,8840,8840,1,0,68,"1 Ctn"
+UJB-034,"Ujab SPRINKLES 85GM","Ujab Enterprises",Confectionery,132X85GM,132,1,17160,17160,17160,1,0,132,"1 Ctn"
+UJB-035,"Ujab Chia Seed Premium Box 180gm","Ujab Enterprises","Grocery & Sauces",68x180gm,68,1,44880,44880,44880,1,0,68,"1 Ctn"
+UJB-036,"Ujab Flax Seed Premium 180gm Box","Ujab Enterprises","Grocery & Sauces",68x180gm,68,1,20332,20332,20332,1,0,68,"1 Ctn"
+UJB-037,"Ujab Yeast 3in1 Sachet Box 33gm","Ujab Enterprises","Bakery & Dry Mixes",108x33gm,108,1,13500,13500,13500,1,0,108,"1 Ctn"
+UJB-038,"Ujab White Chocolate chip 80gm","Ujab Enterprises",Confectionery,116x80gm,116,1,18560,18560,18560,1,0,116,"1 Ctn"
+UJB-039,"Catalogues of Ujab Enterprises","Ujab Enterprises","Grocery & Sauces",01,1,1,0.1,0.1,0.1,50,0,50,"50 Ctns"
+UJB-040,"UJAB Mango Jam Balty 1kg","Ujab Enterprises","Grocery & Sauces",12x1kg,12,1,5265,5265,5265,1,0,12,"1 Ctn"
+UJB-041,"UJAB Mixed Fruit Jam Balty 1kg","Ujab Enterprises","Grocery & Sauces",12x1kg,12,1,5265,5265,5265,1,0,12,"1 Ctn"
+UJB-042,"Ujab Chaat Masala JAR 60gm","Ujab Enterprises","Grocery & Sauces",96x60gm,96,1,16800,16800,16800,0,48,48,"48 Pcs"
+UJB-043,"Ujab French Fry JAR 60gm","Ujab Enterprises","Grocery & Sauces",96x60gm,96,1,16800,16800,16800,0,24,24,"24 Pcs"
+UJB-044,"Ujab Moringa Powder JAR 60gm","Ujab Enterprises","Grocery & Sauces",96x60gm,96,1,16800,16800,16800,0,24,24,"24 Pcs"
+UJB-045,"Ujab Paprika Powder JAR 60gm","Ujab Enterprises","Grocery & Sauces",96x60gm,96,1,16800,16800,16800,0,24,24,"24 Pcs"
+UJB-046,"Ujab Black Pepper powder JAR 60gm","Ujab Enterprises","Grocery & Sauces",96x60gm,96,1,33600,33600,33600,0,24,24,"24 Pcs"
+UJB-047,"Ujab Black Salt JAR 120gm","Ujab Enterprises","Grocery & Sauces",96x60gm,96,1,10080,10080,10080,0,24,24,"24 Pcs"
+UJB-048,"Ujab Bread Crumb Plain 200gm","Ujab Enterprises","Bakery & Dry Mixes",48X200gm,48,1,5760,5760,5760,1,0,48,"1 Ctn"
+UJB-049,"Ujab White Vinegar 750ml","Ujab Enterprises","Grocery & Sauces",16x750ml,16,1,2080,2080,2080,5,0,80,"5 Ctns"
+UJB-050,"Ujab Chilli Sauce 300ml","Ujab Enterprises","Grocery & Sauces",24x300ml,24,1,3120,3120,3120,2,0,48,"2 Ctns"
+UJB-051,"Ujab Soya Sauce 300ml","Ujab Enterprises","Grocery & Sauces",24x300ml,24,1,3120,3120,3120,2,0,48,"2 Ctns"
+UJB-052,"Ujab White Vinegar 300ml","Ujab Enterprises","Grocery & Sauces",24x300ml,24,1,2040,2040,2040,2,0,48,"2 Ctns"
+UJB-053,"UJAB Triopack Small 3x120ml","Ujab Enterprises","Grocery & Sauces",24xTriopack,24,1,4560,4560,4560,5,0,120,"5 Ctns"
+UJB-054,"UJAB Garlic Powder BOX 50gm","Ujab Enterprises","Grocery & Sauces",108X50GM,108,1,11340,11340,11340,1,0,108,"1 Ctn"
+UJB-055,"Ujab Ginger Powder BOX 50gm","Ujab Enterprises","Grocery & Sauces",108X50GM,108,1,14040,14040,14040,1,0,108,"1 Ctn"
+UJB-056,"Ujab Onion powder BOX 50gm","Ujab Enterprises","Grocery & Sauces",108X50GM,108,1,14040,14040,14040,1,0,108,"1 Ctn"
+UJB-057,"Ujab Chaat Masala BOX 50gm","Ujab Enterprises","Grocery & Sauces",108X50GM,108,1,11340,11340,11340,1,0,108,"1 Ctn"
+UJB-058,"Ujab French Fry BOX 50gm","Ujab Enterprises","Grocery & Sauces",108X50GM,108,1,11340,11340,11340,1,0,108,"1 Ctn"
+UJB-059,"Ujab Kashmiri Chilli BOX 50gm","Ujab Enterprises","Grocery & Sauces",108X50GM,108,1,14040,14040,14040,1,0,108,"1 Ctn"
+UJB-060,"Ujab Paprika Powder BOX 50gm","Ujab Enterprises","Grocery & Sauces",108X50GM,108,1,14040,14040,14040,1,0,108,"1 Ctn"
+UJB-061,"Ujab Black Pepper BOX 30gm","Ujab Enterprises","Grocery & Sauces",108x30gm,108,1,18900,18900,18900,1,0,108,"1 Ctn"
+UJB-062,"Ujab White Pepper BOX 30gm","Ujab Enterprises","Grocery & Sauces",108X30gm,108,1,18900,18900,18900,1,0,108,"1 Ctn"
+UJB-063,"Ujab Pink Salt Jar 120gm","Ujab Enterprises","Grocery & Sauces",96x120gm,96,1,10080,10080,10080,0,24,24,"24 Pcs"
+UJB-064,"UJAB SOYA SAUCE 800ml Pure Bottle","Ujab Enterprises","Grocery & Sauces",16X800ML,16,1,3400,3400,3400,2,0,32,"2 Ctns"
+UJB-065,"UJAB CHILLI SAUCE 800ML Pure Bottle","Ujab Enterprises","Grocery & Sauces",16X800ML,16,1,3400,3400,3400,2,0,32,"2 Ctns"
+UJB-066,"UJAB Mixed Pickles Jar 400gm","Ujab Enterprises","Grocery & Sauces",30pc/ctn,30,1,7395,7395,7395,2,0,60,"2 Ctns"
+UJB-067,"UJAB Mixed Pickles Jar 1000gm","Ujab Enterprises","Grocery & Sauces",24pc/ctn,24,1,11934,11934,11934,2,0,48,"2 Ctns"
+UJB-068,"Ujab KEWRA essence 25ml","Ujab Enterprises","Bakery & Dry Mixes",120x25ml,120,1,15000,15000,15000,0,60,60,"60 Pcs"
+UJB-069,"Ujab Vanilla Essence 25ml","Ujab Enterprises","Bakery & Dry Mixes",120x25ml,120,1,15000,15000,15000,0,60,60,"60 Pcs"
+UJB-070,"UJAB Once organic 200gm Chia seeds","Ujab Enterprises","Grocery & Sauces",72X200GM,72,1,52920,52920,52920,0,24,24,"24 Pcs"
+UJB-071,"UJAB Once Organic 200gm Flex seed","Ujab Enterprises","Grocery & Sauces",72x200gm,72,1,24480,24480,24480,0,24,24,"24 Pcs"
+UJB-072,"UJAB Once Organic 200gm Pumpkin Seeds","Ujab Enterprises","Grocery & Sauces",72x200gm,72,1,52920,52920,52920,0,24,24,"24 Pcs"
+UJB-073,"UJAB Once organic 100gm Moringa Powder","Ujab Enterprises","Grocery & Sauces",72X100G,72,1,19080,19080,19080,0,24,24,"24 Pcs"
+UJB-074,"UJAB Once Organic 25gm Oregano Leaves","Ujab Enterprises","Grocery & Sauces",96x25gm,96,1,17280,17280,17280,0,24,24,"24 Pcs"
+UJB-075,"UJAB Once Organic 50gm Oregano Leaves","Ujab Enterprises","Grocery & Sauces",72X50GM,72,1,24120,24120,24120,0,24,24,"24 Pcs"
+UJB-076,"UJAB PASTA Big Elbow BOX 250gm","Ujab Enterprises","Grocery & Sauces",40x250gm,40,1,5100,5100,5100,2,0,80,"2 Ctns"
+UJB-077,"Ujab Pasta Medium Elbow Box 250gm","Ujab Enterprises","Grocery & Sauces",40x250gm,40,1,5100,5100,5100,2,0,80,"2 Ctns"
+UJB-078,"Ujab Pasta pennie BOX 250gm","Ujab Enterprises","Grocery & Sauces",40x250gm,40,1,5100,5100,5100,2,0,80,"2 Ctns"
+UJB-079,"Ujab SUPER Black Binroll 16x22#20- 30 litre","Ujab Enterprises","Grocery & Sauces","50x20 Shppr",50,1,6375,6375,6375,1,0,50,"1 Ctn"
+UJB-080,"Ujab SUPER Black Binroll 18x20#22- 35 litre","Ujab Enterprises","Grocery & Sauces","50x22 Shppr",50,1,6375,6375,6375,1,0,50,"1 Ctn"
+UJB-081,"Ujab SUPER Black Binroll 20x21#19- 35 litre","Ujab Enterprises","Grocery & Sauces","50x19 Shppr",50,1,6375,6375,6375,1,0,50,"1 Ctn"
+UJB-082,"Ujab SUPER Black Binroll 20x24#15- 40 litre","Ujab Enterprises","Grocery & Sauces","50x15 Shppr",50,1,6375,6375,6375,1,0,50,"1 Ctn"
+UJB-083,"Ujab SUPER Black Binroll 24x30#11- 60 litre","Ujab Enterprises","Grocery & Sauces","50x11 Shppr",50,1,6375,6375,6375,1,0,50,"1 Ctn"
+UJB-084,"Ujab SUPER Black Binroll 25x35#09- 70 litre","Ujab Enterprises","Grocery & Sauces","50x09 Shppr",50,1,6375,6375,6375,1,0,50,"1 Ctn"
+UJB-085,"UJAB COCOLADA 13% Hazelnut Spread 350gm","Ujab Enterprises",Confectionery,12x350gm,12,1,13188,13188,13188,2,0,24,"2 Ctns"
+UJB-086,"UJAB COCOLADA Chocolate Spread 180gm","Ujab Enterprises",Confectionery,12x180gm,12,1,5280,5280,5280,1,0,12,"1 Ctn"
+UJB-087,"UJAB COCOLADA CHocolate Spread 350gm","Ujab Enterprises",Confectionery,12x350gm,12,1,9840,9840,9840,1,0,12,"1 Ctn"
+UJB-088,"UJAB Surprise Kids Egg Avengers","Ujab Enterprises",Confectionery,84x80gm,84,1,13440,13440,13440,0,24,24,"24 Pcs"
+UJB-089,"UJAB Surprise Kids Egg Barbie","Ujab Enterprises",Confectionery,84x80gm,84,1,13440,13440,13440,0,36,36,"36 Pcs"
+UJB-090,"UJAB Surprise Kids Egg Lion King","Ujab Enterprises",Confectionery,84x80gm,84,1,13440,13440,13440,0,24,24,"24 Pcs"
+UJB-091,"UJAB Surprise Kids Egg Masha & Bear","Ujab Enterprises",Confectionery,84x80gm,84,1,13440,13440,13440,0,24,24,"24 Pcs"
+UJB-092,"UJAB Surprise Kids Egg Pink Panther","Ujab Enterprises",Confectionery,84x80gm,84,1,13440,13440,13440,0,36,36,"36 Pcs"
+UJB-093,"UJAB Surprise kKds Egg Cindrella","Ujab Enterprises",Confectionery,84x80gm,84,1,13440,13440,13440,0,24,24,"24 Pcs"
+UJB-094,"UJAB-Surprise Kids Egg BEN 10 50gm","Ujab Enterprises",Confectionery,288x50gm,288,1,24480,24480,24480,0,48,48,"48 Pcs"
+UJB-095,"UJAB-Surprise Kids Egg BatMan 50GM","Ujab Enterprises",Confectionery,288x50gm,288,1,24480,24480,24480,0,48,48,"48 Pcs"
+UJB-096,"UJAB-Surprise Kids Egg MICKY Mouse 50g","Ujab Enterprises",Confectionery,288x50gm,288,1,24480,24480,24480,0,48,48,"48 Pcs"
+UJB-097,"UJAB-Surprise Kids Egg Motu Patlu 50gm","Ujab Enterprises",Confectionery,288x50gm,288,1,24480,24480,24480,0,48,48,"48 Pcs"
+UJB-098,"UJAB-Surprise Kids Egg Pinkie pie 50gm","Ujab Enterprises",Confectionery,288x50gm,288,1,24480,24480,24480,0,48,48,"48 Pcs"
+UJB-099,"UJAB-Surprise Kids Egg Princess 50gm","Ujab Enterprises",Confectionery,288x50gm,288,1,24480,24480,24480,0,48,48,"48 Pcs"
+UJB-100,"Ujab LMT Giant Lollypop Blue-AVENGERS","Ujab Enterprises",Confectionery,60pc/ctn,60,1,23700,23700,23700,0,15,15,"15 Pcs"
+UJB-101,"Ujab LMT Giant Lollypop Red-FROZEN","Ujab Enterprises",Confectionery,60pc/ctn,60,1,23700,23700,23700,0,15,15,"15 Pcs"
+UJB-102,"Ujab LMT Giant Lollypop Yellow-LOONEY T","Ujab Enterprises",Confectionery,60pc/ctn,60,1,23700,23700,23700,0,15,15,"15 Pcs"
+UJB-103,"Ujab LMT Giant Lollypop pink-PRINCESS","Ujab Enterprises",Confectionery,60pc/ctn,60,1,23700,23700,23700,0,15,15,"15 Pcs"
+SMS-001,"Jaan Double Dhamal",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-002,"Donut Lollipop (Strawberry)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-003,"Donut Lollipop (Mango)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-004,"Donut Lollipop (Milk)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-005,"Donut Lollipop (Chocolate)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-006,"Badam Bar (Kulfi Lollipop)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-007,"Choco Bar (Kulfi Lollipop)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-008,"Pista Bar (Kulfi Lollipop)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-009,"Lemon Up (Kulfi Lollipop)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-010,"Swirl (Lollipop)",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-011,"Mush Lollipop",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-012,"Horror Fun Black Currant",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-013,"Horror Fun Blue Berry",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-014,"Horror Fun Green Apple",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-015,"Strong Lollipop",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-016,Oppo,SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-017,Silki,SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-018,Levish,SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-019,"Daily Milk (Rs.20)",SMS,Confectionery,1x15x24,15,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-020,"Dairy Milk (Rs.50)",SMS,Confectionery,1x12x12,12,12,5597,5597,5597,0,0,0,"0 Pcs"
+SMS-021,Buddy,SMS,Confectionery,1x12x12,12,12,5597,5597,5597,0,0,0,"0 Pcs"
+SMS-022,"Bon Bon",SMS,Confectionery,1x12x12,12,12,5597,5597,5597,0,0,0,"0 Pcs"
+SMS-023,"Twin (Orange+Choc) Paste",SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-024,"Twin (Mango+Choc) Paste",SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-025,"Twin (Milk+Choc) Paste",SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-026,"Twin (Strawberry+Choc)",SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-027,"Twin (Vanilla+Choc) Paste",SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-028,"Conery Mango",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-029,"Conery Chocolate",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-030,"Conery Orange",SMS,Confectionery,1x24x24,24,24,4435,4435,4435,0,0,0,"0 Pcs"
+SMS-031,"Spark (Toffee)",SMS,Confectionery,1x30x24,30,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-032,"Chilli Imli (Toffee)",SMS,Confectionery,1x30x24,30,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-033,"Orlo (Toffee)",SMS,Confectionery,1x30x24,30,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-034,"New (Toffee)",SMS,Confectionery,1x30x24,30,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-035,"Narial (Toffee)",SMS,Confectionery,1x30x24,30,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-036,"SweetNut (Toffee)",SMS,Confectionery,1x30x24,30,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-037,"Choco Dip (Cup Chocolate)",SMS,Confectionery,1x60x12,60,12,5702,5702,5702,0,0,0,"0 Pcs"
+SMS-038,"Masha & Bear (Bubblegum)",SMS,Confectionery,1x120x12,120,12,5386,5386,5386,0,0,0,"0 Pcs"
+SMS-039,"Iphone (Bubblegum)",SMS,Confectionery,1x120x12,120,12,5386,5386,5386,0,0,0,"0 Pcs"
+SMS-040,"Chat Pata (Candy)",SMS,Confectionery,1x75x24,75,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-041,"Amrood (Candy)",SMS,Confectionery,1x75x24,75,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-042,"Mango (Candy)",SMS,Confectionery,1x75x24,75,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-043,"Kacha Mango (Candy)",SMS,Confectionery,1x75x24,75,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-044,"Orange (Candy)",SMS,Confectionery,1x75x24,75,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-045,"Khopra (Candy)",SMS,Confectionery,1x75x24,75,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-046,"Chilli Milli (Toffee)",SMS,Confectionery,1x75x24,75,24,2746,2746,2746,0,0,0,"0 Pcs"
+SMS-047,"Kunafa Rs.100 (24+1 Pcs)",SMS,Confectionery,1x24x12,24,12,25344,25344,25344,0,0,0,"0 Pcs"
+SMS-048,"Kunafa Rs.200",SMS,Confectionery,1x6x24,6,24,25344,25344,25344,0,0,0,"0 Pcs"
+SMS-049,"Spark 10 wali",SMS,Confectionery,1x30x24,30,24,5491,5491,5491,0,0,0,"0 Pcs"
+SMS-050,"Spark 20 wali",SMS,Confectionery,1x24x24,24,24,8870,8870,8870,0,0,0,"0 Pcs"
+SMS-051,Imli,SMS,Confectionery,1x12x12,12,12,5386,5386,5386,0,0,0,"0 Pcs"
+SMS-052,"Just Cream Wafer Choclate (1*24)",SMS,"Biscuits & Wafers",1x24x4,4,24,3200,3200,3200,0,0,0,"0 Pcs"
+SMS-053,"Just Cream Wafer Orange (1*24)",SMS,"Biscuits & Wafers",1x24x4,4,24,3200,3200,3200,0,0,0,"0 Pcs"
+SMS-054,"Just Cream Wafer Strawberry (1*24)",SMS,"Biscuits & Wafers",1x24x4,4,24,3200,3200,3200,0,0,0,"0 Pcs"
+SMS-055,"Just Cream Wafer Vanilla (1*24)",SMS,"Biscuits & Wafers",1x24x4,4,24,3200,3200,3200,0,0,0,"0 Pcs"
+SMS-056,"Just Cream Wafer Choclate Mega (1*12)",SMS,"Biscuits & Wafers",1x12x6,6,12,4800,4800,4800,0,0,0,"0 Pcs"
+SMS-057,"Just Cream Wafer Strawberry Mega (1*12)",SMS,"Biscuits & Wafers",1x12x6,6,12,4800,4800,4800,0,0,0,"0 Pcs"
+SMS-058,"Just Cream Wafer Vanilla Mega (1*12)",SMS,"Biscuits & Wafers",1x12x6,6,12,4800,4800,4800,0,0,0,"0 Pcs"
+SMS-059,"Booster Candy (1*100)",SMS,Confectionery,1x100x12,12,100,7800,7800,7800,0,0,0,"0 Pcs"
+SMS-060,"Power Boost Candy (1*100)",SMS,Confectionery,1x100x12,12,100,4200,4200,4200,0,0,0,"0 Pcs"
+SMS-061,"Just Eclair Pouch (1*100)",SMS,Confectionery,1x100x18,18,100,6498,6498,6498,0,0,0,"0 Pcs"
+SMS-062,"Spark Coconut Large 30 Pcs",SMS,Confectionery,1x30x8,8,30,3450,3450,3450,0,0,0,"0 Pcs"
+SMS-063,"Spark Coconut Mini 100 Pcs",SMS,Confectionery,1x100x6,6,100,3970.02,3970.02,3970.02,0,0,0,"0 Pcs"
+SMS-064,"Hiss (1*24)",SMS,Confectionery,1x24x9,9,24,4789.98,4789.98,4789.98,0,0,0,"0 Pcs"
+SMS-065,"Peanut Butter Fudge Candy (1*80)",SMS,Confectionery,1x80x10,10,80,5155,5155,5155,0,0,0,"0 Pcs"
+SMS-066,"Dubai Kunafa 100g Gift Pack (1*6)",SMS,Confectionery,1x6x12,12,6,27290.04,27290.04,27290.04,0,0,0,"0 Pcs"
+SMS-067,"Dubai Kunafa 40g Gift Pack (1*6)",SMS,Confectionery,1x6x24,24,6,22032,22032,22032,0,0,0,"0 Pcs"
+SMS-068,"Brunik Biscuit Butter OL Rs 10 (1x16)",SMS,"Biscuits & Wafers",1x16x24,24,16,3120,3120,3120,0,0,0,"0 Pcs"
+SMS-069,"Brunik Biscuit Coconut OL Rs 10 (1x16)",SMS,"Biscuits & Wafers",1x16x24,24,16,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-070,"Brunik Biscuit Super Star OL Rs 10 (1x16)",SMS,"Biscuits & Wafers",1x16x24,24,16,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-071,"Brunik Biscuit Zeera OL Rs 10 (1x16)",SMS,"Biscuits & Wafers",1x16x24,24,16,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-072,"Brunik Biscuit Peanut OL Rs 10 (1x16)",SMS,"Biscuits & Wafers",1x16x24,24,16,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-073,"Brunik Biscuit Butter OL Rs 20 (1x8)",SMS,"Biscuits & Wafers",1x8x24,24,8,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-074,"Brunik Biscuit Super Star OL Rs 20 (1x8)",SMS,"Biscuits & Wafers",1x8x24,24,8,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-075,"Brunik Biscuit Zeera OL Rs 20 (1x8)",SMS,"Biscuits & Wafers",1x8x24,24,8,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-076,"Brunik Biscuit Chip Choc OL Rs 20 (1x8)",SMS,"Biscuits & Wafers",1x8x24,24,8,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-077,"Brunik Biscuit Peanut OL Rs 20 (1x8)",SMS,"Biscuits & Wafers",1x8x24,24,8,2880,2880,2880,0,0,0,"0 Pcs"
+SMS-078,"Mamas Mayonaise 200 Ml Pouch",SMS,"Grocery & Sauces",48x200ml,48,1,6000,6000,6000,0,0,0,"0 Pcs"
+SMS-079,"Mamas Mayonaise 500 Ml Pouch",SMS,"Grocery & Sauces",24x500ml,24,1,6480,6480,6480,0,0,0,"0 Pcs"
+SMS-080,"Mamas Tomato Ketchup 200 gm Pouch",SMS,"Grocery & Sauces",24x200gm,24,1,2280,2280,2280,0,0,0,"0 Pcs"
+SMS-081,"Mamas Chili Garlic 200 gm Pouch",SMS,"Grocery & Sauces",24x200gm,24,1,2280,2280,2280,0,0,0,"0 Pcs"
+SMS-082,"Mamas Tomato Ketchup 400 gm Pouch",SMS,"Grocery & Sauces",24x400gm,24,1,4248,4248,4248,0,0,0,"0 Pcs"
+SMS-083,"Mamas Chili Garlic 800 Gm Pouch",SMS,"Grocery & Sauces",12x800gm,12,1,3840,3840,3840,0,0,0,"0 Pcs"
+SMS-084,"Mamas Tomato Ketchup 800 Gm Pouch",SMS,"Grocery & Sauces",12x800gm,12,1,3840,3840,3840,0,0,0,"0 Pcs"
+SMS-085,"Mamas Trio Pack 120 ml",SMS,"Grocery & Sauces",24x120ml,24,1,4560,4560,4560,0,0,0,"0 Pcs"
+SMS-086,"Mamas Trio Pack 300 ml",SMS,"Grocery & Sauces",8x300ml,8,1,2400,2400,2400,0,0,0,"0 Pcs"
+SMS-087,"Mamas Vinegar 300 ml",SMS,"Grocery & Sauces",24x300ml,24,1,1920,1920,1920,0,0,0,"0 Pcs"
+SMS-088,"Mamas Chili Sause 300 ml",SMS,"Grocery & Sauces",24x300ml,24,1,2400,2400,2400,0,0,0,"0 Pcs"
+SMS-089,"Mamas Soya Sause 300 ml",SMS,"Grocery & Sauces",24x300ml,24,1,2400,2400,2400,0,0,0,"0 Pcs"
+SMS-090,"Mamas Mayonaise Dressing 2 kg Pouch",SMS,"Grocery & Sauces",8x2kg,8,1,4800,4800,4800,0,0,0,"0 Pcs"
+SMS-091,"Mamas Mayo Choice 2 Kg",SMS,"Grocery & Sauces",8x2kg,8,1,4160,4160,4160,0,0,0,"0 Pcs"
+SMS-092,"Mamas Mayonaise Burger 4 Ltr Pouch",SMS,"Grocery & Sauces",4x4ltr,4,1,6050,6050,6050,0,0,0,"0 Pcs"
+SMS-093,"Mamas Chili Garlic 4 Kg Pouch",SMS,"Grocery & Sauces",4x4kg,4,1,4000,4000,4000,0,0,0,"0 Pcs"
+SMS-094,"Mamas Tomato Ketchup 4 Kg Pouch",SMS,"Grocery & Sauces",4x4kg,4,1,4000,4000,4000,0,0,0,"0 Pcs"
+SMS-095,"Mamas Chili 11 kg Bucket",SMS,"Grocery & Sauces",1x11kg,1,1,2725,2725,2725,0,0,0,"0 Pcs"
+SMS-096,"Mamas Jam Mango 1.8 Kg Bucket",SMS,"Grocery & Sauces",8x1.8kg,8,1,5600,5600,5600,0,0,0,"0 Pcs"
+SMS-097,"Mamas Jam Mix Fruit 1.8 Kg Bucket",SMS,"Grocery & Sauces",8x1.8kg,8,1,5600,5600,5600,0,0,0,"0 Pcs"
+SMS-098,"Mamas Chili Garlic 10 gm Sachet",SMS,"Grocery & Sauces",10x100sachet,10,1,3250,3250,3250,0,0,0,"0 Pcs"
+SMS-099,"Mamas Tomato Ketchup 10 gm Sachet",SMS,"Grocery & Sauces",10x100sachet,10,1,3250,3250,3250,0,0,0,"0 Pcs"
+SMS-100,"4ME Soap 125gm Avocada",SMS,"Cosmetics & Toiletries",48x125gm,48,1,5040,5040,5040,0,0,0,"0 Pcs"
+SMS-101,"4ME Soap 125gm Cucumber",SMS,"Cosmetics & Toiletries",48x125gm,48,1,5040,5040,5040,0,0,0,"0 Pcs"
+SMS-102,"4ME Soap 125gm Lavender",SMS,"Cosmetics & Toiletries",48x125gm,48,1,5040,5040,5040,0,0,0,"0 Pcs"
+SMS-103,"4ME Soap 125gm Lime & Alovera",SMS,"Cosmetics & Toiletries",48x125gm,48,1,5040,5040,5040,0,0,0,"0 Pcs"
+SMS-104,"4ME Soap 125gm Luxry Rose",SMS,"Cosmetics & Toiletries",48x125gm,48,1,5040,5040,5040,0,0,0,"0 Pcs"
+SMS-105,"4ME Soap 125gm Pearl",SMS,"Cosmetics & Toiletries",48x125gm,48,1,5040,5040,5040,0,0,0,"0 Pcs"
+SMS-106,"4ME Air Freshener 300ml Bloming Flower",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-107,"4ME Air Freshener 300ml Blue Rose",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-108,"4ME Air Freshener 300ml Bright Flower",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-109,"4ME Air Freshener 300ml English Rose",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-110,"4ME Air Freshener 300ml Garden Love",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-111,"4ME Air Freshener 300ml Jasmine",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-112,"4ME Air Freshener 300ml Misty Lavender",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-113,"4ME Air Freshener 300ml Red Bouquet",SMS,"Cosmetics & Toiletries",24x300ml,24,1,6120,6120,6120,0,0,0,"0 Pcs"
+SMS-114,"Cocotea Daal Mong Party Pack",SMS,"Nimko & Savouries",24xPck,24,1,1000.08,1000.08,1000.08,0,0,0,"0 Pcs"
+SMS-115,"Cocotea Daal Moth Party Pack",SMS,"Nimko & Savouries",24xPck,24,1,1000.08,1000.08,1000.08,0,0,0,"0 Pcs"
+SMS-116,"Cocotea Gujrati Delight Party Pack",SMS,"Nimko & Savouries",24xPck,24,1,1000.08,1000.08,1000.08,0,0,0,"0 Pcs"
+SMS-117,"Cocotea Mix Nimko Party Pack",SMS,"Nimko & Savouries",24xPck,24,1,1000.08,1000.08,1000.08,0,0,0,"0 Pcs"
+SMS-118,"Cocotea Munchi Mix Party Pack",SMS,"Nimko & Savouries",24xPck,24,1,1000.08,1000.08,1000.08,0,0,0,"0 Pcs"
+SMS-119,"Cocotea Badshahi Delight Party Pack",SMS,"Nimko & Savouries",24xPck,24,1,1000.08,1000.08,1000.08,0,0,0,"0 Pcs"
+SMS-120,"Cocotea Salted Peanut Party Pack",SMS,"Nimko & Savouries",24xPck,24,1,1000.08,1000.08,1000.08,0,0,0,"0 Pcs"
+SMS-121,"Cocotea Salted Popcorn",SMS,"Snacks & Puffs",24xPck,24,1,1080,1080,1080,0,0,0,"0 Pcs"
+SMS-122,"Cocotea Caramel Popcorn",SMS,"Snacks & Puffs",24xPck,24,1,1080,1080,1080,0,0,0,"0 Pcs"
+SMS-123,"Cocotea Curls Puf Party Pack",SMS,"Snacks & Puffs",24xPck,24,1,1080,1080,1080,0,0,0,"0 Pcs"
+SMS-124,"Cocotea Jumbo Pops Party Pack",SMS,"Snacks & Puffs",24xPck,24,1,1080,1080,1080,0,0,0,"0 Pcs"
+SMS-125,"Cocotea Ring Pops Party Pack",SMS,"Snacks & Puffs",24xPck,24,1,1080,1080,1080,0,0,0,"0 Pcs"
+SMS-126,"Star Swad Nimko Mix Rs.10 (1x24)",SMS,"Nimko & Savouries",12x24,12,24,2088,2088,2088,0,0,0,"0 Pcs"
+SMS-127,"Star Swad Nimko Mix Rs.20 (1x13)",SMS,"Nimko & Savouries",12x13,12,13,2088,2088,2088,0,0,0,"0 Pcs"
