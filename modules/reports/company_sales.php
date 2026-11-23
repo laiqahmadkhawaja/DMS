@@ -238,6 +238,10 @@ foreach ($itemRows as $row) {
 
 $grandMargin = $grandTotals['net_amount'] > 0 ? ($grandTotals['gross_profit'] / $grandTotals['net_amount']) * 100 : 0.0;
 
+// Fetch Comparative Partner Stats (Moazzam vs Abdur Rehman)
+$moazzamStats = get_partner_sales_profit_summary(1, $fromDate, $toDate);
+$rehmanStats  = get_partner_sales_profit_summary(2, $fromDate, $toDate);
+
 require_once INCLUDES_PATH . '/header.php';
 require_once INCLUDES_PATH . '/sidebar.php';
 require_once INCLUDES_PATH . '/topbar.php';
@@ -322,6 +326,83 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Comparative Partner Performance (معظم بمقابلہ عبدالرحمن - پارٹنرز سیلز و منافع) -->
+        <div class="row g-3 mb-4 no-print">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm border-start border-4 border-info bg-white h-100">
+                    <div class="card-header bg-white py-2 border-bottom d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-info-subtle text-info border border-info-subtle me-1">Agency Partner</span>
+                            <strong class="text-navy fs-6">Moazzam (معظم)</strong>
+                        </div>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-building me-1"></i> SMS Agency</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 text-center mb-3">
+                            <div class="col-4 border-end">
+                                <div class="text-muted small">Net Sales</div>
+                                <div class="fw-bold fs-6 text-dark"><?= format_currency($moazzamStats['net_sales']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Gross: <?= format_currency($moazzamStats['gross_sales']) ?></div>
+                            </div>
+                            <div class="col-4 border-end">
+                                <div class="text-muted small">Gross Profit</div>
+                                <div class="fw-bold fs-6 <?= $moazzamStats['gross_profit'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($moazzamStats['gross_profit']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Margin: <?= $moazzamStats['profit_margin'] ?>%</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-muted small">Market Udhaar</div>
+                                <div class="fw-bold fs-6 text-warning-emphasis"><?= format_currency($moazzamStats['market_receivables']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Returns: <?= format_currency($moazzamStats['return_amount']) ?></div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded small">
+                            <span>Khata Balance: <strong class="<?= (float)($moazzamStats['partner']['current_balance'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($moazzamStats['partner']['current_balance'] ?? 0) ?></strong></span>
+                            <a href="<?= APP_URL ?>/modules/partners/ledger.php?partner_id=1&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-sm btn-outline-primary py-0">
+                                <i class="bi bi-journal-text me-1"></i> View Moazzam Khata
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm border-start border-4 border-success bg-white h-100">
+                    <div class="card-header bg-white py-2 border-bottom d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle me-1">Agency Partner</span>
+                            <strong class="text-navy fs-6">Abdur Rehman (عبدالرحمن)</strong>
+                        </div>
+                        <span class="badge bg-light text-dark border"><i class="bi bi-building me-1"></i> Ujab Enterprises</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 text-center mb-3">
+                            <div class="col-4 border-end">
+                                <div class="text-muted small">Net Sales</div>
+                                <div class="fw-bold fs-6 text-dark"><?= format_currency($rehmanStats['net_sales']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Gross: <?= format_currency($rehmanStats['gross_sales']) ?></div>
+                            </div>
+                            <div class="col-4 border-end">
+                                <div class="text-muted small">Gross Profit</div>
+                                <div class="fw-bold fs-6 <?= $rehmanStats['gross_profit'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($rehmanStats['gross_profit']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Margin: <?= $rehmanStats['profit_margin'] ?>%</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-muted small">Market Udhaar</div>
+                                <div class="fw-bold fs-6 text-warning-emphasis"><?= format_currency($rehmanStats['market_receivables']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Returns: <?= format_currency($rehmanStats['return_amount']) ?></div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded small">
+                            <span>Khata Balance: <strong class="<?= (float)($rehmanStats['partner']['current_balance'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($rehmanStats['partner']['current_balance'] ?? 0) ?></strong></span>
+                            <a href="<?= APP_URL ?>/modules/partners/ledger.php?partner_id=2&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-sm btn-outline-primary py-0">
+                                <i class="bi bi-journal-text me-1"></i> View Rehman Khata
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -410,6 +491,16 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <?php if (!empty($comp['company_name']) && $comp['company_name'] !== $comp['supplier_name']): ?>
                                                 <small class="text-muted"><?= htmlspecialchars($comp['company_name']) ?></small>
                                             <?php endif; ?>
+                                            <?php 
+                                            $linkedPartner = get_partner_by_supplier($supId);
+                                            if ($linkedPartner): 
+                                            ?>
+                                                <div>
+                                                    <span class="badge bg-navy-subtle text-navy border border-navy-subtle mt-1" style="font-size: 10px;">
+                                                        <i class="bi bi-person-fill me-1"></i> Partner: <?= e($linkedPartner['partner_name']) ?> <?= !empty($linkedPartner['urdu_name']) ? '(' . e($linkedPartner['urdu_name']) . ')' : '' ?>
+                                                    </span>
+                                                </div>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <?= !empty($comp['supplier_city']) ? '<span class="badge bg-light text-dark border">' . htmlspecialchars($comp['supplier_city']) . '</span>' : '<span class="text-muted">-</span>' ?>
@@ -435,9 +526,16 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             </span>
                                         </td>
                                         <td class="text-center no-print">
-                                            <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#items_comp_<?= $supId ?>">
-                                                <i class="bi bi-list-ul me-1"></i> Items
-                                            </button>
+                                            <div class="d-flex justify-content-center gap-1">
+                                                <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#items_comp_<?= $supId ?>" title="View Items">
+                                                    <i class="bi bi-list-ul me-1"></i> Items
+                                                </button>
+                                                <?php if ($linkedPartner): ?>
+                                                    <a href="<?= APP_URL ?>/modules/partners/ledger.php?partner_id=<?= $linkedPartner['id'] ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-sm btn-outline-primary py-0 px-2" title="View Partner Khata">
+                                                        <i class="bi bi-journal-text me-1"></i> Khata
+                                                    </a>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
 

@@ -84,3 +84,4 @@ require_once INCLUDES_PATH . '/permission.php';
 require_once INCLUDES_PATH . '/database_helpers.php';
 require_once INCLUDES_PATH . '/inventory_functions.php';
 require_once INCLUDES_PATH . '/accounting_functions.php';
+require_once INCLUDES_PATH . '/partner_functions.php';

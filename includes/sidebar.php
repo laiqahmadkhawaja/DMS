@@ -20,7 +20,7 @@ $isSalesActive      = in_array($activeMenu, ['orders', 'loading', 'invoices', 'd
 $isCustomersActive  = in_array($activeMenu, ['customers', 'cust_ledger', 'customer_payments', 'rpt_aging']);
 $isPurchasesActive  = in_array($activeMenu, ['suppliers', 'purchases', 'goods_receiving', 'supplier_payments', 'supplier_ledger']);
 $isInventoryActive  = in_array($activeMenu, ['inventory', 'stock_ledger', 'products', 'products_import', 'categories', 'brands', 'warehouses', 'bulk_brands', 'bulk_categories', 'import_stock', 'bulk_prices']);
-$isAccountsActive   = in_array($activeMenu, ['accounts', 'manage_accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger']);
+$isAccountsActive   = in_array($activeMenu, ['accounts', 'manage_accounts', 'general_ledger', 'journal_entries', 'expenses', 'sm_ledger', 'partners', 'partner_drawings', 'partner_settle', 'partner_ledger']);
 $isOperationsActive = in_array($activeMenu, ['areas', 'bookers', 'salesmen']);
 $isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_company', 'rpt_profitability', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
 $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
@@ -317,6 +317,14 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                     <li>
                         <a href="<?= APP_URL ?>/modules/expenses/index.php" class="dms-menu-item <?= $activeMenu === 'expenses' ? 'active' : '' ?>">
                             <i class="bi bi-wallet2"></i> Daily Expenses
+                        </a>
+                    </li>
+                    <?php endif; ?>
+
+                    <?php if (has_permission('partners_view')): ?>
+                    <li>
+                        <a href="<?= APP_URL ?>/modules/partners/index.php" class="dms-menu-item <?= in_array($activeMenu, ['partners', 'partner_drawings', 'partner_settle', 'partner_ledger']) ? 'active' : '' ?>">
+                            <i class="bi bi-people-fill text-warning"></i> Partners & Khatas (پارٹنرز کھاتہ)
                         </a>
                     </li>
                     <?php endif; ?>

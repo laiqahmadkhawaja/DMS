@@ -41,6 +41,14 @@ $jv = db_fetch_one("
     FROM journal_entries 
     WHERE reference_type = 'expense' AND reference_id = ?
 ", [$id]);
+
+$partnerTxns = db_fetch_all("
+    SELECT pt.*, p.partner_name, p.urdu_name 
+    FROM partner_transactions pt
+    JOIN partners p ON pt.partner_id = p.id
+    WHERE pt.reference_type = 'expense' AND pt.reference_id = ?
+    ORDER BY pt.id ASC
+", [$id]);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -244,6 +252,25 @@ $jv = db_fetch_one("
                     </td>
                 </tr>
             </table>
+
+            <?php if (!empty($partnerTxns)): ?>
+            <!-- Partner Sharing Box -->
+            <div class="border border-dark p-2 mb-3 bg-light" style="font-size: 11px;">
+                <div class="fw-bold mb-1 text-uppercase">Partner Khata Division (پارٹنرز کھاتہ تقسیم):</div>
+                <div class="d-flex flex-wrap gap-3">
+                    <?php foreach ($partnerTxns as $pt): ?>
+                        <div>
+                            <strong><?= htmlspecialchars($pt['partner_name']) ?>:</strong>
+                            <?php if ($pt['transaction_type'] === 'expense_paid'): ?>
+                                <span class="badge bg-success">Paid Rs. <?= number_format((float)$pt['credit'], 2) ?></span>
+                            <?php else: ?>
+                                <span class="badge bg-warning text-dark">Share: Rs. <?= number_format((float)$pt['debit'], 2) ?></span>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Amount in Words -->
             <div class="border border-dark p-2 mb-3" style="font-size: 11.5px;">

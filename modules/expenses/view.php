@@ -47,6 +47,15 @@ $jv = db_fetch_one("
     WHERE reference_type = 'expense' AND reference_id = ?
 ", [$expenseId]);
 
+// Fetch linked partner transactions if any
+$partnerTxns = db_fetch_all("
+    SELECT pt.*, p.partner_name, p.urdu_name 
+    FROM partner_transactions pt
+    JOIN partners p ON pt.partner_id = p.id
+    WHERE pt.reference_type = 'expense' AND pt.reference_id = ?
+    ORDER BY pt.id ASC
+", [$expenseId]);
+
 $pageTitle = "Expense Voucher - " . $expense['expense_number'];
 $activeMenu = "expenses";
 
@@ -163,6 +172,66 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </tr>
                         </tfoot>
                     </table>
+
+                    <?php if (!empty($partnerTxns) || (!empty($expense['split_type']) && $expense['split_type'] !== 'none')): ?>
+                    <div class="card border border-primary-subtle bg-light mb-4">
+                        <div class="card-header bg-white py-2 border-bottom border-primary-subtle d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-navy small">
+                                <i class="bi bi-people-fill text-primary me-1"></i> Partner Khata Division (پارٹنرز کھاتہ تقسیم)
+                            </span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                <?= ucfirst(str_replace('_', ' ', $expense['split_type'] ?? 'Equal')) ?>
+                            </span>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="row g-2 mb-2 small">
+                                <div class="col-sm-6">
+                                    <span class="text-muted">Payment Source:</span> 
+                                    <?php if (($expense['paid_by_type'] ?? '') === 'partner' && !empty($expense['paid_by_partner_id'])): 
+                                        $payer = get_partner_by_id((int)$expense['paid_by_partner_id']);
+                                    ?>
+                                        <strong class="text-success"><i class="bi bi-person-check me-1"></i> Paid by <?= e($payer['partner_name'] ?? 'Partner') ?> (Personal Pocket)</strong>
+                                    <?php else: ?>
+                                        <strong class="text-dark"><i class="bi bi-safe me-1"></i> Paid from Central Sales Pool (Managing Partner)</strong>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="col-sm-6 text-sm-end">
+                                    <a href="<?= APP_URL ?>/modules/partners/index.php" class="text-decoration-none">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Partners Khata
+                                    </a>
+                                </div>
+                            </div>
+                            <?php if (!empty($partnerTxns)): ?>
+                            <table class="table table-sm table-bordered bg-white mb-1 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Partner</th>
+                                        <th>Ledger Entry Type</th>
+                                        <th class="text-end">Charged to Khata (Debit)</th>
+                                        <th class="text-end">Funded / Reimbursable (Credit)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($partnerTxns as $pt): ?>
+                                    <tr>
+                                        <td><strong><?= e($pt['partner_name']) ?></strong> <?= !empty($pt['urdu_name']) ? '(' . e($pt['urdu_name']) . ')' : '' ?></td>
+                                        <td>
+                                            <?php if ($pt['transaction_type'] === 'expense_paid'): ?>
+                                                <span class="badge bg-success">Expense Funded (ذاتی جیب سے دیا)</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-warning text-dark">Khata Share (حصہ خرچہ)</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-end text-danger fw-semibold"><?= (float)$pt['debit'] > 0 ? format_currency($pt['debit']) : '—' ?></td>
+                                        <td class="text-end text-success fw-semibold"><?= (float)$pt['credit'] > 0 ? format_currency($pt['credit']) : '—' ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
 
                     <!-- Amount in words & Recorded by -->
                     <div class="p-2 bg-light border rounded mb-4">
