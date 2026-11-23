@@ -118,6 +118,21 @@ class Validator {
     }
 
     /**
+     * Validate positive integer ID (e.g. primary/foreign keys > 0)
+     *
+     * @param string $field
+     * @param mixed $value
+     * @param string|null $customMessage
+     * @return self
+     */
+    public function positiveInt(string $field, $value, ?string $customMessage = null): self {
+        if (!is_numeric($value) || (int)$value <= 0) {
+            $this->errors[$field] = $customMessage ?? ucfirst(str_replace('_', ' ', $field)) . ' is required.';
+        }
+        return $this;
+    }
+
+    /**
      * Validate record existence in database
      *
      * @param string $field
@@ -128,7 +143,7 @@ class Validator {
      * @return self
      */
     public function exists(string $field, $value, string $table, string $column = 'id', ?string $customMessage = null): self {
-        if (!empty($value)) {
+        if ($value !== null && $value !== '') {
             $stmt = db()->prepare("SELECT COUNT(*) FROM {$table} WHERE {$column} = ?");
             $stmt->execute([$value]);
             if ((int)$stmt->fetchColumn() === 0) {

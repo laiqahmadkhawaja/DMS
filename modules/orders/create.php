@@ -72,12 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $subtotalDiscountAmount  = (float)($_POST['subtotal_discount_amount'] ?? 0);
 
     $validator = new Validator();
-    $validator->required('customer_id', $customerId)
-              ->exists('customer_id', $customerId, 'customers', 'id')
-              ->required('booker_id', $bookerId)
-              ->exists('booker_id', $bookerId, 'bookers', 'id')
-              ->required('area_id', $areaId)
-              ->exists('area_id', $areaId, 'areas', 'id')
+    $validator->positiveInt('customer_id', $customerId, 'Please choose a Retailer / Shop before saving the order.')
+              ->exists('customer_id', $customerId, 'customers', 'id', 'The selected customer does not exist in master records.')
+              ->positiveInt('booker_id', $bookerId, 'Please choose an Order Booker.')
+              ->exists('booker_id', $bookerId, 'bookers', 'id', 'The selected order booker does not exist.')
+              ->positiveInt('area_id', $areaId, 'Please choose a Route / Area.')
+              ->exists('area_id', $areaId, 'areas', 'id', 'The selected route/area does not exist.')
               ->date('order_date', $orderDate);
 
     if (!empty($deliveryDate)) {
@@ -663,6 +663,54 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    function validateOrderForm() {
+        const custVal = parseInt(customerSelect.value, 10);
+        if (!custVal || isNaN(custVal) || custVal <= 0) {
+            alert('Please select a Retailer / Shop before saving the order.');
+            const wrapper = customerSelect.closest('.dms-searchable-wrapper');
+            if (wrapper) {
+                const ctrl = wrapper.querySelector('.dms-searchable-control');
+                if (ctrl) ctrl.focus();
+            } else {
+                customerSelect.focus();
+            }
+            return false;
+        }
+
+        const bkrVal = parseInt(bookerSelect.value, 10);
+        if (!bkrVal || isNaN(bkrVal) || bkrVal <= 0) {
+            alert('Please select an Order Booker.');
+            bookerSelect.focus();
+            return false;
+        }
+
+        const areaVal = parseInt(areaSelect.value, 10);
+        if (!areaVal || isNaN(areaVal) || areaVal <= 0) {
+            alert('Please select a Route / Area.');
+            areaSelect.focus();
+            return false;
+        }
+
+        const cartKeys = Object.keys(orderCart);
+        if (cartKeys.length === 0) {
+            alert('Order cart is empty! Please click on products to add items to the order.');
+            if (productSearch) productSearch.focus();
+            return false;
+        }
+
+        return true;
+    }
+
+    const orderForm = document.getElementById('orderForm');
+    if (orderForm) {
+        orderForm.addEventListener('submit', function (e) {
+            if (!validateOrderForm()) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+
     // Keyboard Shortcuts: '/' or F2 to search, F9 to submit, arrows when outside inputs
     document.addEventListener('keydown', function(e) {
         const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
@@ -676,7 +724,14 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         } else if (e.key === 'F9') {
             e.preventDefault();
-            document.getElementById('orderForm').submit();
+            if (validateOrderForm()) {
+                const confirmBtn = document.querySelector('button[name="confirm_now"]');
+                if (confirmBtn) {
+                    confirmBtn.click();
+                } else if (orderForm) {
+                    orderForm.submit();
+                }
+            }
         } else if (!isInput) {
             const visibleCards = getVisibleCards();
             if (visibleCards.length > 0) {
