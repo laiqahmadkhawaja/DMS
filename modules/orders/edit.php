@@ -79,6 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $remarks      = clean_input($_POST['remarks'] ?? '');
     $orderStatus  = clean_input($_POST['order_status'] ?? $order['status']);
 
+    if (isset($_POST['save_draft'])) {
+        $orderStatus = 'draft';
+    } elseif (isset($_POST['confirm_now'])) {
+        $orderStatus = 'confirmed';
+    }
+
     $itemProductIds = $_POST['item_product_id'] ?? [];
     $itemCartonQtys = $_POST['item_carton_qty'] ?? [];
     $itemPackQtys   = $_POST['item_pack_qty'] ?? [];
@@ -215,7 +221,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db()->beginTransaction();
 
                 // 1. Update order header
-                $confirmedAt = ($orderStatus === 'confirmed' && empty($order['confirmed_at'])) ? date('Y-m-d H:i:s') : $order['confirmed_at'];
+                if ($orderStatus === 'confirmed') {
+                    $confirmedAt = !empty($order['confirmed_at']) ? $order['confirmed_at'] : date('Y-m-d H:i:s');
+                } else {
+                    $confirmedAt = null;
+                }
 
                 $stmtUpd = db()->prepare("
                     UPDATE orders 
@@ -258,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (function_exists('audit_log')) {
                     audit_log('update_order', 'orders', (string)$id, "Updated order {$order['order_number']}, Net: {$netAmount}, Status: {$orderStatus}");
                 }
-                set_flash_message('success', "Order <strong>{$order['order_number']}</strong> updated successfully!");
+                set_flash_message('success', "Order <strong>{$order['order_number']}</strong> updated successfully (" . ucfirst($orderStatus) . ")!");
                 redirect(APP_URL . '/modules/orders/view.php?id=' . $id);
 
             } catch (Exception $e) {
@@ -584,11 +594,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <div class="col-md-7">
                                     <input type="text" name="remarks" class="form-control form-control-sm" placeholder="Booking remarks, delivery notes, or special instructions..." value="<?= e($order['remarks']) ?>">
                                 </div>
-                                <div class="col-md-5 text-end">
-                                    <a href="<?= APP_URL ?>/modules/orders/view.php?id=<?= $order['id'] ?>" class="btn btn-outline-secondary btn-sm px-3 me-2">
+                                <div class="col-md-5 text-end d-flex align-items-center justify-content-end gap-2">
+                                    <a href="<?= APP_URL ?>/modules/orders/view.php?id=<?= $order['id'] ?>" class="btn btn-outline-secondary btn-sm px-2">
                                         Cancel (ESC)
                                     </a>
-                                    <button type="submit" class="btn btn-navy btn-sm px-4 fw-bold">
+                                    <button type="submit" name="save_draft" class="btn btn-secondary btn-sm px-3 fw-semibold">
+                                        <i class="bi bi-save me-1"></i> Save Draft
+                                    </button>
+                                    <button type="submit" name="save_changes" class="btn btn-navy btn-sm px-3 fw-bold">
                                         <i class="bi bi-check2-circle me-1"></i> Save Changes (F9)
                                     </button>
                                 </div>
@@ -743,7 +756,16 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Keyboard Shortcuts: '/' or F2 to search, F9 to submit, ESC to cancel
+    // Sync order status select if Save Draft button is clicked
+    const saveDraftBtn = document.querySelector('button[name="save_draft"]');
+    if (saveDraftBtn) {
+        saveDraftBtn.addEventListener('click', function() {
+            const statusSelect = document.getElementById('orderStatusSelect');
+            if (statusSelect) statusSelect.value = 'draft';
+        });
+    }
+
+    // Keyboard Shortcuts: '/' or F2 to search, Ctrl+S to save draft, F9 to submit, ESC to cancel
     document.addEventListener('keydown', function(e) {
         const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
         const isInput = tag === 'input' || tag === 'textarea' || tag === 'select' || (document.activeElement && document.activeElement.closest('.dms-searchable-wrapper'));
@@ -754,10 +776,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 productSearch.focus();
                 productSearch.select();
             }
+        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+            e.preventDefault();
+            if (validateOrderForm()) {
+                const draftBtn = document.querySelector('button[name="save_draft"]');
+                if (draftBtn) draftBtn.click();
+            }
         } else if (e.key === 'F9') {
             e.preventDefault();
             if (validateOrderForm()) {
-                if (orderForm) orderForm.submit();
+                const saveChangesBtn = document.querySelector('button[name="save_changes"]');
+                if (saveChangesBtn) {
+                    saveChangesBtn.click();
+                } else if (orderForm) {
+                    orderForm.submit();
+                }
             }
         } else if (e.key === 'Escape' && !isInput) {
             window.location.href = "<?= APP_URL ?>/modules/orders/view.php?id=<?= $order['id'] ?>";
