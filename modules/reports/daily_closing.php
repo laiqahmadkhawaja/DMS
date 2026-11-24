@@ -10,9 +10,80 @@ require_once __DIR__ . '/../../config/config.php';
 require_once INCLUDES_PATH . '/auth.php';
 require_once INCLUDES_PATH . '/permission.php';
 require_once INCLUDES_PATH . '/accounting_functions.php';
+require_once INCLUDES_PATH . '/partner_functions.php';
 
 require_login();
 require_permission('reports_daily');
+
+// Handle Cash Handover / Return POST actions from Daily Closing
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action      = sanitize_input($_POST['action'] ?? '');
+    $period      = sanitize_input($_POST['period'] ?? 'today');
+    $fromDate    = sanitize_input($_POST['from_date'] ?? date('Y-m-d'));
+    $toDate      = sanitize_input($_POST['to_date'] ?? date('Y-m-d'));
+    $redirectUrl = APP_URL . "/modules/reports/daily_closing.php?period={$period}&from_date={$fromDate}&to_date={$toDate}&tab=overview";
+
+    if ($action === 'partner_cash_handover') {
+        $partnerId         = (int)($_POST['partner_id'] ?? 0);
+        $amount            = (float)($_POST['amount'] ?? 0);
+        $transactionDate   = sanitize_input($_POST['transaction_date'] ?? date('Y-m-d'));
+        $paidFromAccountId = (int)($_POST['paid_from_account_id'] ?? 0);
+        $description       = sanitize_input($_POST['description'] ?? '');
+
+        if ($partnerId <= 0) {
+            set_flash('danger', 'Please select a valid Managing Partner.');
+            redirect($redirectUrl);
+        }
+        if ($amount <= 0) {
+            set_flash('danger', 'Handover amount must be greater than zero.');
+            redirect($redirectUrl);
+        }
+        if ($paidFromAccountId <= 0) {
+            set_flash('danger', 'Please choose the Cash / Bank drawer account.');
+            redirect($redirectUrl);
+        }
+
+        try {
+            $txnId = record_partner_cash_handover($partnerId, $amount, $transactionDate, $paidFromAccountId, $description);
+            $partner = get_partner_by_id($partnerId);
+            set_flash('success', "Daily sales cash handover of <strong>" . format_currency($amount) . "</strong> to <strong>" . htmlspecialchars($partner['partner_name'] ?? 'Partner') . "</strong> recorded successfully in Khata & Roznamcha.");
+            redirect($redirectUrl);
+        } catch (Exception $e) {
+            set_flash('danger', "Error recording cash handover: " . $e->getMessage());
+            redirect($redirectUrl);
+        }
+    } elseif ($action === 'partner_cash_return') {
+        $partnerId          = (int)($_POST['partner_id'] ?? 0);
+        $amount             = (float)($_POST['amount'] ?? 0);
+        $transactionDate    = sanitize_input($_POST['transaction_date'] ?? date('Y-m-d'));
+        $depositToAccountId = (int)($_POST['deposit_to_account_id'] ?? 0);
+        $paymentMode        = sanitize_input($_POST['payment_mode'] ?? 'cash');
+        $description        = sanitize_input($_POST['description'] ?? '');
+
+        if ($partnerId <= 0) {
+            set_flash('danger', 'Please select a valid Partner.');
+            redirect($redirectUrl);
+        }
+        if ($amount <= 0) {
+            set_flash('danger', 'Received amount must be greater than zero.');
+            redirect($redirectUrl);
+        }
+        if ($depositToAccountId <= 0) {
+            set_flash('danger', 'Please choose the Cash / Bank account receiving funds.');
+            redirect($redirectUrl);
+        }
+
+        try {
+            $txnId = record_partner_cash_received($partnerId, $amount, $transactionDate, $depositToAccountId, $paymentMode, $description);
+            $partner = get_partner_by_id($partnerId);
+            set_flash('success', "Cash received / returned of <strong>" . format_currency($amount) . "</strong> from <strong>" . htmlspecialchars($partner['partner_name'] ?? 'Partner') . "</strong> recorded and deposited successfully.");
+            redirect($redirectUrl);
+        } catch (Exception $e) {
+            set_flash('danger', "Error recording received cash: " . $e->getMessage());
+            redirect($redirectUrl);
+        }
+    }
+}
 
 // Period & Date Range Logic
 $period = sanitize_input($_GET['period'] ?? 'today');
@@ -234,6 +305,28 @@ $supplierPaymentSummary = db_fetch_one("
     WHERE payment_date BETWEEN ? AND ?
 ", [$fromDate, $toDate]) ?: ['count' => 0, 'total_supplier_paid' => 0.0, 'cash_supplier_paid' => 0.0];
 
+// 5.5 Partner Cash Movements (Sales Handover & Cash Received Back)
+$managingPartner = get_managing_partner();
+$allPartners = get_partners(true);
+
+$partnerCashSummary = db_fetch_one("
+    SELECT 
+        COALESCE(SUM(CASE WHEN transaction_type = 'sales_cash_handover' THEN debit ELSE 0 END), 0) as total_handover,
+        COALESCE(SUM(CASE WHEN transaction_type = 'cash_returned' THEN credit ELSE 0 END), 0) as total_returned
+    FROM partner_transactions
+    WHERE transaction_date BETWEEN ? AND ?
+", [$fromDate, $toDate]) ?: ['total_handover' => 0.0, 'total_returned' => 0.0];
+
+$partnerHandoversToday = db_fetch_all("
+    SELECT pt.*, p.partner_name, p.urdu_name, p.partner_code, u.full_name as creator_name
+    FROM partner_transactions pt
+    JOIN partners p ON pt.partner_id = p.id
+    LEFT JOIN users u ON pt.created_by = u.id
+    WHERE pt.transaction_type IN ('sales_cash_handover', 'cash_returned')
+      AND pt.transaction_date BETWEEN ? AND ?
+    ORDER BY pt.id DESC
+", [$fromDate, $toDate]);
+
 // 6. Item-Wise Sales Breakdown & Estimated Profit / COGS
 $itemWhere = $invWhere;
 $itemParams = $invParams;
@@ -344,7 +437,7 @@ $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 ORDE
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_deleted = 0 AND is_active = 1 ORDER BY booker_name ASC");
 $salesmen = db_fetch_all("SELECT id, salesman_name FROM salesmen WHERE is_active = 1 ORDER BY salesman_name ASC");
 $closingLiquidAccounts = db_fetch_all("
-    SELECT account_code, account_name, sub_type, bank_name, current_balance 
+    SELECT id, account_code, account_name, sub_type, bank_name, current_balance 
     FROM accounts 
     WHERE sub_type IN ('cash', 'bank', 'wallet') AND is_active = 1 
     ORDER BY CASE sub_type WHEN 'cash' THEN 1 WHEN 'bank' THEN 2 WHEN 'wallet' THEN 3 END, account_code ASC
@@ -677,7 +770,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <!-- TAB 1: CASH ROZNAMCHA / CASH FLOW RECONCILIATION -->
                     <div class="tab-pane fade <?= $activeTab === 'overview' ? 'show active' : '' ?>" id="overview-pane" role="tabpanel">
                         <div class="p-4">
-                            <h6 class="fw-bold text-navy mb-3"><i class="bi bi-cash-coin text-success me-2"></i>Day End Cash Reconciliation (یومیہ کیش روزنامچہ)</h6>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="fw-bold text-navy mb-0"><i class="bi bi-cash-coin text-success me-2"></i>Day End Cash Reconciliation (یومیہ کیش روزنامچہ)</h6>
+                                <div class="d-flex gap-2 no-print">
+                                    <button type="button" class="btn btn-sm btn-danger shadow-xs" data-bs-toggle="modal" data-bs-target="#handoverCashModal">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Handover Cash to Partner (مینجنگ پارٹنر کو کیش سپردگی)
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-success shadow-xs" data-bs-toggle="modal" data-bs-target="#receiveCashModal">
+                                        <i class="bi bi-box-arrow-in-left me-1"></i> Receive Cash from Partner (پارٹنر سے کیش واپسی)
+                                    </button>
+                                </div>
+                            </div>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-striped align-middle mb-0 font-monospace">
                                     <thead class="table-light text-uppercase small">
@@ -701,6 +804,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end text-muted">-</td>
                                             <td class="text-end">-</td>
                                         </tr>
+                                        <?php if ((float)$partnerCashSummary['total_returned'] > 0): ?>
+                                        <tr>
+                                            <td><i class="bi bi-arrow-down-left-circle-fill text-success me-2"></i> Cash Received Back from Partner (پارٹنر سے کیش واپسی / وصولی)</td>
+                                            <td class="text-end text-success fw-bold"><?= format_currency((float)$partnerCashSummary['total_returned']) ?></td>
+                                            <td class="text-end text-muted">-</td>
+                                            <td class="text-end">-</td>
+                                        </tr>
+                                        <?php endif; ?>
                                         <tr>
                                             <td><i class="bi bi-wallet2 text-danger me-2"></i> Daily Operational Expenses Paid in Cash (روزمرہ کیش اخراجات)</td>
                                             <td class="text-end text-muted">-</td>
@@ -713,18 +824,141 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end text-danger fw-bold"><?= format_currency((float)$supplierPaymentSummary['cash_supplier_paid']) ?></td>
                                             <td class="text-end">-</td>
                                         </tr>
+                                        <tr>
+                                            <td>
+                                                <i class="bi bi-person-fill-up text-danger me-2"></i> 
+                                                Sales Cash Handed Over to Managing Partner (مینجنگ پارٹنر کو کیش سپردگی)
+                                                <?php if ($managingPartner): ?>
+                                                    <span class="badge bg-danger-subtle text-danger border ms-1 font-sans-serif"><?= htmlspecialchars($managingPartner['partner_name']) ?></span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="text-end text-muted">-</td>
+                                            <td class="text-end text-danger fw-bold"><?= format_currency((float)$partnerCashSummary['total_handover']) ?></td>
+                                            <td class="text-end">-</td>
+                                        </tr>
                                         <?php 
-                                        $netCashDrawerMovement = ((float)$salesSummary['spot_cash_paid'] + (float)$recoverySummary['cash_recovered']) - ((float)$expenseSummary['cash_expenses'] + (float)$supplierPaymentSummary['cash_supplier_paid']);
+                                        $totalDayInflow = (float)$salesSummary['spot_cash_paid'] + (float)$recoverySummary['cash_recovered'] + (float)$partnerCashSummary['total_returned'];
+                                        $totalDayOutflow = (float)$expenseSummary['cash_expenses'] + (float)$supplierPaymentSummary['cash_supplier_paid'] + (float)$partnerCashSummary['total_handover'];
+                                        $netCashDrawerMovement = $totalDayInflow - $totalDayOutflow;
                                         ?>
                                         <tr class="table-warning fw-bold fs-6">
-                                            <td class="text-uppercase"><i class="bi bi-safe2 text-dark me-2"></i> Net Day Cash Movement (دن کا خالص کیش اضافہ)</td>
-                                            <td class="text-end text-success"><?= format_currency((float)$salesSummary['spot_cash_paid'] + (float)$recoverySummary['cash_recovered']) ?></td>
-                                            <td class="text-end text-danger"><?= format_currency((float)$expenseSummary['cash_expenses'] + (float)$supplierPaymentSummary['cash_supplier_paid']) ?></td>
+                                            <td class="text-uppercase"><i class="bi bi-safe2 text-dark me-2"></i> Net Office Cash Drawer Balance (دراز میں باقی کیش)</td>
+                                            <td class="text-end text-success"><?= format_currency($totalDayInflow) ?></td>
+                                            <td class="text-end text-danger"><?= format_currency($totalDayOutflow) ?></td>
                                             <td class="text-end text-navy fw-bold"><?= format_currency($netCashDrawerMovement) ?></td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
+
+                            <!-- Managing Partner Cash Handover & Khata Position Widget -->
+                            <?php if ($managingPartner): 
+                                $mpBal = (float)$managingPartner['current_balance'];
+                            ?>
+                            <div class="mt-4 pt-3 border-top">
+                                <div class="card border border-danger-subtle bg-light shadow-xs mb-3">
+                                    <div class="card-body p-3">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-7">
+                                                <div class="d-flex align-items-center mb-1">
+                                                    <span class="badge bg-danger text-white me-2"><i class="bi bi-shield-lock-fill me-1"></i> Cash Custodian</span>
+                                                    <h6 class="fw-bold mb-0 text-navy">
+                                                        <?= htmlspecialchars($managingPartner['partner_name']) ?>
+                                                        <?php if (!empty($managingPartner['urdu_name'])): ?>
+                                                            <small class="text-muted ms-1">(<?= htmlspecialchars($managingPartner['urdu_name']) ?>)</small>
+                                                        <?php endif; ?>
+                                                    </h6>
+                                                </div>
+                                                <div class="small text-muted mb-2">
+                                                    Daily sales cash handed over to Managing Partner is tracked in his personal Khata ledger.
+                                                </div>
+                                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                                    <span class="badge bg-white text-dark border font-monospace px-2 py-1">
+                                                        Today's Handover: <strong class="text-danger"><?= format_currency((float)$partnerCashSummary['total_handover']) ?></strong>
+                                                    </span>
+                                                    <?php if ((float)$partnerCashSummary['total_returned'] > 0): ?>
+                                                    <span class="badge bg-white text-dark border font-monospace px-2 py-1">
+                                                        Today's Return: <strong class="text-success"><?= format_currency((float)$partnerCashSummary['total_returned']) ?></strong>
+                                                    </span>
+                                                    <?php endif; ?>
+                                                    <span class="badge bg-white text-dark border font-monospace px-2 py-1">
+                                                        Current Khata Balance: 
+                                                        <strong class="<?= $mpBal < 0 ? 'text-danger' : ($mpBal > 0 ? 'text-success' : 'text-muted') ?>">
+                                                            <?= format_currency(abs($mpBal)) ?> 
+                                                            <?= $mpBal < 0 ? '(Receivable / بقایا)' : ($mpBal > 0 ? '(Payable / واجب الادا)' : '(Nil)') ?>
+                                                        </strong>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end gap-2 no-print">
+                                                <button type="button" class="btn btn-danger btn-sm shadow-xs" data-bs-toggle="modal" data-bs-target="#handoverCashModal">
+                                                    <i class="bi bi-box-arrow-up-right me-1"></i> Handover Cash (کیش سپردگی)
+                                                </button>
+                                                <button type="button" class="btn btn-success btn-sm shadow-xs" data-bs-toggle="modal" data-bs-target="#receiveCashModal">
+                                                    <i class="bi bi-box-arrow-in-left me-1"></i> Receive Cash (کیش واپسی)
+                                                </button>
+                                                <a href="<?= APP_URL ?>/modules/partners/ledger.php?partner_id=<?= $managingPartner['id'] ?>" class="btn btn-outline-secondary btn-sm shadow-xs" title="View Full Khata Ledger">
+                                                    <i class="bi bi-journal-text me-1"></i> Khata Ledger
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Today's Handover & Return Details Table (if any) -->
+                                    <?php if (!empty($partnerHandoversToday)): ?>
+                                    <div class="border-top bg-white p-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="small fw-bold text-navy"><i class="bi bi-clock-history me-1 text-danger"></i>Recorded Partner Cash Movements for Period (درج شدہ سپردگی و واپسی):</span>
+                                            <span class="badge bg-secondary-subtle text-secondary font-monospace"><?= count($partnerHandoversToday) ?> records</span>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered align-middle mb-0 font-monospace small">
+                                                <thead class="table-light text-muted">
+                                                    <tr>
+                                                        <th style="width: 110px;">Date</th>
+                                                        <th>Txn #</th>
+                                                        <th>Partner</th>
+                                                        <th>Type (قسم)</th>
+                                                        <th>Description / Remarks</th>
+                                                        <th class="text-end">Amount (PKR)</th>
+                                                        <th class="text-center">Recorded By</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach ($partnerHandoversToday as $pht): 
+                                                        $isHandover = ($pht['transaction_type'] === 'sales_cash_handover');
+                                                    ?>
+                                                    <tr>
+                                                        <td><?= format_date($pht['transaction_date']) ?></td>
+                                                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($pht['transaction_number']) ?></span></td>
+                                                        <td class="fw-semibold">
+                                                            <?= htmlspecialchars($pht['partner_name']) ?>
+                                                            <?php if (!empty($pht['urdu_name'])): ?>
+                                                                <small class="text-muted">(<?= htmlspecialchars($pht['urdu_name']) ?>)</small>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td>
+                                                            <?php if ($isHandover): ?>
+                                                                <span class="badge bg-danger text-white">Sales Cash Handover (سپردگی)</span>
+                                                            <?php else: ?>
+                                                                <span class="badge bg-success text-white">Cash Returned (واپسی)</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td class="text-muted"><?= htmlspecialchars($pht['description']) ?></td>
+                                                        <td class="text-end fw-bold <?= $isHandover ? 'text-danger' : 'text-success' ?>">
+                                                            <?= $isHandover ? '-' : '+' ?><?= format_currency($isHandover ? (float)$pht['debit'] : (float)$pht['credit']) ?>
+                                                        </td>
+                                                        <td class="text-center text-muted"><?= htmlspecialchars($pht['creator_name'] ?? 'Admin') ?></td>
+                                                    </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php endif; ?>
 
                             <!-- Live Liquid Accounts Balance Position -->
                             <div class="mt-4 pt-3 border-top">
@@ -1078,6 +1312,158 @@ require_once INCLUDES_PATH . '/topbar.php';
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- MODAL: HANDOVER CASH TO MANAGING PARTNER -->
+<div class="modal fade" id="handoverCashModal" tabindex="-1" aria-labelledby="handoverCashModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form method="POST" action="daily_closing.php">
+                <input type="hidden" name="action" value="partner_cash_handover">
+                <input type="hidden" name="period" value="<?= htmlspecialchars($period) ?>">
+                <input type="hidden" name="from_date" value="<?= htmlspecialchars($fromDate) ?>">
+                <input type="hidden" name="to_date" value="<?= htmlspecialchars($toDate) ?>">
+
+                <div class="modal-header bg-danger text-white py-3">
+                    <h6 class="modal-title fw-bold" id="handoverCashModalLabel">
+                        <i class="bi bi-box-arrow-up-right me-2"></i>Handover Sales Cash to Managing Partner (مینجنگ پارٹنر کو کیش سپردگی)
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-danger-subtle border-danger-subtle small py-2 px-3 mb-3">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Daily sales revenue handed over will be deducted from office cash drawer and charged to the partner's Khata (receivable from partner).
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-navy">Managing Partner (پارٹنر) <span class="text-danger">*</span></label>
+                        <select name="partner_id" class="form-select" required>
+                            <?php foreach ($allPartners as $p): ?>
+                                <option value="<?= $p['id'] ?>" <?= ($managingPartner && (int)$managingPartner['id'] === (int)$p['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($p['partner_name']) ?> <?= !empty($p['urdu_name']) ? '(' . htmlspecialchars($p['urdu_name']) . ')' : '' ?> [<?= htmlspecialchars($p['partner_code']) ?>]
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-navy">Handover Date (تاریخ) <span class="text-danger">*</span></label>
+                            <input type="date" name="transaction_date" class="form-control" value="<?= htmlspecialchars($toDate) ?>" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-navy">Amount (رقم - PKR) <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" step="0.01" min="1" class="form-control form-control-lg fw-bold text-danger" placeholder="0.00" required autofocus>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-navy">Paid From Drawer / Account (کھاتہ) <span class="text-danger">*</span></label>
+                        <select name="paid_from_account_id" class="form-select" required>
+                            <?php foreach ($closingLiquidAccounts as $cla): ?>
+                                <option value="<?= $cla['id'] ?>" <?= ($cla['account_code'] === '1001' || $cla['account_code'] === '1010' || $cla['sub_type'] === 'cash') ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($cla['account_name']) ?> (<?= htmlspecialchars($cla['account_code']) ?>) - Bal: <?= format_currency((float)$cla['current_balance']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-navy">Remarks / Notes (تفصیل / وجہ)</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="e.g. Daily sales cash collection handover to managing partner at closing..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger btn-sm fw-bold">
+                        <i class="bi bi-check-circle me-1"></i> Save Cash Handover (سپردگی درج کریں)
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: RECEIVE CASH BACK FROM PARTNER -->
+<div class="modal fade" id="receiveCashModal" tabindex="-1" aria-labelledby="receiveCashModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form method="POST" action="daily_closing.php">
+                <input type="hidden" name="action" value="partner_cash_return">
+                <input type="hidden" name="period" value="<?= htmlspecialchars($period) ?>">
+                <input type="hidden" name="from_date" value="<?= htmlspecialchars($fromDate) ?>">
+                <input type="hidden" name="to_date" value="<?= htmlspecialchars($toDate) ?>">
+
+                <div class="modal-header bg-success text-white py-3">
+                    <h6 class="modal-title fw-bold" id="receiveCashModalLabel">
+                        <i class="bi bi-box-arrow-in-left me-2"></i>Receive Cash from Partner (پارٹنر سے کیش واپسی / وصولی)
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-success-subtle border-success-subtle small py-2 px-3 mb-3">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Cash returned by partner will be deposited into the office drawer/bank and credited to the partner's Khata (settling drawn funds).
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-navy">Partner Returning Cash (پارٹنر) <span class="text-danger">*</span></label>
+                        <select name="partner_id" class="form-select" required>
+                            <?php foreach ($allPartners as $p): ?>
+                                <option value="<?= $p['id'] ?>" <?= ($managingPartner && (int)$managingPartner['id'] === (int)$p['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($p['partner_name']) ?> <?= !empty($p['urdu_name']) ? '(' . htmlspecialchars($p['urdu_name']) . ')' : '' ?> [<?= htmlspecialchars($p['partner_code']) ?>]
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-navy">Date (تاریخ) <span class="text-danger">*</span></label>
+                            <input type="date" name="transaction_date" class="form-control" value="<?= htmlspecialchars($toDate) ?>" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-navy">Amount (رقم - PKR) <span class="text-danger">*</span></label>
+                            <input type="number" name="amount" step="0.01" min="1" class="form-control form-control-lg fw-bold text-success" placeholder="0.00" required>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-7">
+                            <label class="form-label small fw-bold text-navy">Deposit To Account (کھاتہ) <span class="text-danger">*</span></label>
+                            <select name="deposit_to_account_id" class="form-select" required>
+                                <?php foreach ($closingLiquidAccounts as $cla): ?>
+                                    <option value="<?= $cla['id'] ?>" <?= ($cla['account_code'] === '1001' || $cla['account_code'] === '1010' || $cla['sub_type'] === 'cash') ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($cla['account_name']) ?> (<?= htmlspecialchars($cla['account_code']) ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label small fw-bold text-navy">Payment Mode</label>
+                            <select name="payment_mode" class="form-select">
+                                <option value="cash" selected>Cash (نقد)</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="cheque">Cheque</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-navy">Remarks / Notes (تفصیل / وجہ)</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="e.g. Cash returned by partner for expenses or reimbursement..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-sm fw-bold">
+                        <i class="bi bi-check-circle me-1"></i> Save Cash Received (وصولی درج کریں)
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 

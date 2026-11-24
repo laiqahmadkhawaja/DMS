@@ -24,7 +24,7 @@ $today = date('Y-m-d');
 $monthlyDrawings = (float)db_fetch_val("
     SELECT COALESCE(SUM(debit), 0) 
     FROM partner_transactions 
-    WHERE transaction_type = 'cash_drawn' 
+    WHERE transaction_type IN ('cash_drawn', 'sales_cash_handover') 
       AND transaction_date >= ? AND transaction_date <= ?
 ", [$firstDayOfMonth, $today]);
 
@@ -240,6 +240,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 } elseif ($txn['transaction_type'] === 'cash_drawn') {
                                     $badgeClass = 'bg-danger';
                                     $badgeLabel = 'Cash Drawing (ایڈوانس لیا)';
+                                } elseif ($txn['transaction_type'] === 'sales_cash_handover') {
+                                    $badgeClass = 'bg-danger text-white';
+                                    $badgeLabel = 'Sales Handover (سیلز کیش)';
+                                } elseif ($txn['transaction_type'] === 'cash_returned') {
+                                    $badgeClass = 'bg-success text-white';
+                                    $badgeLabel = 'Cash Received (کیش واپسی)';
                                 } elseif ($txn['transaction_type'] === 'inter_settlement') {
                                     $badgeClass = 'bg-primary';
                                     $badgeLabel = 'Settlement (آپس کا لین دین)';

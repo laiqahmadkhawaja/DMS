@@ -96,7 +96,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <i class="bi bi-arrow-left me-1"></i> Dashboard
                 </a>
                 <a href="drawings.php?partner_id=<?= $selectedPartnerId ?>" class="btn btn-danger btn-sm">
-                    <i class="bi bi-cash me-1"></i> Record Advance
+                    <i class="bi bi-cash me-1"></i> Cash Advance / Return
+                </a>
+                <a href="<?= APP_URL ?>/modules/reports/daily_closing.php" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-journal-bookmark-fill me-1"></i> Day Closing (روزنامچہ)
                 </a>
                 <a href="settle.php?from_partner_id=<?= $selectedPartnerId ?>" class="btn btn-primary btn-sm">
                     <i class="bi bi-arrow-left-right me-1"></i> Settle
@@ -272,7 +275,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     $badgeLabel = 'Expense Share';
                                 } elseif ($t['transaction_type'] === 'cash_drawn') {
                                     $badgeClass = 'bg-danger';
-                                    $badgeLabel = 'Cash Drawing';
+                                    $badgeLabel = 'Cash Advance';
+                                } elseif ($t['transaction_type'] === 'sales_cash_handover') {
+                                    $badgeClass = 'bg-danger text-white';
+                                    $badgeLabel = 'Sales Handover (سیلز کیش)';
+                                } elseif ($t['transaction_type'] === 'cash_returned') {
+                                    $badgeClass = 'bg-success text-white';
+                                    $badgeLabel = 'Cash Returned (واپسی)';
                                 } elseif ($t['transaction_type'] === 'inter_settlement') {
                                     $badgeClass = 'bg-primary';
                                     $badgeLabel = 'Settlement';
