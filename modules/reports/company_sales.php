@@ -272,7 +272,33 @@ require_once INCLUDES_PATH . '/topbar.php';
 
         <!-- Filter Bar -->
         <div class="card border-0 shadow-sm mb-4 no-print">
-            <div class="card-body py-2">
+            <div class="card-body py-3">
+                <!-- Quick Company Switcher Pills -->
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pb-3 mb-3 border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted small fw-bold"><i class="bi bi-buildings me-1"></i>کمپنی سوئچر:</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="company_sales.php?period=<?= urlencode($period) ?>&from_date=<?= urlencode($fromDate) ?>&to_date=<?= urlencode($toDate) ?>&category_id=<?= $selectedCategoryId ?>&supplier_id=0" 
+                               class="btn <?= $selectedSupplierId === 0 ? 'btn-primary fw-bold' : 'btn-outline-secondary' ?>">
+                                <i class="bi bi-collection me-1"></i> دونوں کمپنیاں اکٹھا (Combined)
+                            </a>
+                            <a href="company_sales.php?period=<?= urlencode($period) ?>&from_date=<?= urlencode($fromDate) ?>&to_date=<?= urlencode($toDate) ?>&category_id=<?= $selectedCategoryId ?>&supplier_id=1" 
+                               class="btn <?= $selectedSupplierId === 1 ? 'btn-success fw-bold' : 'btn-outline-secondary' ?>">
+                                <i class="bi bi-box-seam me-1"></i> اجاب انٹرپرائزز (Ujab)
+                            </a>
+                            <a href="company_sales.php?period=<?= urlencode($period) ?>&from_date=<?= urlencode($fromDate) ?>&to_date=<?= urlencode($toDate) ?>&category_id=<?= $selectedCategoryId ?>&supplier_id=2" 
+                               class="btn <?= $selectedSupplierId === 2 ? 'btn-info text-white fw-bold' : 'btn-outline-secondary' ?>">
+                                <i class="bi bi-building me-1"></i> ایس ایم ایس (SMS / کنافہ / جج)
+                            </a>
+                        </div>
+                    </div>
+                    <?php if ($selectedSupplierId > 0): ?>
+                        <span class="badge bg-warning text-dark px-3 py-2 border fs-7">
+                            <i class="bi bi-funnel-fill me-1"></i> فلٹر چالو ہے: <strong><?= $selectedSupplierId === 1 ? 'Ujab Enterprises' : 'SMS Agency' ?></strong>
+                        </span>
+                    <?php endif; ?>
+                </div>
+
                 <form method="GET" action="company_sales.php" class="row g-2 align-items-end">
                     
                     <!-- Date Presets -->
@@ -297,12 +323,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label small fw-bold mb-1">Company / Supplier</label>
+                        <label class="form-label small fw-bold mb-1">Company / Supplier (کمپنی)</label>
                         <select name="supplier_id" class="form-select form-select-sm">
-                            <option value="">-- All Companies --</option>
+                            <option value="0">-- All Companies (دونوں اکٹھا) --</option>
                             <?php foreach ($suppliers as $s): ?>
                                 <option value="<?= $s['id'] ?>" <?= $selectedSupplierId === (int)$s['id'] ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($s['supplier_name']) ?> <?= !empty($s['city']) ? '(' . htmlspecialchars($s['city']) . ')' : '' ?>
+                                    <?= htmlspecialchars($s['supplier_name']) ?> (<?= (int)$s['id'] === 1 ? 'Ujab' : 'SMS' ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
