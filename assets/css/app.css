@@ -20,6 +20,148 @@
     --dms-danger: #ef4444;
 }
 
+/* Navy Theme Utilities & Background Colors */
+.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff;
+}
+
+.bg-navy-dark {
+    background-color: var(--dms-navy-dark) !important;
+    color: #ffffff;
+}
+
+.bg-navy-light {
+    background-color: var(--dms-navy-light) !important;
+    color: #ffffff;
+}
+
+.bg-navy-subtle {
+    background-color: #e0e7ff !important;
+    color: var(--dms-navy) !important;
+}
+
+.text-navy {
+    color: var(--dms-navy) !important;
+}
+
+.text-navy-dark {
+    color: var(--dms-navy-dark) !important;
+}
+
+.text-navy-light {
+    color: var(--dms-navy-light) !important;
+}
+
+.border-navy {
+    border-color: var(--dms-navy) !important;
+}
+
+.border-navy-subtle {
+    border-color: #c7d2fe !important;
+}
+
+/* Specific Card, Header, Banner & Modal Support */
+.card.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+}
+
+.card.bg-navy.bg-gradient {
+    background: linear-gradient(135deg, var(--dms-navy-dark) 0%, var(--dms-navy) 60%, var(--dms-navy-light) 100%) !important;
+}
+
+.card-header.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.modal-header.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.dms-drawer-header.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+}
+
+/* Badges, Kbd & Table Elements */
+.badge.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+}
+
+thead.bg-navy, thead.bg-navy th, table thead.bg-navy tr th {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+kbd.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+}
+
+.avatar-lg.bg-navy {
+    background-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+}
+
+/* Navy Buttons & States */
+.btn-navy {
+    background-color: var(--dms-navy) !important;
+    border-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+}
+
+.btn-navy:hover, .btn-navy:focus, .btn-navy:active {
+    background-color: var(--dms-navy-dark) !important;
+    border-color: var(--dms-navy-dark) !important;
+    color: #ffffff !important;
+}
+
+.btn-outline-navy {
+    color: var(--dms-navy) !important;
+    border-color: var(--dms-navy) !important;
+    background-color: transparent !important;
+}
+
+.btn-outline-navy:hover, .btn-outline-navy:focus, .btn-outline-navy:active {
+    background-color: var(--dms-navy) !important;
+    border-color: var(--dms-navy) !important;
+    color: #ffffff !important;
+}
+
+/* Link hover transitions to avoid text disappearing */
+a.text-navy {
+    color: var(--dms-navy) !important;
+    transition: color 0.15s ease-in-out;
+}
+
+a.text-navy:hover, a.text-navy:focus {
+    color: var(--dms-primary) !important;
+}
+
+/* Ensure outline light buttons on dark banners are crisp and hover readable */
+.bg-navy .btn-outline-light,
+.card.bg-navy .btn-outline-light,
+.card-header.bg-navy .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.75);
+    color: #ffffff;
+}
+
+.bg-navy .btn-outline-light:hover,
+.card.bg-navy .btn-outline-light:hover,
+.card-header.bg-navy .btn-outline-light:hover {
+    background-color: #ffffff !important;
+    border-color: #ffffff !important;
+    color: var(--dms-navy-dark) !important;
+}
+
 html, body {
     height: 100%;
     margin: 0;
