@@ -1,15 +1,18 @@
 <?php
 /**
  * DMS - Distribution Management System
- * Multi-Bill Layout Orchestrator (1-up, 2-up, 3-up, Duplicate mode)
+ * Multi-Bill Dynamic Layout Orchestrator (Auto-Fit, 1-up, 2-up, 3-up, Duplicate mode)
  * 
+ * Automatically packs the maximum number of invoices per A4 page based on their
+ * actual item count and height, minimizing paper waste (2, 3, or 4 bills per page).
+ *
  * Required variables:
  * $invoices - Array of invoices
  * $itemsByInvoice - Map of invoice_id => array of invoice line items
  * 
  * Optional parameters:
- * $layoutMode - '1-up' | '2-up' | '3-up' (default '2-up')
- * $duplicateCopies - boolean (default false; if true, each bill generates Customer Copy + Office Copy)
+ * $layoutMode - 'auto' | '1-up' | '2-up' | '3-up' (default 'auto')
+ * $duplicateCopies - boolean (default false)
  * $showCutLine - boolean (default true)
  */
 
@@ -17,7 +20,7 @@ if (!defined('DMS_RUNNING')) {
     exit('Direct access not permitted.');
 }
 
-$layoutMode = $layoutMode ?? '2-up';
+$layoutMode = isset($layoutMode) && in_array($layoutMode, ['auto', '1-up', '2-up', '3-up']) ? $layoutMode : 'auto';
 $duplicateCopies = !empty($duplicateCopies);
 $showCutLine = $showCutLine ?? true;
 
@@ -47,65 +50,100 @@ foreach ($invoices as $inv) {
     }
 }
 
-// Layout slot settings (Tight Excel-like congested layout to avoid paper wastage)
-if ($layoutMode === '1-up') {
-    $billsPerPage = 1;
-    $compactMode = false;
-    $slotClass = 'bill-slot-1up';
-} elseif ($layoutMode === '3-up') {
-    $billsPerPage = 3;
-    $compactMode = true;
-    $slotClass = 'bill-slot-3up';
-} else {
-    // Default 2-up
-    $layoutMode = '2-up';
-    $billsPerPage = 2;
-    $compactMode = true;
-    $slotClass = 'bill-slot-2up';
+// Function to estimate bill height in printable units (pixels)
+// Standard A4 printable height is ~1020px with 5-6mm margins.
+if (!function_exists('dms_estimate_bill_height')) {
+    function dms_estimate_bill_height($itemsCount, $hasDiscount = false) {
+        // Base height: header + address (~36px), metadata (~40px), thead (~22px), total row (~24px), signatures (~24px), cut line & margin (~16px)
+        $base = $hasDiscount ? 190 : 162;
+        // Each line item in compact mode takes ~19px
+        $itemHeight = 19 * max(1, $itemsCount);
+        return $base + $itemHeight;
+    }
 }
 
-$totalBills = count($printableQueue);
-?>
+$pages = [];
 
-<div class="print-container layout-<?= $layoutMode ?>">
-    <?php 
-    for ($billIdx = 0; $billIdx < $totalBills; $billIdx++): 
-        $slotData = $printableQueue[$billIdx];
-        $invoice = $slotData['invoice'];
-        $invoiceItems = $slotData['items'];
-        $copyLabel = $slotData['copyLabel'];
+if ($layoutMode === 'auto') {
+    // Dynamic Packing: pack maximum bills per page up to safe A4 height
+    $pageCapacity = 1000;
+    $currentPage = [];
+    $currentHeight = 0;
+    
+    foreach ($printableQueue as $slot) {
+        $itemCount = count($slot['items']);
+        $hasDiscount = ((float)($slot['invoice']['extra_discount_amount'] ?? 0) + (float)($slot['invoice']['item_discount_amount'] ?? 0)) > 0;
+        $billHeight = dms_estimate_bill_height($itemCount, $hasDiscount);
         
-        // Calibrate row padding per layout slot
-        if ($layoutMode === '1-up') {
-            $padRows = max(8, count($invoiceItems));
-        } elseif ($layoutMode === '3-up') {
-            $padRows = max(2, count($invoiceItems));
-        } else {
-            $padRows = max(4, count($invoiceItems));
+        // If adding this bill exceeds capacity and current page already has bills:
+        if (!empty($currentPage) && ($currentHeight + $billHeight > $pageCapacity)) {
+            $pages[] = $currentPage;
+            $currentPage = [];
+            $currentHeight = 0;
         }
         
-        $positionInPage = $billIdx % $billsPerPage;
-        $isPageStart = ($positionInPage === 0);
-        $isPageEnd = ($positionInPage === ($billsPerPage - 1)) || ($billIdx === ($totalBills - 1));
+        $currentPage[] = $slot;
+        $currentHeight += $billHeight;
+    }
+    
+    if (!empty($currentPage)) {
+        $pages[] = $currentPage;
+    }
+} elseif ($layoutMode === '1-up') {
+    foreach ($printableQueue as $slot) {
+        $pages[] = [$slot];
+    }
+} elseif ($layoutMode === '3-up') {
+    $pages = array_chunk($printableQueue, 3);
+} else {
+    // 2-up
+    $pages = array_chunk($printableQueue, 2);
+}
+
+$totalPages = count($pages);
+?>
+
+<div class="print-container layout-<?= htmlspecialchars($layoutMode) ?>">
+    <?php foreach ($pages as $pIdx => $pageBills): 
+        $isLastPage = ($pIdx === ($totalPages - 1));
+        $billsInPage = count($pageBills);
     ?>
-        <?php if ($isPageStart): ?>
-            <div class="a4-sheet <?= $isPageEnd ? 'page-break-auto' : '' ?>">
-        <?php endif; ?>
+        <div class="a4-sheet <?= $isLastPage ? 'last-sheet' : '' ?>" data-bills-count="<?= $billsInPage ?>">
+            <?php foreach ($pageBills as $bIdx => $slotData): 
+                $invoice = $slotData['invoice'];
+                $invoiceItems = $slotData['items'];
+                $copyLabel = $slotData['copyLabel'];
+                $isLastBillInPage = ($bIdx === ($billsInPage - 1));
+                
+                // Calibration for compact mode and row padding
+                if ($layoutMode === 'auto') {
+                    $compactMode = true;
+                    // In auto mode, zero empty padding so small bills stay compact and allow more on page
+                    $padRows = count($invoiceItems);
+                } elseif ($layoutMode === '1-up') {
+                    $compactMode = false;
+                    $padRows = max(8, count($invoiceItems));
+                } elseif ($layoutMode === '3-up') {
+                    $compactMode = true;
+                    $padRows = max(2, count($invoiceItems));
+                } else {
+                    // 2-up
+                    $compactMode = true;
+                    $padRows = max(4, count($invoiceItems));
+                }
+            ?>
+                <div class="bill-slot">
+                    <?php require __DIR__ . '/bill_print.php'; ?>
+                </div>
 
-        <div class="bill-slot <?= $slotClass ?>">
-            <?php require __DIR__ . '/bill_print.php'; ?>
+                <?php if (!$isLastBillInPage && $showCutLine): ?>
+                    <div class="cut-line">
+                        <span class="cut-scissors">✁</span>
+                        <span class="cut-text">------------------------------------ Cut Here (یہاں سے کاٹیں) ------------------------------------</span>
+                        <span class="cut-scissors">✁</span>
+                    </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
         </div>
-
-        <?php if (!$isPageEnd && $showCutLine): ?>
-            <div class="cut-line">
-                <span class="cut-scissors">✁</span>
-                <span class="cut-text">------------------------------------ Cut Here ------------------------------------</span>
-                <span class="cut-scissors">✁</span>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($isPageEnd): ?>
-            </div><!-- /.a4-sheet -->
-        <?php endif; ?>
-    <?php endfor; ?>
+    <?php endforeach; ?>
 </div>

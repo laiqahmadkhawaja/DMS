@@ -13,16 +13,28 @@ require_once INCLUDES_PATH . '/permission.php';
 require_login();
 require_permission('invoices_print');
 
+$rawIds = $_GET['ids'] ?? $_POST['ids'] ?? '';
+$selectedIds = [];
+if (is_array($rawIds)) {
+    $selectedIds = array_filter(array_map('intval', $rawIds));
+} elseif (is_string($rawIds) && trim($rawIds) !== '') {
+    $selectedIds = array_filter(array_map('intval', explode(',', $rawIds)));
+}
+
 $loadSheetId = isset($_GET['load_sheet_id']) ? (int)$_GET['load_sheet_id'] : 0;
 $date = isset($_GET['date']) ? sanitize_input($_GET['date']) : '';
-$layoutMode = isset($_GET['layout']) && in_array($_GET['layout'], ['1-up', '2-up', '3-up']) ? $_GET['layout'] : '2-up';
+$layoutMode = isset($_GET['layout']) && in_array($_GET['layout'], ['auto', '1-up', '2-up', '3-up']) ? $_GET['layout'] : 'auto';
 $duplicateCopies = isset($_GET['duplicate']) && $_GET['duplicate'] == '1';
 $showCutLine = !isset($_GET['cutline']) || $_GET['cutline'] != '0';
 
 $where = ["inv.status != 'cancelled'"];
 $params = [];
 
-if ($loadSheetId > 0) {
+if (!empty($selectedIds)) {
+    $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+    $where = ["inv.id IN ({$placeholders})"];
+    $params = $selectedIds;
+} elseif ($loadSheetId > 0) {
     $where[] = "inv.load_sheet_id = ?";
     $params[] = $loadSheetId;
 } elseif (!empty($date)) {
@@ -196,15 +208,23 @@ $loadSheetNumber = $invoices[0]['load_number'] ?? '';
                 border: none !important;
                 border-radius: 0 !important;
                 margin: 0 !important;
-                padding: 3mm 4mm !important;
+                padding: 2mm 3mm !important;
                 page-break-after: always !important;
+                break-after: page !important;
                 page-break-inside: avoid !important;
+                break-inside: avoid !important;
                 width: 100% !important;
                 min-height: auto !important;
             }
 
-            .a4-sheet:last-child {
+            .a4-sheet:last-child, .a4-sheet.last-sheet {
                 page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            .bill-slot {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
             }
 
             .copy-badge, .date-badge, th, td, tr, .total-bar {
@@ -213,8 +233,8 @@ $loadSheetNumber = $invoices[0]['load_number'] ?? '';
             }
 
             .cut-line {
-                margin: 10px 0 !important;
-                color: #555 !important;
+                margin: 6px 0 !important;
+                color: #222 !important;
             }
         }
     </style>
@@ -227,8 +247,12 @@ $loadSheetNumber = $invoices[0]['load_number'] ?? '';
                 <i class="bi bi-printer me-1 text-warning"></i>
                 Batch Print: <?= count($invoices) ?> Bills
             </span>
-            <?php if (!empty($loadSheetNumber)): ?>
-                <span class="badge bg-primary">Load Sheet: <?= htmlspecialchars($loadSheetNumber) ?></span>
+            <?php if (!empty($selectedIds)): ?>
+                <span class="badge bg-success">Selected: <?= count($invoices) ?> Bills</span>
+            <?php elseif (!empty($loadSheetNumber)): ?>
+                <span class="badge bg-primary">Load Form: <?= htmlspecialchars($loadSheetNumber) ?></span>
+            <?php elseif (!empty($date)): ?>
+                <span class="badge bg-info text-dark">Date: <?= date('d-M-Y', strtotime($date)) ?></span>
             <?php endif; ?>
             <span class="badge bg-light text-dark">
                 Total: Rs. <?= number_format($totalAmount, 0) ?>
@@ -238,14 +262,17 @@ $loadSheetNumber = $invoices[0]['load_number'] ?? '';
         <div class="d-flex flex-wrap align-items-center gap-2">
             <!-- Layout Selector -->
             <div class="btn-group btn-group-sm" role="group">
-                <button type="button" class="btn <?= $layoutMode === '1-up' ? 'btn-warning fw-bold' : 'btn-outline-light' ?>" onclick="setLayout('1-up')">
-                    1-up (Full)
+                <button type="button" class="btn <?= $layoutMode === 'auto' ? 'btn-warning fw-bold' : 'btn-outline-light' ?>" onclick="setLayout('auto')" title="Smart Auto-Packing (Packs 2, 3, or 4 bills per page based on items to avoid paper waste)">
+                    <i class="bi bi-magic me-1"></i> Auto-Fit (خودکار فل)
                 </button>
-                <button type="button" class="btn <?= $layoutMode === '2-up' ? 'btn-warning fw-bold' : 'btn-outline-light' ?>" onclick="setLayout('2-up')">
+                <button type="button" class="btn <?= $layoutMode === '2-up' ? 'btn-warning fw-bold' : 'btn-outline-light' ?>" onclick="setLayout('2-up')" title="Fixed 2 bills per page">
                     2-up (Half A4)
                 </button>
-                <button type="button" class="btn <?= $layoutMode === '3-up' ? 'btn-warning fw-bold' : 'btn-outline-light' ?>" onclick="setLayout('3-up')">
+                <button type="button" class="btn <?= $layoutMode === '3-up' ? 'btn-warning fw-bold' : 'btn-outline-light' ?>" onclick="setLayout('3-up')" title="Fixed 3 bills per page">
                     3-up (Slip)
+                </button>
+                <button type="button" class="btn <?= $layoutMode === '1-up' ? 'btn-warning fw-bold' : 'btn-outline-light' ?>" onclick="setLayout('1-up')" title="Full page single bill">
+                    1-up (Full)
                 </button>
             </div>
 

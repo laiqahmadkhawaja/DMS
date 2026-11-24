@@ -533,8 +533,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <i class="bi bi-receipt me-1"></i> Included Customer Orders & Sales Bills (<?= count($orders) ?>)
                 </span>
                 <?php if ($sheet['status'] === 'issued'): ?>
-                    <a href="../invoices/batch_print.php?load_sheet_id=<?= $sheet['id'] ?>" target="_blank" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-printer me-1"></i> Print All Invoices
+                    <a href="../invoices/batch_print.php?load_sheet_id=<?= $sheet['id'] ?>&layout=auto" target="_blank" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-printer me-1"></i> Print All Invoices (بل پرنٹ کریں)
                     </a>
                 <?php endif; ?>
             </div>

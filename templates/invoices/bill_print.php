@@ -20,10 +20,10 @@ if (!defined('DMS_RUNNING')) {
 $copyLabel = $copyLabel ?? '';
 $compactMode = !empty($compactMode);
 $defaultPad = $compactMode ? 4 : 8;
-$padRows = (isset($padRows) && (int)$padRows > 0) ? (int)$padRows : $defaultPad;
-$fontSize = $compactMode ? '11px' : '12px';
-$headerFontSize = $compactMode ? '16px' : '19px';
-$lineHeight = $compactMode ? '21px' : '24px';
+$padRows = isset($padRows) ? (int)$padRows : $defaultPad;
+$fontSize = $compactMode ? '10.5px' : '12px';
+$headerFontSize = $compactMode ? '15px' : '18px';
+$lineHeight = $compactMode ? '19px' : '23px';
 ?>
 
 <div class="invoice-box <?= $compactMode ? 'invoice-box-compact' : '' ?>" style="width: 100%; box-sizing: border-box; margin-bottom: 2px;">
@@ -168,7 +168,7 @@ $lineHeight = $compactMode ? '21px' : '24px';
     </table>
 
     <!-- Footer Note & Signatures -->
-    <div class="d-flex justify-content-between pt-1 small fw-bold" style="font-size: <?= $compactMode ? '9.5px' : '10.5px' ?>; color: #000; margin-top: <?= $compactMode ? '22px' : '32px' ?>; padding-top: 4px;">
+    <div class="d-flex justify-content-between pt-1 small fw-bold" style="font-size: <?= $compactMode ? '9px' : '10.5px' ?>; color: #000; margin-top: <?= $compactMode ? '12px' : '28px' ?>; padding-top: 3px;">
         <div>Customer Signature: __________________</div>
         <div>Salesman: <?= htmlspecialchars($invoice['salesman_name'] ?? 'Route Delivery') ?></div>
         <div>Authorized: __________________</div>

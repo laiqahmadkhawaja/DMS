@@ -149,6 +149,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <p class="text-muted small mb-0">Manage customer sales memos, route dispatch billing, printouts and recovery status</p>
             </div>
             <div class="d-flex gap-2">
+                <button type="button" id="btnBatchPrintSelected" class="btn btn-success fw-bold shadow-sm" onclick="batchPrintSelected()" style="display: none;">
+                    <i class="bi bi-printer-fill me-1"></i> Print Selected (<span id="selectedCountSpan">0</span> Bills)
+                </button>
                 <a href="batch_print.php?date=<?= urlencode($startDate) ?>" target="_blank" class="btn btn-outline-primary shadow-sm" title="Batch Print Bills for Selected Date">
                     <i class="bi bi-printer me-1"></i> Batch Print Date
                 </a>
@@ -268,7 +271,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light text-muted small text-uppercase">
                             <tr>
-                                <th class="ps-3">Bill #</th>
+                                <th style="width: 36px;" class="ps-3 text-center">
+                                    <input type="checkbox" id="selectAllBills" class="form-check-input" onclick="toggleSelectAllBills(this)" title="Select All">
+                                </th>
+                                <th class="ps-2">Bill #</th>
                                 <th>Date</th>
                                 <th>Customer / Shop</th>
                                 <th>Route / Area</th>
@@ -284,7 +290,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <tbody>
                             <?php if (empty($invoices)): ?>
                                 <tr>
-                                    <td colspan="11" class="text-center py-5 text-muted">
+                                    <td colspan="12" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
                                         No sales invoices found matching the selected criteria.
                                     </td>
@@ -292,7 +298,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <?php else: ?>
                                 <?php foreach ($invoices as $inv): ?>
                                     <tr>
-                                        <td class="ps-3 fw-bold text-navy">
+                                        <td class="ps-3 text-center">
+                                            <input type="checkbox" name="selected_invoices[]" value="<?= $inv['id'] ?>" class="form-check-input bill-select-cb" onchange="updateSelectedCount()">
+                                        </td>
+                                        <td class="ps-2 fw-bold text-navy">
                                             <a href="view.php?id=<?= $inv['id'] ?>" class="text-decoration-none">
                                                 <?= htmlspecialchars($inv['invoice_number']) ?>
                                             </a>
@@ -383,6 +392,39 @@ document.addEventListener('keydown', function(e) {
         window.location.href = 'create.php';
     }
 });
+
+function toggleSelectAllBills(master) {
+    var cbs = document.querySelectorAll('.bill-select-cb');
+    cbs.forEach(function(cb) {
+        cb.checked = master.checked;
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    var checked = document.querySelectorAll('.bill-select-cb:checked');
+    var count = checked.length;
+    var btn = document.getElementById('btnBatchPrintSelected');
+    var span = document.getElementById('selectedCountSpan');
+    if (span) span.innerText = count;
+    if (btn) {
+        btn.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+}
+
+function batchPrintSelected() {
+    var checked = document.querySelectorAll('.bill-select-cb:checked');
+    if (checked.length === 0) {
+        alert('براہ کرم پرنٹ کرنے کے لیے کم از کم ایک بل منتخب کریں۔');
+        return;
+    }
+    var ids = [];
+    checked.forEach(function(cb) {
+        ids.push(cb.value);
+    });
+    var url = 'batch_print.php?ids=' + encodeURIComponent(ids.join(',')) + '&layout=auto';
+    window.open(url, '_blank');
+}
 </script>
 
 <?php
