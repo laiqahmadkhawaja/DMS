@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($discountMode !== 'subtotal') {
         $discountMode = 'item_rate';
     }
+    $freeLoosePieces = isset($_POST['free_loose_pieces']) ? 1 : (isset($_POST['order_date']) ? 0 : (int)($order['free_loose_pieces'] ?? 0));
     $subtotalDiscountPercent = (float)($_POST['subtotal_discount_percent'] ?? ($order['subtotal_discount_percent'] ?? 0));
     $subtotalDiscountAmount  = (float)($_POST['subtotal_discount_amount'] ?? ($order['subtotal_discount_amount'] ?? 0));
 
@@ -107,11 +108,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $totalQuantityInBaseUnits = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
         $baseCartons = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
 
+        // If Free Loose Pieces scheme is active, loose pieces rate is not charged
+        $billablePcs = $freeLoosePieces ? 0 : $pcsQty;
+        $billableBasePieces = calculate_base_pieces($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+        $billableCartons    = calculate_carton_equivalent($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+
         if ($unitCode === 'pcs') {
-            $lineGross = $totalQuantityInBaseUnits * $rate;
+            $lineGross = $billableBasePieces * $rate;
             $unitId = 4; // Piece unit
         } else {
-            $lineGross = $baseCartons * $rate;
+            $lineGross = $billableCartons * $rate;
             $unitId = (int)$prod['base_unit_id']; // Carton unit
         }
 
@@ -176,14 +182,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtUpd = db()->prepare("
                 UPDATE orders 
                 SET order_date = ?, delivery_date = ?, customer_id = ?, booker_id = ?, area_id = ?,
-                    discount_mode = ?, subtotal_discount_percent = ?, subtotal_discount_amount = ?,
+                    discount_mode = ?, free_loose_pieces = ?, subtotal_discount_percent = ?, subtotal_discount_amount = ?,
                     gross_amount = ?, discount_amount = ?, net_amount = ?, total_cartons = ?, 
                     total_units = ?, status = ?, remarks = ?, updated_at = NOW()
                 WHERE id = ?
             ");
             $stmtUpd->execute([
                 $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
-                $discountMode, $subtotalDiscountPercent, $subtotalDiscountAmount,
+                $discountMode, $freeLoosePieces, $subtotalDiscountPercent, $subtotalDiscountAmount,
                 $grossAmount, $discountAmount, $netAmount, $totalCartons,
                 $totalUnits, $orderStatus, $remarks, $id
             ]);
@@ -298,9 +304,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </div>
             </div>
 
-            <!-- Discount Mode Radio Selection Bar -->
+            <!-- Discount Mode & Free Loose Pieces Scheme Bar -->
             <div class="pos-discount-mode-bar bg-light p-2 border mb-3 rounded d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center flex-wrap gap-3">
                     <span class="small fw-bold text-secondary"><i class="bi bi-tag-fill me-1 text-primary"></i> Discount Type:</span>
                     <div class="form-check form-check-inline m-0">
                         <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeItem" value="item_rate" <?= ($order['discount_mode'] ?? 'item_rate') === 'item_rate' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
@@ -309,6 +315,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <div class="form-check form-check-inline m-0">
                         <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeSubtotal" value="subtotal" <?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
                         <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeSubtotal">Discount from subtotal</label>
+                    </div>
+                    <div class="form-check form-switch m-0 d-inline-flex align-items-center gap-2 border-start ps-3 ms-2">
+                        <input class="form-check-input cursor-pointer" type="checkbox" role="switch" name="free_loose_pieces" id="freeLoosePiecesToggle" value="1" <?= !empty($order['free_loose_pieces']) ? 'checked' : '' ?> onchange="onFreeLoosePiecesChange()">
+                        <label class="form-check-label small fw-bold text-success cursor-pointer" for="freeLoosePiecesToggle" title="Trade Scheme: Loose pieces will be free (Rs 0) in bill total, but will be dispatched on load form">
+                            <i class="bi bi-gift-fill me-1 text-warning"></i> Free Loose Pcs (سکیم / بونس پیس مفت)
+                        </label>
                     </div>
                 </div>
                 <div id="subtotalDiscountInputs" class="<?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'd-flex' : 'd-none' ?> align-items-center gap-2">
@@ -530,6 +542,23 @@ function onDiscountModeChange() {
     recalcOrderTotals();
 }
 
+function isFreeLoosePiecesActive() {
+    const el = document.getElementById('freeLoosePiecesToggle');
+    return el ? el.checked : false;
+}
+
+function onFreeLoosePiecesChange() {
+    recalcAllOrderLines();
+    if (getDiscountMode() === 'subtotal') {
+        const pctEl = document.getElementById('subtotalDiscountPercent');
+        if (pctEl && parseFloat(pctEl.value) > 0) {
+            onSubtotalPercentChange();
+            return;
+        }
+    }
+    recalcOrderTotals();
+}
+
 function calculateOrderRowGross(row) {
     const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
     const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
@@ -541,11 +570,14 @@ function calculateOrderRowGross(row) {
     const rate = parseFloat(row.querySelector('.rate-inp')?.value) || 0;
     const unit = row.querySelector('.unit-inp')?.value || 'ctn';
 
+    const isFreeLoose = isFreeLoosePiecesActive();
+    const effectivePcs = isFreeLoose ? 0 : pcs;
+
     if (unit === 'pcs') {
-        const totalPieces = (ctn * pcsPerCtn) + (pack * pcsPerPack) + pcs;
+        const totalPieces = (ctn * pcsPerCtn) + (pack * pcsPerPack) + effectivePcs;
         return totalPieces * rate;
     } else {
-        const baseCartons = ctn + (pack / packsPerCtn) + (pcs / pcsPerCtn);
+        const baseCartons = ctn + (pack / packsPerCtn) + (effectivePcs / pcsPerCtn);
         return baseCartons * rate;
     }
 }

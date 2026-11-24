@@ -91,6 +91,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <?php else: ?>
                         <span class="badge bg-secondary"><?= htmlspecialchars($po['status']) ?></span>
                     <?php endif; ?>
+                    <?php if (!empty($po['free_loose_pieces'])): ?>
+                        <span class="badge bg-success-subtle text-success border border-success"><i class="bi bi-gift-fill me-1"></i> Bonus / Scheme (مفت پیس)</span>
+                    <?php endif; ?>
                     <span class="text-muted small">Date: <?= date('d-M-Y', strtotime($po['order_date'])) ?></span>
                 </div>
             </div>

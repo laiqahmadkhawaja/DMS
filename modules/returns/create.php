@@ -105,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $invoiceId     = !empty($_POST['invoice_id']) ? (int)$_POST['invoice_id'] : null;
     $settlementId  = !empty($_POST['settlement_id']) ? (int)$_POST['settlement_id'] : null;
     $conditionType = sanitize_input($_POST['condition_type'] ?? 'saleable');
+    $freeLoosePieces = !empty($_POST['free_loose_pieces']) ? 1 : 0;
     $reason        = sanitize_input($_POST['reason'] ?? '');
     $status        = isset($_POST['save_draft']) ? 'draft' : 'processed';
 
@@ -174,14 +175,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $basePieces   = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
         $equivCartons = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
 
+        // If Free Loose Pieces scheme is active, loose pieces rate is not credited
+        $billablePcs = $freeLoosePieces ? 0 : $pcsQty;
+        $billableBasePieces = calculate_base_pieces($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+        $billableCartons    = calculate_carton_equivalent($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+
         if ($unitCode === 'pcs') {
-            $lineGross = $basePieces * $rate;
+            $lineGross = $billableBasePieces * $rate;
             $unitId = 4; // Piece unit
-            $itemQty = $basePieces;
+            $itemQty = $billableBasePieces;
         } else {
-            $lineGross = $equivCartons * $rate;
+            $lineGross = $billableCartons * $rate;
             $unitId = (int)$prod['base_unit_id']; // Carton unit
-            $itemQty = $equivCartons;
+            $itemQty = $billableCartons;
         }
 
         $lineDiscount = ($lineGross * $discPct) / 100.0;
@@ -239,9 +245,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $returnId = (int)$existingReturnId;
                 db_execute("
                     UPDATE sales_returns 
-                    SET total_amount = ?, reason = ?, condition_type = ?, status = 'processed', stock_settled = 1, updated_at = NOW() 
+                    SET total_amount = ?, free_loose_pieces = ?, reason = ?, condition_type = ?, status = 'processed', stock_settled = 1, updated_at = NOW() 
                     WHERE id = ?
-                ", [$totalAmount, $reason, $conditionType, $returnId]);
+                ", [$totalAmount, $freeLoosePieces, $reason, $conditionType, $returnId]);
 
                 // Clear any stub items
                 db_execute("DELETE FROM sales_return_items WHERE sales_return_id = ?", [$returnId]);
@@ -250,15 +256,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = db()->prepare("
                     INSERT INTO sales_returns (
                         return_number, invoice_id, customer_id, settlement_id, return_date, 
-                        total_amount, reason, condition_type, status, stock_settled, created_by, created_at
+                        total_amount, free_loose_pieces, reason, condition_type, status, stock_settled, created_by, created_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, 
-                        ?, ?, ?, ?, 1, ?, NOW()
+                        ?, ?, ?, ?, ?, 1, ?, NOW()
                     )
                 ");
                 $stmt->execute([
                     $returnNumber, $invoiceId, $customerId, $settlementId, $returnDate,
-                    $totalAmount, $reason, $conditionType, $status, $userId
+                    $totalAmount, $freeLoosePieces, $reason, $conditionType, $status, $userId
                 ]);
                 $returnId = (int)db()->lastInsertId();
             }
@@ -820,6 +826,19 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <button type="button" class="btn btn-xs btn-outline-danger" onclick="clearCart()" id="btnClearCart" style="display:none;">
                                     <i class="bi bi-trash me-1"></i> Clear Cart
                                 </button>
+                            </div>
+                        </div>
+
+                        <!-- Scheme / Free Loose Pieces Bar -->
+                        <div class="pos-discount-mode-bar bg-light p-2 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-3">
+                                <span class="small fw-bold text-secondary"><i class="bi bi-tag-fill me-1 text-primary"></i> Trade Scheme:</span>
+                                <div class="form-check form-switch m-0 d-inline-flex align-items-center gap-2">
+                                    <input class="form-check-input cursor-pointer" type="checkbox" role="switch" name="free_loose_pieces" id="freeLoosePiecesToggle" value="1" onchange="onFreeLoosePiecesChange()">
+                                    <label class="form-check-label small fw-bold text-success cursor-pointer" for="freeLoosePiecesToggle" title="Trade Scheme: Returned loose pieces will be zero-credit (Rs 0), but will be restocked in warehouse">
+                                        <i class="bi bi-gift-fill me-1 text-warning"></i> Free Loose Pcs (سکیم / بونس پیس مفت)
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -1482,12 +1501,24 @@ function onInvoiceChanged(invoiceId) {
         .catch(err => console.error(err));
 }
 
+function isFreeLoosePiecesActive() {
+    const el = document.getElementById('freeLoosePiecesToggle');
+    return el ? el.checked : false;
+}
+
+function onFreeLoosePiecesChange() {
+    recalculateAllRows();
+    recalculateCartSummary();
+}
+
 function calculateReturnLineGross(item) {
+    const isFreeLoose = isFreeLoosePiecesActive();
+    const effectivePcs = isFreeLoose ? 0 : item.pcs_qty;
     if (item.unit === 'pcs') {
-        const totalPieces = (item.carton_qty * item.pcs_per_ctn) + (item.pack_qty * item.pcs_per_pack) + item.pcs_qty;
+        const totalPieces = (item.carton_qty * item.pcs_per_ctn) + (item.pack_qty * item.pcs_per_pack) + effectivePcs;
         return totalPieces * item.rate;
     } else {
-        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
+        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (effectivePcs / item.pcs_per_ctn);
         return baseCartons * item.rate;
     }
 }

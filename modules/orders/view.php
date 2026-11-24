@@ -57,6 +57,9 @@ require_once INCLUDES_PATH . '/topbar.php';
     <div>
         <h5 class="mb-0 fw-bold text-dark">
             <i class="bi bi-receipt me-2 text-primary"></i>Order #<span class="font-monospace"><?= e($order['order_number']) ?></span>
+            <?php if (!empty($order['free_loose_pieces'])): ?>
+                <span class="badge bg-success-subtle text-success border border-success ms-2"><i class="bi bi-gift-fill me-1"></i> Bonus / Scheme (مفت پیس)</span>
+            <?php endif; ?>
         </h5>
         <small class="text-muted">Booked by <?= e($order['booker_name']) ?> for <?= e($order['shop_name']) ?></small>
     </div>

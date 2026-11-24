@@ -224,7 +224,12 @@ $padRows = max(8, count($items));
                     <tbody>
                         <tr>
                             <td style="width: 16%; padding: 1px 3px;">ORDER NO.</td>
-                            <td style="width: 34%; padding: 1px 3px; font-weight: bold;"><?= htmlspecialchars($order['order_number']) ?></td>
+                            <td style="width: 34%; padding: 1px 3px; font-weight: bold;">
+                                <?= htmlspecialchars($order['order_number']) ?>
+                                <?php if (!empty($order['free_loose_pieces'])): ?>
+                                    <span style="font-size: 8.5px; border: 1px solid #000; padding: 0 4px; border-radius: 2px; font-weight: bold; margin-left: 4px;">BONUS/سکیم</span>
+                                <?php endif; ?>
+                            </td>
                             <td style="width: 16%; padding: 1px 3px;" class="text-end">Order Booker:</td>
                             <td style="width: 34%; padding: 1px 3px;"><?= htmlspecialchars($order['booker_name']) ?></td>
                         </tr>

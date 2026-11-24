@@ -93,6 +93,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <?php else: ?>
                         <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Physical Stock Pending Verification</span>
                     <?php endif; ?>
+                    <?php if (!empty($ret['free_loose_pieces'])): ?>
+                        <span class="badge bg-success-subtle text-success border border-success"><i class="bi bi-gift-fill me-1"></i> Bonus / Scheme (مفت پیس)</span>
+                    <?php endif; ?>
                     <span class="text-muted small">Date: <?= date('d-M-Y', strtotime($ret['return_date'])) ?></span>
                 </div>
             </div>

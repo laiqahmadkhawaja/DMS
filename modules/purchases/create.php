@@ -62,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($discountMode !== 'subtotal') {
         $discountMode = 'item_rate';
     }
+    $freeLoosePieces = !empty($_POST['free_loose_pieces']) ? 1 : 0;
     $subtotalDiscountPercent = (float)($_POST['subtotal_discount_percent'] ?? 0);
     $subtotalDiscountAmount  = (float)($_POST['subtotal_discount_amount'] ?? 0);
 
@@ -127,12 +128,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $totalQuantityInBaseUnits = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
         $baseCartons = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
 
+        // If Free Loose Pieces scheme is active, loose pieces rate is not charged
+        $billablePcs = $freeLoosePieces ? 0 : $pcsQty;
+        $billableBasePieces = calculate_base_pieces($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+        $billableCartons    = calculate_carton_equivalent($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+
         if ($unitCode === 'pcs') {
-            $lineGross = $totalQuantityInBaseUnits * $rate;
+            $lineGross = $billableBasePieces * $rate;
             $unitId = 4; // Piece unit
             $itemQty = $totalQuantityInBaseUnits;
         } else {
-            $lineGross = $baseCartons * $rate;
+            $lineGross = $billableCartons * $rate;
             $unitId = (int)$prod['base_unit_id']; // Carton unit
             $itemQty = $baseCartons;
         }
@@ -192,19 +198,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmtPO = db()->prepare("
                 INSERT INTO purchase_orders (
-                    purchase_number, supplier_id, supplier_invoice_no, discount_mode,
+                    purchase_number, supplier_id, supplier_invoice_no, discount_mode, free_loose_pieces,
                     order_date, expected_delivery_date, total_amount, discount_amount,
                     subtotal_discount_percent, subtotal_discount_amount, total_cartons, total_units,
                     net_amount, status, remarks, created_by, created_at
                 ) VALUES (
-                    ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?, NOW()
                 )
             ");
             $stmtPO->execute([
-                $poNumber, $supplierId, $supplierInv, $discountMode,
+                $poNumber, $supplierId, $supplierInv, $discountMode, $freeLoosePieces,
                 $orderDate, $deliveryDate, $grossAmount, $discountAmount,
                 $subtotalDiscountPercent, $subtotalDiscountAmount, $totalCartons, $totalUnits,
                 $netAmount, $status, $remarks, $userId
@@ -447,9 +453,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </button>
                         </div>
 
-                        <!-- Discount Mode Radio Selection Bar -->
+                        <!-- Discount Mode & Free Loose Pieces Scheme Bar -->
                         <div class="pos-discount-mode-bar bg-light p-2 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center flex-wrap gap-3">
                                 <span class="small fw-bold text-secondary"><i class="bi bi-tag-fill me-1 text-primary"></i> Discount:</span>
                                 <div class="form-check form-check-inline m-0">
                                     <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeItem" value="item_rate" checked onchange="onDiscountModeChange()">
@@ -458,6 +464,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <div class="form-check form-check-inline m-0">
                                     <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeSubtotal" value="subtotal" onchange="onDiscountModeChange()">
                                     <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeSubtotal">Discount from subtotal</label>
+                                </div>
+                                <div class="form-check form-switch m-0 d-inline-flex align-items-center gap-2 border-start ps-3 ms-2">
+                                    <input class="form-check-input cursor-pointer" type="checkbox" role="switch" name="free_loose_pieces" id="freeLoosePiecesToggle" value="1" onchange="onFreeLoosePiecesChange()">
+                                    <label class="form-check-label small fw-bold text-success cursor-pointer" for="freeLoosePiecesToggle" title="Trade Scheme: Loose pieces will be free (Rs 0) in bill total, but will be received in stock">
+                                        <i class="bi bi-gift-fill me-1 text-warning"></i> Free Loose Pcs (سکیم / بونس پیس مفت)
+                                    </label>
                                 </div>
                             </div>
                             <div id="subtotalDiscountInputs" class="d-none align-items-center gap-2">
@@ -832,12 +844,31 @@ function onSubtotalPercentChange() {
     recalculateCartSummary();
 }
 
+function isFreeLoosePiecesActive() {
+    const el = document.getElementById('freeLoosePiecesToggle');
+    return el ? el.checked : false;
+}
+
+function onFreeLoosePiecesChange() {
+    recalculateAllRows();
+    if (getDiscountMode() === 'subtotal') {
+        const pctEl = document.getElementById('subtotalDiscountPercent');
+        if (pctEl && parseFloat(pctEl.value) > 0) {
+            onSubtotalPercentChange();
+            return;
+        }
+    }
+    recalculateCartSummary();
+}
+
 function calculatePurchaseLineGross(item) {
+    const isFreeLoose = isFreeLoosePiecesActive();
+    const effectivePcs = isFreeLoose ? 0 : item.pcs_qty;
     if (item.unit === 'pcs') {
-        const totalPieces = (item.carton_qty * item.pcs_per_ctn) + (item.pack_qty * item.pcs_per_pack) + item.pcs_qty;
+        const totalPieces = (item.carton_qty * item.pcs_per_ctn) + (item.pack_qty * item.pcs_per_pack) + effectivePcs;
         return totalPieces * item.rate;
     } else {
-        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (item.pcs_qty / item.pcs_per_ctn);
+        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (effectivePcs / item.pcs_per_ctn);
         return baseCartons * item.rate;
     }
 }

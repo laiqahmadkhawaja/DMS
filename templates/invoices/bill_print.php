@@ -51,7 +51,12 @@ $lineHeight = $compactMode ? '19px' : '23px';
             <tbody>
                 <tr>
                     <td style="width: 14%; padding: 1px 3px;">BILL NO.</td>
-                    <td style="width: 42%; padding: 1px 3px; font-weight: bold;"><?= htmlspecialchars($invoice['invoice_number']) ?></td>
+                    <td style="width: 42%; padding: 1px 3px; font-weight: bold;">
+                        <?= htmlspecialchars($invoice['invoice_number']) ?>
+                        <?php if (!empty($invoice['free_loose_pieces'])): ?>
+                            <span style="font-size: 8.5px; border: 1px solid #000; padding: 0 4px; border-radius: 2px; background: #fff; margin-left: 4px; font-weight: bold;">BONUS/سکیم</span>
+                        <?php endif; ?>
+                    </td>
                     <td colspan="2" class="text-end pe-0" style="width: 44%; padding: 1px 0px; text-align: right;">
                         booker: <span class="fw-bold"><?= htmlspecialchars($invoice['booker_name'] ?? '') ?></span>
                     </td>
