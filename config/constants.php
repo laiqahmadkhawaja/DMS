@@ -47,6 +47,7 @@ define('DB_CHARSET', 'utf8mb4');
 // Business & Numbering Defaults
 define('DEFAULT_CURRENCY', 'Rs.');
 define('DEFAULT_TIMEZONE', 'Asia/Karachi');
+define('DB_TIMEZONE', '+05:00');
 
 // Ensure timezone and session are initialized across all modules
 date_default_timezone_set(DEFAULT_TIMEZONE);
