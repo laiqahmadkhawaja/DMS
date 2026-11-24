@@ -80,7 +80,27 @@ if (!defined('DMS_RUNNING')) {
             $grandTotalReturnQty = 0;
             $grandTotalCreditAmt = 0;
 
-            foreach ($items as $item): 
+            // Pre-calculate family counts to identify multi-flavor product families
+            $familyCounts = [];
+            foreach ($items as $it) {
+                $f = dms_get_product_family($it['product_name'], $it['category_name'] ?? '');
+                $familyCounts[$f] = ($familyCounts[$f] ?? 0) + 1;
+            }
+
+            // Family accumulator for multi-flavor subtotal
+            $famCtn = 0;
+            $famPack = 0;
+            $famPcs = 0;
+            $famAmount = 0;
+            $famReturnQty = 0;
+            $famReturnAmt = 0;
+            $famCreditAmt = 0;
+
+            $itemsCount = count($items);
+            for ($i = 0; $i < $itemsCount; $i++):
+                $item = $items[$i];
+                $fam = dms_get_product_family($item['product_name'], $item['category_name'] ?? '');
+
                 $packsPerCtn = (float)($item['packs_per_ctn'] ?? $item['ctn_ratio'] ?? 1);
                 $pcsPerPack  = (float)($item['pcs_per_pack'] ?? 1);
                 if ($packsPerCtn <= 0) $packsPerCtn = 1;
@@ -104,6 +124,11 @@ if (!defined('DMS_RUNNING')) {
                 $totalPcs  += $pcsPart;
                 $grandTotalAmount += (float)$item['total_amount'];
 
+                $famCtn    += $ctnPart;
+                $famPack   += $packPart;
+                $famPcs    += $pcsPart;
+                $famAmount += (float)$item['total_amount'];
+
                 $pid = (int)$item['product_id'];
                 $itemCredit = (float)($productCredits[$pid] ?? 0);
                 $itemReturnAmt = (float)($productReturns[$pid] ?? 0);
@@ -112,38 +137,44 @@ if (!defined('DMS_RUNNING')) {
                 $grandTotalReturnAmt += $itemReturnAmt;
                 $grandTotalReturnQty += $itemReturnQty;
                 $grandTotalCreditAmt += $itemCredit;
+
+                $famReturnQty += $itemReturnQty;
+                $famReturnAmt += $itemReturnAmt;
+                $famCreditAmt += $itemCredit;
+
+                $isMultiFlavor = ($familyCounts[$fam] ?? 0) > 1;
             ?>
-                <tr style="height: 17px;">
-                    <td class="fw-semibold ps-1 text-truncate" style="border: 1px solid #000; padding: 0px 3px;">
+                <tr style="height: 16px;">
+                    <td class="fw-semibold ps-1 text-truncate" style="border: 1px solid #000; padding: 0px 3px; font-size: 9px;">
                         <?= htmlspecialchars($item['category_name'] ?: 'General') ?>
                     </td>
-                    <td class="fw-bold ps-1" style="border: 1px solid #000; padding: 0px 3px;">
-                        <?= htmlspecialchars($item['product_name']) ?>
+                    <td class="ps-1 <?= $isMultiFlavor ? 'ps-3' : 'fw-bold' ?>" style="border: 1px solid #000; padding: 0px 3px; font-size: 9.5px;">
+                        <?= $isMultiFlavor ? '<span style="color:#64748b;">↳</span> ' : '' ?><?= htmlspecialchars($item['product_name']) ?>
                     </td>
-                    <td class="text-center fw-bold" style="border: 1px solid #000; padding: 0px 3px;">
+                    <td class="text-center fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9.5px;">
                         <?= $ctnPart > 0 ? $ctnPart : '' ?>
                     </td>
-                    <td class="text-center" style="border: 1px solid #000; padding: 0px 3px;">
+                    <td class="text-center" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
                         <?= $packPart > 0 ? $packPart : '' ?>
                     </td>
-                    <td class="text-center" style="border: 1px solid #000; padding: 0px 3px;">
+                    <td class="text-center" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
                         <?= $pcsPart > 0 ? $pcsPart : '' ?>
                     </td>
-                    <td class="text-center" style="border: 1px solid #000; padding: 0px 3px;">
+                    <td class="text-center" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
                         <?= number_format((float)$item['rate'], 0) ?>
                     </td>
-                    <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;">
+                    <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px; font-size: 9.5px;">
                         <?= number_format((float)$item['total_amount'], 0) ?>
                     </td>
                     
                     <?php if (!empty($fillFigures)): ?>
-                        <td class="text-center fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px;">
+                        <td class="text-center fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 8.5px;">
                             <?= $itemReturnQty > 0 ? number_format($itemReturnQty, 0) : '0' ?>
                         </td>
-                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 9px; border-right: 1.5px solid #000 !important;">
+                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 2px; font-size: 8.5px; border-right: 1.5px solid #000 !important;">
                             <?= number_format($itemReturnAmt, 0) ?>
                         </td>
-                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 0px 3px;">
+                        <td class="text-end pe-1 fw-bold text-danger" style="border: 1px solid #000; padding: 0px 3px; font-size: 8.5px;">
                             <?= number_format($itemCredit, 0) ?>
                         </td>
                     <?php else: ?>
@@ -153,7 +184,64 @@ if (!defined('DMS_RUNNING')) {
                         <td style="border: 1px solid #000; background-color: #fff; padding: 0px;"></td>
                     <?php endif; ?>
                 </tr>
-            <?php endforeach; ?>
+
+                <?php 
+                // Check if next item belongs to a different family or if this is the last item
+                $nextItem = $items[$i + 1] ?? null;
+                $nextFam = $nextItem ? dms_get_product_family($nextItem['product_name'], $nextItem['category_name'] ?? '') : null;
+
+                if ($nextFam !== $fam):
+                    if ($isMultiFlavor):
+                ?>
+                    <!-- Subtotal Row for Multi-Flavor Product Family -->
+                    <tr style="background-color: #f1f5f9; font-weight: bold; border-top: 1px solid #000; border-bottom: 2px solid #000; height: 18px; line-height: 1.25;">
+                        <td colspan="2" class="ps-2 text-dark" style="border: 1px solid #000; padding: 1px 4px; font-size: 9.5px;">
+                            <span style="display: inline-block; font-size: 7.5px; font-weight: 800; padding: 0px 3px; border: 1px solid #000; background: #0f172a; color: #fff; border-radius: 2px; margin-right: 3px;">TOTAL</span>
+                            <strong><?= htmlspecialchars($fam) ?></strong> 
+                            <span class="text-muted" style="font-size: 8px; font-weight: normal;">(کل فلیورز / All <?= $familyCounts[$fam] ?> Flavors)</span>
+                        </td>
+                        <td class="text-center fw-bold" style="border: 1px solid #000; background-color: #fef08a; font-size: 11px; padding: 1px 2px; color: #000;">
+                            <?= $famCtn > 0 ? $famCtn : '' ?>
+                        </td>
+                        <td class="text-center fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 9.5px;">
+                            <?= $famPack > 0 ? $famPack : '' ?>
+                        </td>
+                        <td class="text-center fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 9.5px;">
+                            <?= $famPcs > 0 ? $famPcs : '' ?>
+                        </td>
+                        <td style="border: 1px solid #000; background-color: #f8fafc;"></td>
+                        <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 1px 3px; font-size: 9.5px;">
+                            <?= number_format($famAmount, 0) ?>
+                        </td>
+                        <?php if (!empty($fillFigures)): ?>
+                            <td class="text-center fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 8.5px;">
+                                <?= $famReturnQty > 0 ? number_format($famReturnQty, 0) : '' ?>
+                            </td>
+                            <td class="text-end pe-1 fw-bold" style="border: 1px solid #000; padding: 1px 2px; font-size: 8.5px; border-right: 1.5px solid #000 !important;">
+                                <?= $famReturnAmt > 0 ? number_format($famReturnAmt, 0) : '' ?>
+                            </td>
+                            <td class="text-end pe-1 fw-bold text-danger" style="border: 1px solid #000; padding: 1px 3px; font-size: 8.5px;">
+                                <?= $famCreditAmt > 0 ? number_format($famCreditAmt, 0) : '' ?>
+                            </td>
+                        <?php else: ?>
+                            <td style="border: 1px solid #000; background-color: #fff;"></td>
+                            <td style="border: 1px solid #000; background-color: #fff; border-right: 1.5px solid #000 !important;"></td>
+                            <td style="border: 1px solid #000; background-color: #fff;"></td>
+                        <?php endif; ?>
+                    </tr>
+                <?php 
+                    endif;
+                    // Reset family totals
+                    $famCtn = 0;
+                    $famPack = 0;
+                    $famPcs = 0;
+                    $famAmount = 0;
+                    $famReturnQty = 0;
+                    $famReturnAmt = 0;
+                    $famCreditAmt = 0;
+                endif; 
+                ?>
+            <?php endfor; ?>
         </tbody>
         <tfoot>
             <tr style="background-color: #c99c04; color: #000; border-top: 1.5px solid #000;" class="fw-bold">

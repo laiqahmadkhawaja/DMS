@@ -59,6 +59,21 @@ $items = db_fetch_all("
     ORDER BY c.category_name ASC, p.product_name ASC
 ", [$id]);
 
+// Group items by category and product family so flavor variants are contiguous
+usort($items, function($a, $b) {
+    $catA = $a['category_name'] ?? '';
+    $catB = $b['category_name'] ?? '';
+    $c = strcmp($catA, $catB);
+    if ($c !== 0) return $c;
+    
+    $famA = dms_get_product_family($a['product_name'], $catA);
+    $famB = dms_get_product_family($b['product_name'], $catB);
+    $f = strcasecmp($famA, $famB);
+    if ($f !== 0) return $f;
+    
+    return strcasecmp($a['product_name'], $b['product_name']);
+});
+
 // Check for linked settlement & determine filled view mode
 $settlement = db_fetch_one("
     SELECT s.*, dr.run_number 
@@ -381,7 +396,27 @@ require_once INCLUDES_PATH . '/topbar.php';
                             $grandTotalReturnQty = 0;
                             $grandTotalCreditAmt = 0;
 
-                            foreach ($items as $item): 
+                            // Pre-calculate family counts
+                            $familyCounts = [];
+                            foreach ($items as $it) {
+                                $f = dms_get_product_family($it['product_name'], $it['category_name'] ?? '');
+                                $familyCounts[$f] = ($familyCounts[$f] ?? 0) + 1;
+                            }
+
+                            // Family accumulator
+                            $famCtn = 0;
+                            $famPack = 0;
+                            $famPcs = 0;
+                            $famAmount = 0;
+                            $famReturnQty = 0;
+                            $famReturnAmt = 0;
+                            $famCreditAmt = 0;
+
+                            $itemsCount = count($items);
+                            for ($i = 0; $i < $itemsCount; $i++):
+                                $item = $items[$i];
+                                $fam = dms_get_product_family($item['product_name'], $item['category_name'] ?? '');
+
                                 $packsPerCtn = (float)$item['packs_per_ctn'] > 0 ? (float)$item['packs_per_ctn'] : 1;
                                 $pcsPerPack  = (float)$item['pcs_per_pack'] > 0 ? (float)$item['pcs_per_pack'] : 1;
                                 $baseQty     = (float)$item['ordered_qty'];
@@ -402,6 +437,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 $totalPcs  += $pcsPart;
                                 $grandTotalAmount += (float)$item['total_amount'];
 
+                                $famCtn    += $ctnPart;
+                                $famPack   += $packPart;
+                                $famPcs    += $pcsPart;
+                                $famAmount += (float)$item['total_amount'];
+
                                 $pid = (int)$item['product_id'];
                                 $itemCredit = (float)($productCredits[$pid] ?? 0);
                                 $itemReturnAmt = (float)($productReturns[$pid] ?? 0);
@@ -410,10 +450,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 $grandTotalReturnAmt += $itemReturnAmt;
                                 $grandTotalReturnQty += $itemReturnQty;
                                 $grandTotalCreditAmt += $itemCredit;
+
+                                $famReturnQty += $itemReturnQty;
+                                $famReturnAmt += $itemReturnAmt;
+                                $famCreditAmt += $itemCredit;
+
+                                $isMultiFlavor = ($familyCounts[$fam] ?? 0) > 1;
                             ?>
                                 <tr>
                                     <td class="small fw-semibold"><?= htmlspecialchars($item['category_name'] ?: 'General') ?></td>
-                                    <td class="fw-bold text-dark"><?= htmlspecialchars($item['product_name']) ?></td>
+                                    <td class="<?= $isMultiFlavor ? 'ps-3' : 'fw-bold text-dark' ?>">
+                                        <?= $isMultiFlavor ? '<span class="text-muted">↳</span> ' : '' ?><?= htmlspecialchars($item['product_name']) ?>
+                                    </td>
                                     <td class="text-center fw-bold"><?= $ctnPart > 0 ? $ctnPart : '' ?></td>
                                     <td class="text-center"><?= $packPart > 0 ? $packPart : '' ?></td>
                                     <td class="text-center"><?= $pcsPart > 0 ? $pcsPart : '' ?></td>
@@ -437,7 +485,61 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <td style="background-color: #fafafa; border: 1px solid #000;"></td>
                                     <?php endif; ?>
                                 </tr>
-                            <?php endforeach; ?>
+
+                                <?php 
+                                $nextItem = $items[$i + 1] ?? null;
+                                $nextFam = $nextItem ? dms_get_product_family($nextItem['product_name'], $nextItem['category_name'] ?? '') : null;
+
+                                if ($nextFam !== $fam):
+                                    if ($isMultiFlavor):
+                                ?>
+                                    <tr class="table-light fw-bold" style="border-top: 1px solid #000; border-bottom: 2px solid #000;">
+                                        <td colspan="2" class="ps-2">
+                                            <span class="badge bg-dark text-white me-1">TOTAL</span>
+                                            <strong><?= htmlspecialchars($fam) ?></strong> 
+                                            <span class="text-muted small fw-normal">(All <?= $familyCounts[$fam] ?> Flavors)</span>
+                                        </td>
+                                        <td class="text-center fw-bold bg-warning-subtle text-dark fs-6">
+                                            <?= $famCtn > 0 ? $famCtn : '' ?>
+                                        </td>
+                                        <td class="text-center fw-bold">
+                                            <?= $famPack > 0 ? $famPack : '' ?>
+                                        </td>
+                                        <td class="text-center fw-bold">
+                                            <?= $famPcs > 0 ? $famPcs : '' ?>
+                                        </td>
+                                        <td class="bg-light"></td>
+                                        <td class="text-end pe-2 fw-bold">
+                                            <?= number_format($famAmount, 2) ?>
+                                        </td>
+                                        <?php if ($showFilled): ?>
+                                            <td class="text-center small fw-bold" style="border: 1px solid #000;">
+                                                <?= $famReturnQty > 0 ? number_format($famReturnQty, 0) : '' ?>
+                                            </td>
+                                            <td class="text-end pe-2 small fw-bold" style="border: 1px solid #000;">
+                                                <?= $famReturnAmt > 0 ? number_format($famReturnAmt, 2) : '' ?>
+                                            </td>
+                                            <td class="text-end pe-2 fw-bold text-danger" style="border: 1px solid #000;">
+                                                <?= $famCreditAmt > 0 ? number_format($famCreditAmt, 2) : '' ?>
+                                            </td>
+                                        <?php else: ?>
+                                            <td style="background-color: #fafafa; border: 1px solid #000;"></td>
+                                            <td style="background-color: #fafafa; border: 1px solid #000;"></td>
+                                            <td style="background-color: #fafafa; border: 1px solid #000;"></td>
+                                        <?php endif; ?>
+                                    </tr>
+                                <?php 
+                                    endif;
+                                    $famCtn = 0;
+                                    $famPack = 0;
+                                    $famPcs = 0;
+                                    $famAmount = 0;
+                                    $famReturnQty = 0;
+                                    $famReturnAmt = 0;
+                                    $famCreditAmt = 0;
+                                endif; 
+                                ?>
+                            <?php endfor; ?>
                         </tbody>
                         <tfoot>
                             <tr style="background-color: #c99c04; color: #000;" class="print-yellow-total fw-bold">

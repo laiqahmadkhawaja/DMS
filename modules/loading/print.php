@@ -57,6 +57,21 @@ $items = db_fetch_all("
     ORDER BY c.category_name ASC, p.product_name ASC
 ", [$id]);
 
+// Group items by category and product family so flavor variants are contiguous
+usort($items, function($a, $b) {
+    $catA = $a['category_name'] ?? '';
+    $catB = $b['category_name'] ?? '';
+    $c = strcmp($catA, $catB);
+    if ($c !== 0) return $c;
+    
+    $famA = dms_get_product_family($a['product_name'], $catA);
+    $famB = dms_get_product_family($b['product_name'], $catB);
+    $f = strcasecmp($famA, $famB);
+    if ($f !== 0) return $f;
+    
+    return strcasecmp($a['product_name'], $b['product_name']);
+});
+
 // Fetch included orders to derive booker & route area info
 $orders = db_fetch_all("
     SELECT 
@@ -203,18 +218,18 @@ $fillFigures          = isset($_GET['filled']) ? ($_GET['filled'] == '1') : $has
         }
 
         .sheet-paper {
-            max-width: 960px;
-            margin: 25px auto;
+            max-width: 840px;
+            margin: 20px auto;
             background: #fff;
-            padding: 24px 30px;
+            padding: 16px 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             border-radius: 4px;
         }
 
         @media print {
             @page {
-                size: A4 landscape;
-                margin: 8mm 6mm;
+                size: A4 portrait;
+                margin: 5mm 5mm;
             }
 
             body {

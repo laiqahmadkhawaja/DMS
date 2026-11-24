@@ -334,3 +334,93 @@ function get_active_menu(): string {
 
     return $activeMenu ?? 'dashboard';
 }
+
+/**
+ * Extract or normalize product family / parent item name for multi-flavor grouping
+ * Used on Load Forms, Picking Sheets, and Inventory summaries to group flavor variants
+ * (e.g. "ZORO Ring puff Butter Cheese 35GM", "ZORO Ring puff CHILLI STORM" -> "ZORO Ring Puff")
+ *
+ * @param string $name
+ * @param string $category
+ * @return string
+ */
+function dms_get_product_family(string $name, string $category = ''): string {
+    $clean = trim($name);
+    if ($clean === '') {
+        return '';
+    }
+
+    // 1. Parenthetical flavors or descriptors e.g. "Donut Lollipop (Chocolate)" -> "Donut Lollipop"
+    if (preg_match('/^(.*?)\s*\((Mango|Orange|Strawberry|Chocolate|Choclate|Milk|Vanilla|Candy|Toffee|Bubblegum|Kulfi|Lollipop|Avocada|Cucumber|Barbecue|BBQ|Cheese|Black Currant|Blue Berry|Green Apple)[^\)]*\)(.*)$/i', $clean, $m)) {
+        $fam = trim($m[1] . ' ' . $m[3]);
+        if (!empty($fam)) {
+            return $fam;
+        }
+    }
+
+    // 2. Specific FMCG Brand Series & Flavor Patterns
+    // ZORO Ring Puff
+    if (preg_match('/^ZORO\s+Ring\s+puff/i', $clean)) {
+        return 'ZORO Ring Puff';
+    }
+    // 4ME Air Freshener 300ml
+    if (preg_match('/^4ME\s+Air\s+Freshener\s+300ml/i', $clean)) {
+        return '4ME Air Freshener 300ml';
+    }
+    // 4ME Soap 125gm
+    if (preg_match('/^4ME\s+Soap\s+125gm/i', $clean)) {
+        return '4ME Soap 125gm';
+    }
+    // UJAB Nacho Chips
+    if (preg_match('/^UJAB\s+NACHO[S]?\s+CHIPS/i', $clean)) {
+        return 'UJAB Nacho Chips';
+    }
+    // UJAB Surprise Kids Egg
+    if (preg_match('/^UJAB[- ]Surprise\s+(Kids\s+)?Egg/i', $clean)) {
+        return 'UJAB Surprise Kids Egg';
+    }
+    // Brunik Biscuit Rs 10
+    if (preg_match('/^Brunik\s+Biscuit\s+.*?Rs\s*10/i', $clean)) {
+        return 'Brunik Biscuit Rs 10 (1x16)';
+    }
+    // Brunik Biscuit Rs 20
+    if (preg_match('/^Brunik\s+Biscuit\s+.*?Rs\s*20/i', $clean)) {
+        return 'Brunik Biscuit Rs 20 (1x8)';
+    }
+    // Just Cream Wafer (1*24)
+    if (preg_match('/^Just\s+Cream\s+Wafer\s+.*?(1\*24)/i', $clean)) {
+        return 'Just Cream Wafer (1*24)';
+    }
+    // Just Cream Wafer Mega (1*12)
+    if (preg_match('/^Just\s+Cream\s+Wafer\s+.*?Mega/i', $clean)) {
+        return 'Just Cream Wafer Mega (1*12)';
+    }
+    // Horror Fun
+    if (preg_match('/^Horror\s+Fun/i', $clean)) {
+        return 'Horror Fun';
+    }
+    // Twin Paste
+    if (preg_match('/^Twin\s+\(.*?Paste/i', $clean)) {
+        return 'Twin Paste';
+    }
+    // Cocotea Party Pack
+    if (preg_match('/^Cocotea\s+.*?Party\s+Pack/i', $clean)) {
+        return 'Cocotea Party Pack';
+    }
+    // Conery
+    if (preg_match('/^Conery\s+(Chocolate|Mango|Orange)/i', $clean)) {
+        return 'Conery';
+    }
+    // Ujab Nimko twist
+    if (preg_match('/^UJAB\s+Nimko\s+twist\s+Crispy\s+crunchy/i', $clean)) {
+        return 'UJAB Nimko Twist';
+    }
+
+    // 3. Generic 3-word prefix if name has 4 or more words (e.g. Brand + Line + Item)
+    $words = preg_split('/\s+/', $clean);
+    if (count($words) >= 4) {
+        return implode(' ', array_slice($words, 0, 3));
+    }
+
+    return $clean;
+}
