@@ -260,8 +260,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <i class="bi bi-truck-flatbed fs-5"></i>
                 </div>
                 <div>
-                    <div class="text-muted small">Loading Dispatches</div>
-                    <div class="fw-bold"><?= (int)$loadStats['issued_loads'] ?> issued / <?= (int)$loadStats['total_loads'] ?> loads</div>
+                    <div class="text-muted small">Load Forms (لوڈ فارم)</div>
+                    <div class="fw-bold"><?= (int)$loadStats['issued_loads'] ?> issued / <?= (int)$loadStats['total_loads'] ?> forms</div>
                     <small class="text-warning-emphasis"><?= (int)$loadStats['pending_loads'] ?> pending dispatch</small>
                 </div>
             </div>

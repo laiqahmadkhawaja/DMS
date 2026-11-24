@@ -25,7 +25,7 @@ if ($action === 'confirm') {
 
     db_execute("UPDATE orders SET status = 'confirmed', confirmed_at = NOW(), updated_at = NOW() WHERE id = ?", [$id]);
     log_audit('confirm_order', 'orders', $id, "Confirmed order #{$order['order_number']}");
-    set_flash_message('success', "Order #{$order['order_number']} confirmed. It is now ready for warehouse loading.");
+    set_flash_message('success', "Order #{$order['order_number']} confirmed. It is now ready for Load Form (لوڈ فارم).");
 } elseif ($action === 'cancel') {
     require_permission('orders_cancel');
     if (in_array($order['status'], ['loaded', 'delivered'])) {

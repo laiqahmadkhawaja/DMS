@@ -269,12 +269,12 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                             <div class="row g-2 mb-2">
                                 <div class="col-md-6">
-                                    <label class="form-label small fw-semibold">Warehouse Load Sheet Prefix</label>
+                                    <label class="form-label small fw-semibold">Load Form Prefix (لوڈ فارم)</label>
                                     <input type="text" name="settings[load_prefix]" class="form-control form-control-sm" 
                                            value="<?= htmlspecialchars(get_setting('load_prefix', 'LOAD')) ?>" required>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label small fw-semibold">Delivery Run Sheet Prefix</label>
+                                    <label class="form-label small fw-semibold">Credit Sheet Prefix (کریڈٹ شیٹ)</label>
                                     <input type="text" name="settings[run_prefix]" class="form-control form-control-sm" 
                                            value="<?= htmlspecialchars(get_setting('run_prefix', 'RUN')) ?>" required>
                                 </div>

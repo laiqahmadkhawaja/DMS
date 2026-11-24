@@ -12,11 +12,11 @@ require_once INCLUDES_PATH . '/permission.php';
 require_login();
 require_permission('loading_view');
 
-$pageTitle = 'Warehouse Loading Sheets';
+$pageTitle = 'Load Forms (لوڈ فارم) — ' . APP_NAME;
 $activeMenu = 'loading';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
-    ['label' => 'Warehouse Loading', 'url' => '']
+    ['label' => 'Load Forms (لوڈ فارم)', 'url' => '']
 ];
 
 // Filters
@@ -119,14 +119,14 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h4 class="mb-1 text-navy fw-bold">
-                    <i class="bi bi-truck me-2"></i>Warehouse Loading & Dispatch
+                    <i class="bi bi-truck-flatbed me-2"></i>Load Forms (لوڈ فارم و اسٹاک روانگی)
                 </h4>
-                <p class="text-muted small mb-0">Consolidate market orders into delivery load sheets and issue stock from warehouse</p>
+                <p class="text-muted small mb-0">Consolidate market orders into warehouse load forms and issue stock for route delivery</p>
             </div>
             <div class="d-flex gap-2">
                 <?php if (has_permission('loading_create')): ?>
                     <a href="create.php" class="btn btn-primary shadow-sm">
-                        <i class="bi bi-plus-circle me-1"></i> New Load Sheet <kbd class="bg-navy ms-1">F4</kbd>
+                        <i class="bi bi-plus-circle me-1"></i> New Load Form (نیا لوڈ فارم) <kbd class="bg-navy ms-1">F4</kbd>
                     </a>
                 <?php endif; ?>
             </div>
@@ -225,7 +225,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <span class="fw-bold text-navy">
-                    <i class="bi bi-card-checklist me-1"></i> Loading Sheets (<?= number_format($totalRows) ?>)
+                    <i class="bi bi-card-checklist me-1"></i> Load Forms Register (لوڈ فارم رجسٹر) (<?= number_format($totalRows) ?>)
                 </span>
             </div>
             <div class="card-body p-0">

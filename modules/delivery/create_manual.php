@@ -322,7 +322,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th style="width: 150px;">Route / Beat</th>
                                 <th style="width: 130px;" class="text-end">Prev Balance (سابقہ)</th>
                                 <th style="width: 150px;" class="text-end">Bill / Target Amt (بل)</th>
-                                <th style="width: 140px;" class="text-end">Total Due (کل واجب)</th>
+                                <th style="width: 140px;" class="text-end">Credit (کریڈٹ)</th>
                                 <th>Notes / Ref</th>
                             </tr>
                         </thead>
@@ -419,7 +419,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </a>
                 <div class="d-flex gap-2">
                     <button type="submit" name="action" value="save" class="btn btn-primary fw-bold px-4 shadow-sm">
-                        <i class="bi bi-check2-circle me-1"></i> Save Delivery Run Sheet (F9)
+                        <i class="bi bi-check2-circle me-1"></i> Save Credit Sheet (کریڈٹ شیٹ محفوظ کریں - F9)
                     </button>
                     <button type="submit" name="action" value="save_and_print" class="btn btn-success fw-bold px-4 shadow-sm">
                         <i class="bi bi-printer me-1"></i> Save & Print Sheet (Photo 8)

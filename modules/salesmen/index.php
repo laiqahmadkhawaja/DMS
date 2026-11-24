@@ -232,7 +232,7 @@ require_once INCLUDES_PATH . '/topbar.php';
             </div>
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="is_active" value="1" id="smActive" checked>
-                <label class="form-check-label small" for="smActive">Active for Loading & Delivery Run Sheets</label>
+                <label class="form-check-label small" for="smActive">Active for Load Forms & Credit Sheets (لوڈ فارم و کریڈٹ شیٹ)</label>
             </div>
         </div>
         <div class="dms-drawer-footer">

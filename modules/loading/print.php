@@ -180,7 +180,7 @@ $fillFigures          = isset($_GET['filled']) ? ($_GET['filled'] == '1') : $has
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Issue Summary - <?= htmlspecialchars($sheet['load_number']) ?></title>
+    <title>Load Form (لوڈ فارم) - <?= htmlspecialchars($sheet['load_number']) ?></title>
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/bootstrap/bootstrap.min.css">
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/icons/bootstrap-icons.css">
     <style>

@@ -25,7 +25,7 @@ $isSettled = !empty($run['status']) && $run['status'] === 'completed';
     <div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-dark">
         <div>
             <h4 class="fw-bold text-uppercase mb-0 tracking-wider" style="font-family: Arial, sans-serif; letter-spacing: 0.5px; font-size: 16px; line-height: 1.1;">
-                DAILY SALE RECIVED + CREDIT (ڈیلی ڈلیوری رن و ریکوری شیٹ)
+                DAILY SALE RECIVED + CREDIT (کریڈٹ شیٹ / سیلز مین شیٹ)
             </h4>
             <div class="fw-semibold text-dark" style="font-size: 10px;">
                 <?= CLIENT_NAME ?> &bull; Salesman: <strong><?= htmlspecialchars($run['salesman_name']) ?></strong> (<?= htmlspecialchars($run['salesman_phone'] ?: 'N/A') ?>)
@@ -59,10 +59,10 @@ $isSettled = !empty($run['status']) && $run['status'] === 'completed';
                 <th style="width: 10%; border: 1px solid #000; padding: 1px 2px;">Bill No.</th>
                 <th style="width: 11%; border: 1px solid #000; padding: 1px 2px;" class="text-end pe-1">Prev Bal (سابقہ)</th>
                 <th style="width: 11%; border: 1px solid #000; padding: 1px 2px;" class="text-end pe-1">Bill Amt (بل)</th>
-                <th style="width: 12%; border: 1px solid #000; padding: 1px 2px; background-color: #c4ab0c;" class="text-end pe-1">Total Due (کل واجب)</th>
-                <th style="width: 10%; border: 1px solid #000; padding: 1px 2px;">Cash Recv (نقد)</th>
-                <th style="width: 8%; border: 1px solid #000; padding: 1px 2px;">Return (واپسی)</th>
-                <th style="width: 9%; border: 1px solid #000; padding: 1px 2px;" class="text-end pe-1">Net Bal (بقایا)</th>
+                <th style="width: 12%; border: 1px solid #000; padding: 1px 2px; background-color: #c4ab0c;" class="text-end pe-1">Credit (کریڈٹ)</th>
+                <th style="width: 10%; border: 1px solid #000; padding: 1px 2px;">Cash (کیش)</th>
+                <th style="width: 8%; border: 1px solid #000; padding: 1px 2px;">Return (ریٹرن)</th>
+                <th style="width: 9%; border: 1px solid #000; padding: 1px 2px;" class="text-end pe-1">Balance (بقایا)</th>
             </tr>
         </thead>
         <tbody>

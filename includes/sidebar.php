@@ -62,7 +62,7 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                     <?php if (has_permission('loading_view')): ?>
                     <li>
                         <a href="<?= APP_URL ?>/modules/loading/index.php" class="dms-menu-item <?= $activeMenu === 'loading' ? 'active' : '' ?>">
-                            <i class="bi bi-truck-flatbed"></i> Warehouse Loading
+                            <i class="bi bi-truck-flatbed"></i> Load Form (لوڈ فارم)
                         </a>
                     </li>
                     <?php endif; ?>
@@ -78,7 +78,7 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                     <?php if (has_permission('delivery_view')): ?>
                     <li>
                         <a href="<?= APP_URL ?>/modules/delivery/index.php" class="dms-menu-item <?= $activeMenu === 'delivery' ? 'active' : '' ?>">
-                            <i class="bi bi-geo-alt"></i> Delivery Run Sheets
+                            <i class="bi bi-journal-check"></i> Credit Sheet (کریڈٹ شیٹ)
                         </a>
                     </li>
                     <?php endif; ?>

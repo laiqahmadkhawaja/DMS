@@ -21,7 +21,7 @@ if (!defined('DMS_RUNNING')) {
     <div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-dark">
         <div>
             <h4 class="fw-bold text-uppercase mb-0 tracking-wider" style="font-family: Arial, sans-serif; letter-spacing: 0.5px; font-size: 16px; line-height: 1.1;">
-                TOTAL STOCK ISSUE SUMMARY
+                TOTAL STOCK ISSUE SUMMARY (لوڈ فارم / LOAD FORM)
             </h4>
             <div class="fw-semibold text-dark" style="font-size: 10px;">
                 <?= CLIENT_NAME ?> &bull; 03000673276 &bull; Jandiala Bhagwala G.T. Road Gujranwala
@@ -31,7 +31,7 @@ if (!defined('DMS_RUNNING')) {
             <span class="px-2 py-0 fw-bold" style="background-color: #d1b80d; color: #000; border-radius: 2px; font-size: 12px;">
                 <?= date('d.m.y', strtotime($sheet['delivery_date'] ?? $sheet['load_date'])) ?>
             </span>
-            <div class="fw-bold" style="font-size: 11px;">Sheet #: <?= htmlspecialchars($sheet['load_number']) ?></div>
+            <div class="fw-bold" style="font-size: 11px;">Load Form #: <?= htmlspecialchars($sheet['load_number']) ?></div>
         </div>
     </div>
 

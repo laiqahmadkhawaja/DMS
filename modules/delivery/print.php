@@ -82,7 +82,7 @@ $bills = db_fetch_all("
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Delivery Run Sheet - <?= htmlspecialchars($run['run_number']) ?></title>
+    <title>Credit Sheet (کریڈٹ شیٹ) - <?= htmlspecialchars($run['run_number']) ?></title>
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/bootstrap/bootstrap.min.css">
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/icons/bootstrap-icons.css">
     <style>

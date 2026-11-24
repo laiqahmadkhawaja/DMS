@@ -90,11 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pageTitle = 'Edit Load Sheet ' . $sheet['load_number'];
+$pageTitle = 'Edit Load Form (لوڈ فارم) ' . $sheet['load_number'];
 $activeMenu = 'loading';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
-    ['label' => 'Warehouse Loading', 'url' => 'index.php'],
+    ['label' => 'Load Form (لوڈ فارم)', 'url' => 'index.php'],
     ['label' => $sheet['load_number'], 'url' => 'view.php?id=' . $id],
     ['label' => 'Edit', 'url' => '']
 ];

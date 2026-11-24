@@ -13,12 +13,12 @@ require_once INCLUDES_PATH . '/inventory_functions.php';
 require_login();
 require_permission('loading_create');
 
-$pageTitle = 'Create Load Sheet';
+$pageTitle = 'Create Load Form (نیا لوڈ فارم) — ' . APP_NAME;
 $activeMenu = 'loading';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
-    ['label' => 'Warehouse Loading', 'url' => 'index.php'],
-    ['label' => 'New Load Sheet', 'url' => '']
+    ['label' => 'Load Forms (لوڈ فارم)', 'url' => 'index.php'],
+    ['label' => 'New Load Form (نیا لوڈ فارم)', 'url' => '']
 ];
 
 $errors = [];
@@ -294,13 +294,13 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h4 class="mb-1 text-navy fw-bold">
-                    <i class="bi bi-truck-flatbed me-2"></i>Create Warehouse Loading Sheet
+                    <i class="bi bi-truck-flatbed me-2"></i>Create Load Form (نیا لوڈ فارم بنائیں)
                 </h4>
-                <p class="text-muted small mb-0">Select route orders, review consolidated stock requirements, and issue stock for dispatch</p>
+                <p class="text-muted small mb-0">Select route orders, review consolidated stock requirements, and issue stock for route dispatch</p>
             </div>
             <div>
                 <a href="index.php" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left me-1"></i> Back to Load Sheets
+                    <i class="bi bi-arrow-left me-1"></i> Back to Load Forms
                 </a>
             </div>
         </div>

@@ -12,12 +12,12 @@ require_once INCLUDES_PATH . '/permission.php';
 require_login();
 require_permission('delivery_manage');
 
-$pageTitle = 'Create Delivery Run';
+$pageTitle = 'Create Credit Sheet (نئی کریڈٹ شیٹ)';
 $activeMenu = 'delivery';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
-    ['label' => 'Delivery Runs', 'url' => 'index.php'],
-    ['label' => 'New Run Sheet', 'url' => '']
+    ['label' => 'Credit Sheets (کریڈٹ شیٹ)', 'url' => 'index.php'],
+    ['label' => 'New Credit Sheet', 'url' => '']
 ];
 
 $preLoadSheetId = isset($_GET['load_sheet_id']) ? (int)$_GET['load_sheet_id'] : 0;
@@ -143,9 +143,9 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h4 class="mb-1 text-navy fw-bold">
-                    <i class="bi bi-geo-alt-fill me-2"></i>Create Delivery Run Sheet
+                    <i class="bi bi-journal-check me-2"></i>Create Credit Sheet (لوڈ فارم سے کریڈٹ شیٹ بنائیں)
                 </h4>
-                <p class="text-muted small mb-0">Assign customer bills to delivery salesman and generate field recovery sheet</p>
+                <p class="text-muted small mb-0">Assign customer bills to delivery salesman and generate field recovery credit sheet</p>
             </div>
             <div class="d-flex gap-2">
                 <a href="index.php" class="btn btn-outline-secondary">
@@ -264,7 +264,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </div>
                 <div class="card-footer bg-light py-2 text-end">
                     <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
-                        <i class="bi bi-check2-circle me-1"></i> Generate Delivery Run Sheet
+                        <i class="bi bi-check2-circle me-1"></i> Generate Credit Sheet (کریڈٹ شیٹ بنائیں)
                     </button>
                 </div>
             </div>

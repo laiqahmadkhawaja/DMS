@@ -12,11 +12,11 @@ require_once INCLUDES_PATH . '/permission.php';
 require_login();
 require_permission('delivery_view');
 
-$pageTitle = 'Delivery Run Sheets';
+$pageTitle = 'Credit Sheets (کریڈٹ شیٹ / سیلز مین شیٹ)';
 $activeMenu = 'delivery';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
-    ['label' => 'Delivery Runs', 'url' => '']
+    ['label' => 'Credit Sheets (کریڈٹ شیٹ)', 'url' => '']
 ];
 
 // Filters
@@ -114,17 +114,17 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h4 class="mb-1 text-navy fw-bold">
-                    <i class="bi bi-geo-alt me-2"></i>Delivery Run Sheets
+                    <i class="bi bi-journal-check me-2"></i>Credit Sheets (کریڈٹ شیٹ / سیلز مین شیٹ)
                 </h4>
-                <p class="text-muted small mb-0">Generate van delivery itineraries and printable recovery field sheets for salesmen</p>
+                <p class="text-muted small mb-0">Salesman recovery sheets, credit given to shops, and field collection records</p>
             </div>
             <div class="d-flex gap-2">
                 <?php if (has_permission('delivery_manage')): ?>
                     <a href="create.php" class="btn btn-outline-primary shadow-sm">
-                        <i class="bi bi-truck-flatbed me-1"></i> From Load Sheet
+                        <i class="bi bi-truck-flatbed me-1"></i> From Load Form (لوڈ فارم سے)
                     </a>
                     <a href="create_manual.php" class="btn btn-primary shadow-sm fw-bold">
-                        <i class="bi bi-pencil-square me-1"></i> New Manual / Recovery Sheet (مینول رن شیٹ)
+                        <i class="bi bi-pencil-square me-1"></i> New Manual Credit Sheet (دستی کریڈٹ شیٹ)
                     </a>
                 <?php endif; ?>
             </div>
@@ -135,7 +135,7 @@ require_once INCLUDES_PATH . '/topbar.php';
             <div class="col-sm-6 col-xl-3">
                 <div class="card border-0 shadow-sm h-100 border-start border-primary border-4">
                     <div class="card-body">
-                        <div class="text-muted small text-uppercase fw-bold">Total Delivery Runs</div>
+                        <div class="text-muted small text-uppercase fw-bold">Total Credit Sheets</div>
                         <div class="fs-4 fw-bold text-dark mt-1"><?= number_format($stats['total_runs']) ?></div>
                     </div>
                 </div>
@@ -205,7 +205,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                 <span class="fw-bold text-navy">
-                    <i class="bi bi-truck me-1"></i> Delivery Runs (<?= number_format($totalRows) ?>)
+                    <i class="bi bi-journal-check me-1"></i> Credit Sheets Register (کریڈٹ شیٹ رجسٹر) (<?= number_format($totalRows) ?>)
                 </span>
             </div>
             <div class="card-body p-0">
@@ -213,12 +213,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light text-muted small text-uppercase">
                             <tr>
-                                <th class="ps-3">Run #</th>
+                                <th class="ps-3">Sheet #</th>
                                 <th>Date</th>
                                 <th>Salesman</th>
                                 <th>Source / Type</th>
                                 <th class="text-center">Total Bills</th>
-                                <th class="text-end">Run Value</th>
+                                <th class="text-end">Credit Value</th>
                                 <th class="text-center">Status</th>
                                 <th class="text-end pe-3">Actions</th>
                             </tr>
@@ -228,7 +228,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <tr>
                                     <td colspan="8" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
-                                        No delivery runs found for the selected criteria.
+                                        No credit sheets found for the selected criteria.
                                     </td>
                                 </tr>
                             <?php else: ?>

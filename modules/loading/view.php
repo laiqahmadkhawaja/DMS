@@ -205,7 +205,7 @@ $pageTitle = 'Load Sheet ' . $sheet['load_number'];
 $activeMenu = 'loading';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
-    ['label' => 'Warehouse Loading', 'url' => 'index.php'],
+    ['label' => 'Load Forms (لوڈ فارم)', 'url' => 'index.php'],
     ['label' => $sheet['load_number'], 'url' => '']
 ];
 
@@ -261,7 +261,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="d-flex justify-content-between align-items-center mb-4 no-print">
             <div>
                 <h4 class="mb-1 text-navy fw-bold">
-                    <i class="bi bi-file-earmark-spreadsheet me-2"></i>Load Sheet: <?= htmlspecialchars($sheet['load_number']) ?>
+                    <i class="bi bi-truck-flatbed me-2"></i>Load Form (لوڈ فارم): <?= htmlspecialchars($sheet['load_number']) ?>
                 </h4>
                 <div class="d-flex gap-2 align-items-center">
                     <?php if ($sheet['status'] === 'returned_closed' || $settlement): ?>

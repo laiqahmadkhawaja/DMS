@@ -87,7 +87,7 @@ $pageTitle = 'Delivery Run ' . $run['run_number'];
 $activeMenu = 'delivery';
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => APP_URL . '/dashboard.php'],
-    ['label' => 'Delivery Runs', 'url' => 'index.php'],
+    ['label' => 'Credit Sheets (کریڈٹ شیٹ)', 'url' => 'index.php'],
     ['label' => $run['run_number'], 'url' => '']
 ];
 
@@ -138,7 +138,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="d-flex justify-content-between align-items-center mb-4 no-print">
             <div>
                 <h4 class="mb-1 text-navy fw-bold">
-                    <i class="bi bi-geo-alt me-2"></i>Delivery Run: <?= htmlspecialchars($run['run_number']) ?>
+                    <i class="bi bi-journal-check me-2"></i>Credit Sheet (کریڈٹ شیٹ): <?= htmlspecialchars($run['run_number']) ?>
                 </h4>
                 <div class="d-flex gap-2 align-items-center">
                     <?php if ($run['status'] === 'completed'): ?>
@@ -212,10 +212,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th style="width: 10%; border: 1px solid #000;">Bill No.</th>
                                 <th style="width: 11%; border: 1px solid #000;">Prev Bal (سابقہ)</th>
                                 <th style="width: 11%; border: 1px solid #000;">Bill Amt (بل)</th>
-                                <th style="width: 12%; border: 1px solid #000; background-color: #c4ab0c;">Total Due (کل واجب)</th>
-                                <th style="width: 10%; border: 1px solid #000;">Cash Recv (نقد)</th>
-                                <th style="width: 8%; border: 1px solid #000;">Return (واپسی)</th>
-                                <th style="width: 9%; border: 1px solid #000;">Net Bal (بقایا)</th>
+                                <th style="width: 12%; border: 1px solid #000; background-color: #c4ab0c;">Credit (کریڈٹ)</th>
+                                <th style="width: 10%; border: 1px solid #000;">Cash (کیش)</th>
+                                <th style="width: 8%; border: 1px solid #000;">Return (ریٹرن)</th>
+                                <th style="width: 9%; border: 1px solid #000;">Balance (بقایا)</th>
                             </tr>
                         </thead>
                         <tbody>
