@@ -1,11 +1,12 @@
 <?php
 /**
- * DMS - Distribution Management System
- * Order Booking - Edit Order
+ * DMS - High-Speed Keyboard & Card-Driven Order Booking (Edit Mode)
+ * Matches PRD Section 10 & 11 (Same POS Split-Screen Interface as Create)
  */
 
+define('DMS_RUNNING', true);
 require_once __DIR__ . '/../../config/config.php';
-require_permission('orders_view');
+require_permission('orders_edit');
 
 $id = (int)($_GET['id'] ?? 0);
 $order = db_fetch_one("SELECT * FROM orders WHERE id = ?", [$id]);
@@ -20,7 +21,7 @@ if ($order['status'] === 'delivered') {
     redirect(APP_URL . '/modules/orders/view.php?id=' . $id);
 }
 
-// Fetch order items
+// Fetch order items with full packaging ratios and unit
 $orderItems = db_fetch_all("
     SELECT 
         oi.*,
@@ -34,24 +35,41 @@ $orderItems = db_fetch_all("
 ", [$id]);
 
 $customers = db_fetch_all("
-    SELECT c.id, c.shop_name, c.area_id, c.booker_id, c.current_balance, a.area_name
-    FROM customers c
-    JOIN areas a ON a.id = c.area_id
-    WHERE c.is_deleted = 0
+    SELECT c.id, c.shop_name, c.area_id, c.booker_id, c.current_balance, c.credit_limit, c.default_discount_percent, a.area_name 
+    FROM customers c 
+    JOIN areas a ON a.id = c.area_id 
+    WHERE c.is_deleted = 0 
     ORDER BY c.shop_name ASC
 ");
 
+$categories = db_fetch_all("
+    SELECT id, category_name 
+    FROM product_categories 
+    WHERE is_active = 1 
+    ORDER BY category_name ASC
+");
+
 $products = db_fetch_all("
-    SELECT p.id, p.product_name, p.product_code, p.wholesale_rate, p.carton_rate, p.piece_rate, p.carton_qty, p.pack_qty, p.base_unit_id
+    SELECT 
+        p.id, p.product_name, p.product_code, p.barcode, p.category_id, p.supplier_id, p.brand_id,
+        cat.category_name, b.brand_name,
+        p.purchase_rate, p.purchase_carton_rate, p.purchase_piece_rate, p.default_sale_rate, p.wholesale_rate, p.carton_rate, p.piece_rate, p.retail_rate,
+        p.carton_qty, p.pack_qty, p.packing_description, p.base_unit_id, u.symbol as unit_symbol,
+        COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
+    JOIN units u ON u.id = p.base_unit_id
+    LEFT JOIN product_categories cat ON cat.id = p.category_id
+    LEFT JOIN brands b ON b.id = p.brand_id AND b.is_deleted = 0
+    LEFT JOIN stock_balances sb ON p.id = sb.product_id AND sb.warehouse_id = 1
     WHERE p.is_deleted = 0 AND p.is_active = 1
     ORDER BY p.product_name ASC
 ");
 
+$suppliers = db_fetch_all("SELECT id, supplier_name, company_name FROM suppliers WHERE is_deleted = 0 AND is_active = 1 ORDER BY supplier_name ASC");
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_deleted = 0 AND is_active = 1 ORDER BY booker_name ASC");
 $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 AND is_active = 1 ORDER BY area_name ASC");
 
-// Handle POST Edit
+// Handle POST Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $orderDate    = clean_input($_POST['order_date'] ?? $order['order_date']);
     $deliveryDate = !empty($_POST['delivery_date']) ? clean_input($_POST['delivery_date']) : null;
@@ -73,158 +91,183 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($discountMode !== 'subtotal') {
         $discountMode = 'item_rate';
     }
-    $freeLoosePieces = isset($_POST['free_loose_pieces']) ? 1 : (isset($_POST['order_date']) ? 0 : (int)($order['free_loose_pieces'] ?? 0));
-    $subtotalDiscountPercent = (float)($_POST['subtotal_discount_percent'] ?? ($order['subtotal_discount_percent'] ?? 0));
-    $subtotalDiscountAmount  = (float)($_POST['subtotal_discount_amount'] ?? ($order['subtotal_discount_amount'] ?? 0));
+    $freeLoosePieces = !empty($_POST['free_loose_pieces']) ? 1 : 0;
+    $subtotalDiscountPercent = (float)($_POST['subtotal_discount_percent'] ?? 0);
+    $subtotalDiscountAmount  = (float)($_POST['subtotal_discount_amount'] ?? 0);
 
-    $grossAmount = 0.0;
-    $discountAmount = 0.0;
-    $totalCartons = 0.0;
-    $totalPieces = 0.0;
-    $totalUnits = 0.0;
-    $validItems = [];
+    $validator = new Validator();
+    $validator->positiveInt('customer_id', $customerId, 'Please choose a Retailer / Shop before saving the order.')
+              ->exists('customer_id', $customerId, 'customers', 'id', 'The selected customer does not exist in master records.')
+              ->positiveInt('booker_id', $bookerId, 'Please choose an Order Booker.')
+              ->exists('booker_id', $bookerId, 'bookers', 'id', 'The selected order booker does not exist.')
+              ->positiveInt('area_id', $areaId, 'Please choose a Route / Area.')
+              ->exists('area_id', $areaId, 'areas', 'id', 'The selected route/area does not exist.')
+              ->date('order_date', $orderDate);
 
-    foreach ($itemProductIds as $idx => $pid) {
-        $prodId = (int)$pid;
-        $cartonQty = (float)($itemCartonQtys[$idx] ?? 0);
-        $packQty   = (float)($itemPackQtys[$idx] ?? 0);
-        $pcsQty    = (float)($itemPcsQtys[$idx] ?? 0);
-        $unitCode  = strtolower(trim((string)($itemUnits[$idx] ?? 'ctn')));
-        $rate      = (float)($itemRates[$idx] ?? 0);
-        $discPercent = (float)($itemDiscounts[$idx] ?? 0);
-
-        if ($prodId <= 0 || ($cartonQty <= 0 && $packQty <= 0 && $pcsQty <= 0)) {
-            continue;
-        }
-
-        $prod = db_fetch_one("SELECT * FROM products WHERE id = ?", [$prodId]);
-        if (!$prod) continue;
-
-        $ratios = get_product_packaging_ratios($prod);
-        $packsPerCtn = $ratios['packs_per_ctn'];
-        $pcsPerPack  = $ratios['pcs_per_pack'];
-        $pcsPerCtn   = $ratios['pcs_per_ctn'];
-
-        $totalQuantityInBaseUnits = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
-        $baseCartons = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
-
-        // If Free Loose Pieces scheme is active, loose pieces rate is not charged
-        $billablePcs = $freeLoosePieces ? 0 : $pcsQty;
-        $billableBasePieces = calculate_base_pieces($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
-        $billableCartons    = calculate_carton_equivalent($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
-
-        if ($unitCode === 'pcs') {
-            $lineGross = $billableBasePieces * $rate;
-            $unitId = 4; // Piece unit
-        } else {
-            $lineGross = $billableCartons * $rate;
-            $unitId = (int)$prod['base_unit_id']; // Carton unit
-        }
-
-        if ($discountMode === 'subtotal') {
-            $itemDiscPct = 0.0;
-            $lineDiscount = 0.0;
-            $lineTotal = $lineGross;
-        } else {
-            $itemDiscPct = $discPercent;
-            $lineDiscount = ($lineGross * $itemDiscPct) / 100.0;
-            $lineTotal = $lineGross - $lineDiscount;
-            $discountAmount += $lineDiscount;
-        }
-
-        $grossAmount += $lineGross;
-        $totalCartons += $cartonQty;
-        $totalPieces += $pcsQty;
-        $totalUnits += $totalQuantityInBaseUnits;
-
-        $validItems[] = [
-            'product_id'       => $prodId,
-            'unit_id'          => $unitId,
-            'carton_qty'       => $cartonQty,
-            'pack_qty'         => $packQty,
-            'pcs_qty'          => $pcsQty,
-            'quantity'         => $totalQuantityInBaseUnits,
-            'rate'             => $rate,
-            'discount_percent' => $itemDiscPct,
-            'discount_amount'  => $lineDiscount,
-            'line_total'       => $lineTotal
-        ];
+    if (!empty($deliveryDate)) {
+        $validator->date('delivery_date', $deliveryDate);
     }
 
-    if (empty($validItems)) {
-        set_flash_message('danger', 'Please include at least one valid product line in the order.');
-    } else {
-        if ($discountMode === 'subtotal') {
-            if ($subtotalDiscountAmount > 0) {
-                $discountAmount = $subtotalDiscountAmount;
-                if ($grossAmount > 0 && $subtotalDiscountPercent <= 0) {
-                    $subtotalDiscountPercent = round(($discountAmount / $grossAmount) * 100, 2);
-                }
-            } elseif ($subtotalDiscountPercent > 0) {
-                $discountAmount = round(($grossAmount * $subtotalDiscountPercent) / 100.0, 2);
-                $subtotalDiscountAmount = $discountAmount;
+    if (empty($itemProductIds)) {
+        $validator->addError('items', 'Please add at least one product to the order cart.');
+    }
+
+    if ($validator->passes()) {
+        $validItems = [];
+        $grossAmount = 0.0;
+        $discountAmount = 0.0;
+        $totalCartons = 0.0;
+        $totalPieces = 0.0;
+        $totalUnits = 0.0;
+
+        foreach ($itemProductIds as $idx => $pid) {
+            $prodId = (int)$pid;
+            $cartonQty = (float)($itemCartonQtys[$idx] ?? 0);
+            $packQty   = (float)($itemPackQtys[$idx] ?? 0);
+            $pcsQty    = (float)($itemPcsQtys[$idx] ?? 0);
+            $unitCode  = strtolower(trim((string)($itemUnits[$idx] ?? 'ctn')));
+            $rate      = (float)($itemRates[$idx] ?? 0);
+            $discPercent = (float)($itemDiscounts[$idx] ?? 0);
+
+            if ($prodId <= 0 || ($cartonQty <= 0 && $packQty <= 0 && $pcsQty <= 0)) {
+                continue;
+            }
+
+            $prod = db_fetch_one("SELECT * FROM products WHERE id = ?", [$prodId]);
+            if (!$prod) continue;
+
+            $ratios = get_product_packaging_ratios($prod);
+            $packsPerCtn = $ratios['packs_per_ctn'];
+            $pcsPerPack  = $ratios['pcs_per_pack'];
+            $pcsPerCtn   = $ratios['pcs_per_ctn'];
+
+            $totalQuantityInBaseUnits = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
+            $baseCartons = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
+
+            // If Free Loose Pieces scheme is active, loose pieces rate is not charged
+            $billablePcs = $freeLoosePieces ? 0 : $pcsQty;
+            $billableBasePieces = calculate_base_pieces($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+            $billableCartons    = calculate_carton_equivalent($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+
+            if ($unitCode === 'pcs') {
+                $lineGross = $billableBasePieces * $rate;
+                $unitId = 4; // Piece unit
             } else {
-                $discountAmount = 0.0;
-                $subtotalDiscountAmount = 0.0;
-                $subtotalDiscountPercent = 0.0;
+                $lineGross = $billableCartons * $rate;
+                $unitId = (int)$prod['base_unit_id']; // Carton unit
             }
+
+            if ($discountMode === 'subtotal') {
+                $itemDiscPct = 0.0;
+                $lineDiscount = 0.0;
+                $lineTotal = $lineGross;
+            } else {
+                $itemDiscPct = $discPercent;
+                $lineDiscount = ($lineGross * $itemDiscPct) / 100.0;
+                $lineTotal = $lineGross - $lineDiscount;
+                $discountAmount += $lineDiscount;
+            }
+
+            $grossAmount += $lineGross;
+            $totalCartons += $cartonQty;
+            $totalPieces += $pcsQty;
+            $totalUnits += $totalQuantityInBaseUnits;
+
+            $validItems[] = [
+                'product_id'       => $prodId,
+                'unit_id'          => $unitId,
+                'carton_qty'       => $cartonQty,
+                'pack_qty'         => $packQty,
+                'pcs_qty'          => $pcsQty,
+                'quantity'         => $totalQuantityInBaseUnits,
+                'rate'             => $rate,
+                'discount_percent' => $itemDiscPct,
+                'discount_amount'  => $lineDiscount,
+                'line_total'       => $lineTotal
+            ];
+        }
+
+        if (empty($validItems)) {
+            set_flash_message('danger', 'Please include at least one valid product line in the order.');
         } else {
-            $subtotalDiscountPercent = 0.0;
-            $subtotalDiscountAmount = 0.0;
-        }
-
-        $netAmount = max(0, round($grossAmount - $discountAmount, 2));
-
-        try {
-            db()->beginTransaction();
-
-            // 1. Update order header
-            $stmtUpd = db()->prepare("
-                UPDATE orders 
-                SET order_date = ?, delivery_date = ?, customer_id = ?, booker_id = ?, area_id = ?,
-                    discount_mode = ?, free_loose_pieces = ?, subtotal_discount_percent = ?, subtotal_discount_amount = ?,
-                    gross_amount = ?, discount_amount = ?, net_amount = ?, total_cartons = ?, 
-                    total_units = ?, status = ?, remarks = ?, updated_at = NOW()
-                WHERE id = ?
-            ");
-            $stmtUpd->execute([
-                $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
-                $discountMode, $freeLoosePieces, $subtotalDiscountPercent, $subtotalDiscountAmount,
-                $grossAmount, $discountAmount, $netAmount, $totalCartons,
-                $totalUnits, $orderStatus, $remarks, $id
-            ]);
-
-            // 2. Delete and re-insert order items
-            db()->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$id]);
-
-            $stmtItem = db()->prepare("
-                INSERT INTO order_items (
-                    order_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, 
-                    quantity, rate, discount_percent, discount_amount, line_total, created_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, 
-                    ?, ?, ?, ?, ?, NOW()
-                )
-            ");
-
-            foreach ($validItems as $vi) {
-                $stmtItem->execute([
-                    $id, $vi['product_id'], $vi['unit_id'], $vi['carton_qty'],
-                    $vi['pack_qty'], $vi['pcs_qty'], $vi['quantity'], $vi['rate'], $vi['discount_percent'],
-                    $vi['discount_amount'], $vi['line_total']
-                ]);
+            if ($discountMode === 'subtotal') {
+                if ($subtotalDiscountAmount > 0) {
+                    $discountAmount = $subtotalDiscountAmount;
+                    if ($grossAmount > 0 && $subtotalDiscountPercent <= 0) {
+                        $subtotalDiscountPercent = round(($discountAmount / $grossAmount) * 100, 2);
+                    }
+                } elseif ($subtotalDiscountPercent > 0) {
+                    $discountAmount = round(($grossAmount * $subtotalDiscountPercent) / 100.0, 2);
+                    $subtotalDiscountAmount = $discountAmount;
+                } else {
+                    $discountAmount = 0.0;
+                    $subtotalDiscountAmount = 0.0;
+                    $subtotalDiscountPercent = 0.0;
+                }
+            } else {
+                $subtotalDiscountPercent = 0.0;
+                $subtotalDiscountAmount = 0.0;
             }
 
-            db()->commit();
+            $netAmount = max(0, round($grossAmount - $discountAmount, 2));
 
-            log_audit('update_order', 'orders', $id, "Updated order {$order['order_number']}, Net: {$netAmount}");
-            set_flash_message('success', "Order <strong>{$order['order_number']}</strong> updated successfully!");
-            redirect(APP_URL . '/modules/orders/view.php?id=' . $id);
+            try {
+                db()->beginTransaction();
 
-        } catch (Exception $e) {
-            db()->rollBack();
-            set_flash_message('danger', 'Error updating order: ' . $e->getMessage());
+                // 1. Update order header
+                $confirmedAt = ($orderStatus === 'confirmed' && empty($order['confirmed_at'])) ? date('Y-m-d H:i:s') : $order['confirmed_at'];
+
+                $stmtUpd = db()->prepare("
+                    UPDATE orders 
+                    SET order_date = ?, delivery_date = ?, customer_id = ?, booker_id = ?, area_id = ?,
+                        discount_mode = ?, free_loose_pieces = ?, subtotal_discount_percent = ?, subtotal_discount_amount = ?,
+                        gross_amount = ?, discount_amount = ?, net_amount = ?, total_cartons = ?, 
+                        total_units = ?, status = ?, remarks = ?, confirmed_at = ?, updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmtUpd->execute([
+                    $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
+                    $discountMode, $freeLoosePieces, $subtotalDiscountPercent, $subtotalDiscountAmount,
+                    $grossAmount, $discountAmount, $netAmount, $totalCartons,
+                    $totalUnits, $orderStatus, $remarks, $confirmedAt, $id
+                ]);
+
+                // 2. Delete and re-insert order items
+                db()->prepare("DELETE FROM order_items WHERE order_id = ?")->execute([$id]);
+
+                $stmtItem = db()->prepare("
+                    INSERT INTO order_items (
+                        order_id, product_id, unit_id, carton_qty, pack_qty, pcs_qty, 
+                        quantity, rate, discount_percent, discount_amount, line_total, created_at
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, 
+                        ?, ?, ?, ?, ?, NOW()
+                    )
+                ");
+
+                foreach ($validItems as $vi) {
+                    $stmtItem->execute([
+                        $id, $vi['product_id'], $vi['unit_id'], $vi['carton_qty'],
+                        $vi['pack_qty'], $vi['pcs_qty'], $vi['quantity'], $vi['rate'], $vi['discount_percent'],
+                        $vi['discount_amount'], $vi['line_total']
+                    ]);
+                }
+
+                db()->commit();
+
+                if (function_exists('audit_log')) {
+                    audit_log('update_order', 'orders', (string)$id, "Updated order {$order['order_number']}, Net: {$netAmount}, Status: {$orderStatus}");
+                }
+                set_flash_message('success', "Order <strong>{$order['order_number']}</strong> updated successfully!");
+                redirect(APP_URL . '/modules/orders/view.php?id=' . $id);
+
+            } catch (Exception $e) {
+                db()->rollBack();
+                set_flash_message('danger', 'Error updating order: ' . $e->getMessage());
+            }
         }
+    } else {
+        set_flash_message('danger', $validator->getFirstError());
     }
 }
 
@@ -238,61 +281,102 @@ require_once INCLUDES_PATH . '/topbar.php';
 
 <div class="content-wrapper">
     <div class="container-fluid">
-        <!-- Header -->
-        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <!-- Breadcrumb / Header Bar -->
+        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
             <div>
-                <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Market Order: <?= e($order['order_number']) ?></h5>
-                <small class="text-muted">Modify retailer, scheduled delivery date, items, or wholesale rates</small>
+                <h5 class="mb-0 fw-bold text-navy"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Market Order: <?= e($order['order_number']) ?></h5>
+                <small class="text-muted">Fast card selection: Click products to add to cart, edit quantities or rates instantly</small>
             </div>
             <div class="d-flex gap-2">
-                <a href="view.php?id=<?= $order['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                <a href="<?= APP_URL ?>/modules/orders/view.php?id=<?= $order['id'] ?>" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left me-1"></i> Back to Order View (ESC)
                 </a>
             </div>
         </div>
 
-        <form method="POST" action="edit.php?id=<?= $order['id'] ?>" id="orderEditForm">
-            <!-- Header Setup -->
+        <form method="POST" action="<?= APP_URL ?>/modules/orders/edit.php?id=<?= $order['id'] ?>" id="orderForm" autocomplete="off">
+            <!-- Order Route & Retailer Setup Card -->
             <div class="card border-0 shadow-sm mb-3">
-                <div class="card-body p-3">
+                <div class="card-body py-2 px-3">
                     <div class="row g-2 align-items-center">
                         <div class="col-md-3">
-                            <label class="form-label small fw-bold mb-1">Customer / Retail Shop <span class="text-danger">*</span></label>
-                            <select name="customer_id" class="form-select form-select-sm" required>
-                                <?php foreach ($customers as $c): ?>
-                                    <option value="<?= $c['id'] ?>" <?= $c['id'] == $order['customer_id'] ? 'selected' : '' ?>>
-                                        <?= e($c['shop_name']) ?> (<?= e($c['area_name']) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label class="form-label small fw-bold mb-1 d-flex justify-content-between align-items-center">
+                                <span>Retailer / Shop <span class="text-danger">*</span></span>
+                                <?php if (has_permission('customers_create')): ?>
+                                <a href="javascript:void(0)" onclick="openQuickCustomerDrawer('customerSelect')" class="text-primary text-decoration-none" title="Quick Add Customer">
+                                    <i class="bi bi-plus-circle-fill"></i> New
+                                </a>
+                                <?php endif; ?>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <select name="customer_id" id="customerSelect" class="form-select form-select-sm" required autofocus>
+                                    <option value="">-- Choose Retailer --</option>
+                                    <?php foreach ($customers as $c): ?>
+                                        <option value="<?= $c['id'] ?>" <?= ((int)$order['customer_id'] === (int)$c['id']) ? 'selected' : '' ?> 
+                                            data-area="<?= $c['area_id'] ?>" 
+                                            data-booker="<?= $c['booker_id'] ?>" 
+                                            data-discount="<?= $c['default_discount_percent'] ?>"
+                                            data-balance="<?= $c['current_balance'] ?>"
+                                            data-limit="<?= $c['credit_limit'] ?>">
+                                            <?= e($c['shop_name']) ?> (<?= e($c['area_name']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (has_permission('customers_create')): ?>
+                                <button type="button" class="btn btn-outline-primary" onclick="openQuickCustomerDrawer('customerSelect')" title="Add New Customer in Real-Time">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
+
                         <div class="col-md-2">
                             <label class="form-label small fw-bold mb-1">Order Booker <span class="text-danger">*</span></label>
-                            <select name="booker_id" class="form-select form-select-sm" required>
+                            <select name="booker_id" id="bookerSelect" class="form-select form-select-sm" required>
+                                <option value="">-- Booker --</option>
                                 <?php foreach ($bookers as $b): ?>
-                                    <option value="<?= $b['id'] ?>" <?= $b['id'] == $order['booker_id'] ? 'selected' : '' ?>><?= e($b['booker_name']) ?></option>
+                                    <option value="<?= $b['id'] ?>" <?= ((int)$order['booker_id'] === (int)$b['id']) ? 'selected' : '' ?>><?= e($b['booker_name']) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
+
                         <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Route / Area <span class="text-danger">*</span></label>
-                            <select name="area_id" class="form-select form-select-sm" required>
-                                <?php foreach ($areas as $a): ?>
-                                    <option value="<?= $a['id'] ?>" <?= $a['id'] == $order['area_id'] ? 'selected' : '' ?>><?= e($a['area_name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label class="form-label small fw-bold mb-1 d-flex justify-content-between align-items-center">
+                                <span>Route / Area <span class="text-danger">*</span></span>
+                                <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                                <a href="javascript:void(0)" onclick="openQuickAreaDrawer('areaSelect')" class="text-primary text-decoration-none" title="Quick Add Route">
+                                    <i class="bi bi-plus-circle-fill"></i> New
+                                </a>
+                                <?php endif; ?>
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <select name="area_id" id="areaSelect" class="form-select form-select-sm" required>
+                                    <option value="">-- Area --</option>
+                                    <?php foreach ($areas as $a): ?>
+                                        <option value="<?= $a['id'] ?>" <?= ((int)$order['area_id'] === (int)$a['id']) ? 'selected' : '' ?>><?= e($a['area_name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (get_setting('allow_realtime_routes', '1') == '1'): ?>
+                                <button type="button" class="btn btn-outline-primary" onclick="openQuickAreaDrawer('areaSelect')" title="Add New Area in Real-Time">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
+
                         <div class="col-md-2">
                             <label class="form-label small fw-bold mb-1">Booking Date</label>
                             <input type="date" name="order_date" class="form-control form-control-sm" value="<?= e($order['order_date']) ?>" required>
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold mb-1">Delivery Date (Optional)</label>
+
+                        <div class="col-md-1">
+                            <label class="form-label small fw-bold mb-1">Delivery Date</label>
                             <input type="date" name="delivery_date" class="form-control form-control-sm" value="<?= e($order['delivery_date'] ?? '') ?>">
                         </div>
+
                         <div class="col-md-1">
                             <label class="form-label small fw-bold mb-1">Status</label>
-                            <select name="order_status" class="form-select form-select-sm">
+                            <select name="order_status" id="orderStatusSelect" class="form-select form-select-sm">
                                 <option value="draft" <?= $order['status'] === 'draft' ? 'selected' : '' ?>>Draft</option>
                                 <option value="confirmed" <?= $order['status'] === 'confirmed' ? 'selected' : '' ?>>Confirmed</option>
                                 <?php if (in_array($order['status'], ['loaded', 'partially_loaded'])): ?>
@@ -300,146 +384,216 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php endif; ?>
                             </select>
                         </div>
+
+                        <div class="col-md-1 text-end">
+                            <span class="badge bg-navy text-white font-monospace py-2 px-2" style="font-size: 11px;"><?= e($order['order_number']) ?></span>
+                        </div>
+                    </div>
+
+                    <!-- Customer Financial Status Banner -->
+                    <div id="customerCreditAlert" class="mt-2 py-1 px-2 rounded small bg-light border text-secondary" style="display:none;">
+                        <span id="custCreditInfo"></span>
                     </div>
                 </div>
             </div>
 
-            <!-- Discount Mode & Free Loose Pieces Scheme Bar -->
-            <div class="pos-discount-mode-bar bg-light p-2 border mb-3 rounded d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div class="d-flex align-items-center flex-wrap gap-3">
-                    <span class="small fw-bold text-secondary"><i class="bi bi-tag-fill me-1 text-primary"></i> Discount Type:</span>
-                    <div class="form-check form-check-inline m-0">
-                        <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeItem" value="item_rate" <?= ($order['discount_mode'] ?? 'item_rate') === 'item_rate' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
-                        <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeItem">Discount from per item rate</label>
-                    </div>
-                    <div class="form-check form-check-inline m-0">
-                        <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeSubtotal" value="subtotal" <?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
-                        <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeSubtotal">Discount from subtotal</label>
-                    </div>
-                    <div class="form-check form-switch m-0 d-inline-flex align-items-center gap-2 border-start ps-3 ms-2">
-                        <input class="form-check-input cursor-pointer" type="checkbox" role="switch" name="free_loose_pieces" id="freeLoosePiecesToggle" value="1" <?= !empty($order['free_loose_pieces']) ? 'checked' : '' ?> onchange="onFreeLoosePiecesChange()">
-                        <label class="form-check-label small fw-bold text-success cursor-pointer" for="freeLoosePiecesToggle" title="Trade Scheme: Loose pieces will be free (Rs 0) in bill total, but will be dispatched on load form">
-                            <i class="bi bi-gift-fill me-1 text-warning"></i> Free Loose Pcs (سکیم / بونس پیس مفت)
-                        </label>
-                    </div>
-                </div>
-                <div id="subtotalDiscountInputs" class="<?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'd-flex' : 'd-none' ?> align-items-center gap-2">
-                    <span class="small fw-bold text-navy">Subtotal Disc:</span>
-                    <div class="input-group input-group-sm" style="width: 110px;">
-                        <input type="number" step="0.01" min="0" max="100" name="subtotal_discount_percent" id="subtotalDiscountPercent" class="form-control form-control-sm text-end" placeholder="0" value="<?= (float)($order['subtotal_discount_percent'] ?? 0) > 0 ? (float)$order['subtotal_discount_percent'] : '' ?>" oninput="onSubtotalPercentChange()">
-                        <span class="input-group-text small">%</span>
-                    </div>
-                    <div class="input-group input-group-sm" style="width: 140px;">
-                        <span class="input-group-text small">Rs</span>
-                        <input type="number" step="0.01" min="0" name="subtotal_discount_amount" id="subtotalDiscountAmount" class="form-control form-control-sm text-end" placeholder="0.00" value="<?= (float)($order['subtotal_discount_amount'] ?? 0) > 0 ? (float)$order['subtotal_discount_amount'] : '' ?>" oninput="onSubtotalAmountChange()">
-                    </div>
-                </div>
-            </div>
+            <!-- Main Working Area: Split 5-Cols Product Catalog vs 7-Cols Cart -->
+            <div class="row g-3 mb-3">
+                <!-- Left Column: Fast Product Search & Card Selection -->
+                <div class="col-lg-5">
+                    <div class="pos-catalog-container">
+                        <div class="pos-catalog-header">
+                            <div class="pos-search-wrapper">
+                                <i class="bi bi-search pos-search-icon"></i>
+                                <input type="text" id="productSearch" class="form-control form-control-sm pos-search-input" 
+                                       placeholder="Search product name, code, packing... (Press / or F2)" autocomplete="off">
+                            </div>
 
-            <!-- Items Grid -->
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold text-navy"><i class="bi bi-cart3 me-1"></i> Order Items & Quantities</h6>
-                    <button type="button" class="btn btn-xs btn-outline-primary" onclick="addOrderRow()">
-                        <i class="bi bi-plus-lg me-1"></i> Add Product Line
-                    </button>
+                            <!-- Company / Supplier Filter -->
+                            <div class="d-flex align-items-center gap-2 mb-2 px-1">
+                                <span class="small fw-bold text-secondary text-nowrap"><i class="bi bi-building me-1 text-primary"></i>Company:</span>
+                                <select id="companyFilter" class="form-select form-select-sm py-0" style="font-size:12px; height:28px;">
+                                    <option value="">-- All Companies / Suppliers --</option>
+                                    <?php foreach ($suppliers as $sup): ?>
+                                        <option value="<?= $sup['id'] ?>"><?= e($sup['supplier_name']) ?><?= !empty($sup['company_name']) ? ' (' . e($sup['company_name']) . ')' : '' ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            
+                            <!-- Category Filter Pills -->
+                            <div class="pos-category-pills">
+                                <button type="button" class="pos-category-pill active" data-cat="">All Categories</button>
+                                <?php foreach ($categories as $cat): ?>
+                                    <button type="button" class="pos-category-pill" data-cat="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['category_name']) ?></button>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <!-- Product Cards Grid -->
+                        <div class="pos-product-grid" id="productCardsGrid">
+                            <?php foreach ($products as $p): 
+                                $ratios = get_product_packaging_ratios($p);
+                                $packsPerCtn = $ratios['packs_per_ctn'];
+                                $pcsPerPack  = $ratios['pcs_per_pack'];
+                                $pcsPerCtn   = $ratios['pcs_per_ctn'];
+                                $stockBreakdown = breakdown_base_pieces((float)$p['saleable_qty'], $packsPerCtn, $pcsPerPack);
+                                $isOutOfStock = (float)$p['saleable_qty'] <= 0;
+                                $ratioText = $pcsPerPack > 1 ? "1*{$packsPerCtn}*{$pcsPerPack}" : "1*{$packsPerCtn}";
+                            ?>
+                                <div class="pos-product-card <?= $isOutOfStock ? 'out-of-stock' : '' ?>" 
+                                     id="card_prod_<?= $p['id'] ?>"
+                                     data-id="<?= $p['id'] ?>"
+                                     data-name="<?= htmlspecialchars($p['product_name']) ?>"
+                                     data-code="<?= htmlspecialchars($p['product_code']) ?>"
+                                     data-cat="<?= $p['category_id'] ?>"
+                                     data-supplier-id="<?= (int)($p['supplier_id'] ?? 0) ?>"
+                                     data-rate="<?= (float)$p['carton_rate'] ?>"
+                                     data-carton-rate="<?= (float)$p['carton_rate'] ?>"
+                                     data-piece-rate="<?= (float)$p['piece_rate'] ?>"
+                                     data-packs-per-ctn="<?= $packsPerCtn ?>"
+                                     data-pcs-per-pack="<?= $pcsPerPack ?>"
+                                     data-pcs-per-ctn="<?= $pcsPerCtn ?>"
+                                     onclick="addProductToCart(<?= $p['id'] ?>)">
+                                    
+                                    <span class="card-badge-cart d-none" id="badge_cart_<?= $p['id'] ?>">0 in cart</span>
+                                    <button type="button" class="btn-card-info" title="View Prices & Rates (خرید/ہول سیل/پرچون)" onclick="showProductPriceModal(event, <?= $p['id'] ?>)">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                    
+                                    <div>
+                                        <div class="prod-name"><?= htmlspecialchars($p['product_name']) ?></div>
+                                        <div class="prod-meta">
+                                            <span>Pack: <strong><?= htmlspecialchars(!empty($p['packing_description']) ? $p['packing_description'] : $ratioText) ?></strong></span> &bull; 
+                                            <span><?= htmlspecialchars($p['product_code']) ?></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="prod-price-stock">
+                                        <div>
+                                            <div class="prod-price" style="font-size: 13px; line-height: 1.2;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['carton_rate'], 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
+                                            </div>
+                                            <div class="text-secondary fw-semibold" style="font-size: 11px;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['piece_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Pc</span>
+                                            </div>
+                                        </div>
+                                        <div class="prod-stock text-end">
+                                            <?= $isOutOfStock ? '<span class="text-danger fw-semibold">Out of stock</span>' : htmlspecialchars($stockBreakdown['formatted']) . ' avail' ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover align-middle mb-0" id="orderItemsTable">
-                            <thead class="bg-light small text-uppercase">
-                                <tr>
-                                    <th>Product Description</th>
-                                    <th style="width: 85px;" class="text-center">Unit</th>
-                                    <th style="width: 95px;" class="text-center">Cartons</th>
-                                    <th style="width: 85px;" class="text-center">Packs</th>
-                                    <th style="width: 95px;" class="text-center">Loose Pcs</th>
-                                    <th style="width: 140px;" class="text-end">Rate (Rs.)</th>
-                                    <th style="width: 90px;" class="text-center">Disc %</th>
-                                    <th style="width: 140px;" class="text-end pe-3">Line Total (Rs.)</th>
-                                    <th style="width: 45px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="orderItemsTbody">
-                                <?php foreach ($orderItems as $idx => $item): 
-                                    $packsPerCtn = (float)$item['ctn_ratio'] > 0 ? (float)$item['ctn_ratio'] : 1;
-                                    $pcsPerPack  = (float)$item['pack_ratio'] > 0 ? (float)$item['pack_ratio'] : 1;
-                                    $isPieceUnit = ((int)($item['unit_id'] ?? 0) === 4);
-                                ?>
-                                    <tr class="item-row" data-ratio="<?= $packsPerCtn ?>" data-pack-ratio="<?= $pcsPerPack ?>">
-                                        <td>
-                                            <select name="item_product_id[]" class="form-select form-select-sm prod-select" onchange="onProductChange(this)">
-                                                <?php foreach ($products as $p): 
-                                                    $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
-                                                    $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
-                                                ?>
-                                                    <option value="<?= $p['id'] ?>" 
-                                                            data-rate="<?= (float)$p['carton_rate'] ?>" 
-                                                            data-carton-rate="<?= (float)$p['carton_rate'] ?>" 
-                                                            data-piece-rate="<?= (float)$p['piece_rate'] ?>" 
-                                                            data-ratio="<?= $pPacksPerCtn ?>" 
-                                                            data-pack-ratio="<?= $pPcsPerPack ?>" 
-                                                            <?= $p['id'] == $item['product_id'] ? 'selected' : '' ?>>
-                                                        <?= e($p['product_name']) ?> (<?= e($p['product_code']) ?>)
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </td>
-                                        <td class="text-center">
-                                            <select name="item_unit[]" class="form-select form-select-sm unit-inp text-center py-0 px-1" onchange="onOrderUnitChange(this)">
-                                                <option value="ctn" <?= !$isPieceUnit ? 'selected' : '' ?>>Ctn</option>
-                                                <option value="pcs" <?= $isPieceUnit ? 'selected' : '' ?>>Pcs</option>
-                                            </select>
-                                        </td>
-                                        <td>
-                                            <input type="number" step="1" min="0" name="item_carton_qty[]" class="form-control form-control-sm text-center ctn-inp" value="<?= (float)$item['carton_qty'] ?>" oninput="recalcOrderLine(this)">
-                                        </td>
-                                        <td>
-                                            <input type="number" step="1" min="0" name="item_pack_qty[]" class="form-control form-control-sm text-center pack-inp" value="<?= (float)($item['pack_qty'] ?? 0) ?>" oninput="recalcOrderLine(this)">
-                                        </td>
-                                        <td>
-                                            <input type="number" step="1" min="0" name="item_pcs_qty[]" class="form-control form-control-sm text-center pcs-inp" value="<?= (float)$item['pcs_qty'] ?>" oninput="recalcOrderLine(this)">
-                                        </td>
-                                        <td>
-                                            <input type="number" step="0.01" min="0" name="item_rate[]" class="form-control form-control-sm text-end rate-inp" value="<?= (float)$item['rate'] ?>" oninput="recalcOrderLine(this)">
-                                            <span class="small text-muted rate-unit-lbl" style="font-size: 10px;">/ <?= $isPieceUnit ? 'Piece' : 'Carton' ?></span>
-                                        </td>
-                                        <td>
-                                            <input type="number" step="0.01" min="0" name="item_discount_percent[]" class="form-control form-control-sm text-center disc-inp" value="<?= (float)$item['discount_percent'] ?>" oninput="recalcOrderLine(this)">
-                                        </td>
-                                        <td class="text-end pe-3 fw-bold line-total text-navy">
-                                            <?= number_format((float)$item['line_total'], 2) ?>
-                                        </td>
-                                        <td class="text-center">
-                                            <button type="button" class="btn btn-xs text-danger" onclick="removeOrderRow(this)"><i class="bi bi-x-circle-fill"></i></button>
+
+                <!-- Right Column: Interactive Order Items Cart (Editable quantities, rates & discounts) -->
+                <div class="col-lg-7">
+                    <div class="pos-cart-container">
+                        <div class="pos-cart-header">
+                            <span class="fw-bold text-navy">
+                                <i class="bi bi-cart3 me-1 text-primary"></i> Order Items Cart 
+                                <span class="badge bg-primary ms-1" id="cartItemCount">0 items</span>
+                            </span>
+                            <button type="button" class="btn btn-xs btn-outline-danger" onclick="clearCart()" id="btnClearCart" style="display:none;">
+                                <i class="bi bi-trash me-1"></i> Clear Cart
+                            </button>
+                        </div>
+
+                        <!-- Discount Mode & Free Loose Pieces Scheme Bar -->
+                        <div class="pos-discount-mode-bar bg-light p-2 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="d-flex align-items-center flex-wrap gap-3">
+                                <span class="small fw-bold text-secondary"><i class="bi bi-tag-fill me-1 text-primary"></i> Discount:</span>
+                                <div class="form-check form-check-inline m-0">
+                                    <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeItem" value="item_rate" <?= ($order['discount_mode'] ?? 'item_rate') === 'item_rate' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
+                                    <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeItem">Discount from per item rate</label>
+                                </div>
+                                <div class="form-check form-check-inline m-0">
+                                    <input class="form-check-input cursor-pointer" type="radio" name="discount_mode" id="discountModeSubtotal" value="subtotal" <?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'checked' : '' ?> onchange="onDiscountModeChange()">
+                                    <label class="form-check-label small fw-semibold cursor-pointer" for="discountModeSubtotal">Discount from subtotal</label>
+                                </div>
+                                <div class="form-check form-switch m-0 d-inline-flex align-items-center gap-2 border-start ps-3 ms-2">
+                                    <input class="form-check-input cursor-pointer" type="checkbox" role="switch" name="free_loose_pieces" id="freeLoosePiecesToggle" value="1" <?= !empty($order['free_loose_pieces']) ? 'checked' : '' ?> onchange="onFreeLoosePiecesChange()">
+                                    <label class="form-check-label small fw-bold text-success cursor-pointer" for="freeLoosePiecesToggle" title="Trade Scheme: Loose pieces will be free (Rs 0) in bill total, but will be dispatched on load form">
+                                        <i class="bi bi-gift-fill me-1 text-warning"></i> Free Loose Pcs (سکیم / بونس پیس مفت)
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="subtotalDiscountInputs" class="<?= ($order['discount_mode'] ?? 'item_rate') === 'subtotal' ? 'd-flex' : 'd-none' ?> align-items-center gap-2">
+                                <span class="small fw-bold text-navy">Subtotal Disc:</span>
+                                <div class="input-group input-group-sm" style="width: 110px;">
+                                    <input type="number" step="0.01" min="0" max="100" name="subtotal_discount_percent" id="subtotalDiscountPercent" class="form-control form-control-sm text-end" placeholder="0" value="<?= (float)($order['subtotal_discount_percent'] ?? 0) > 0 ? (float)$order['subtotal_discount_percent'] : '' ?>" oninput="onSubtotalPercentChange()">
+                                    <span class="input-group-text small">%</span>
+                                </div>
+                                <div class="input-group input-group-sm" style="width: 140px;">
+                                    <span class="input-group-text small">Rs</span>
+                                    <input type="number" step="0.01" min="0" name="subtotal_discount_amount" id="subtotalDiscountAmount" class="form-control form-control-sm text-end" placeholder="0.00" value="<?= (float)($order['subtotal_discount_amount'] ?? 0) > 0 ? (float)$order['subtotal_discount_amount'] : '' ?>" oninput="onSubtotalAmountChange()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pos-cart-table-wrapper">
+                            <table class="table pos-cart-table table-hover align-middle" id="cartTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 25%;">Product Details</th>
+                                        <th style="width: 10%;" class="text-center">Ctn Qty</th>
+                                        <th style="width: 9%;" class="text-center">Packs</th>
+                                        <th style="width: 9%;" class="text-center">Extra Pcs</th>
+                                        <th style="width: 11%;" class="text-center">Unit</th>
+                                        <th style="width: 14%;" class="text-end">Rate</th>
+                                        <th style="width: 8%;" class="text-end">Disc %</th>
+                                        <th style="width: 14%;" class="text-end">Line Total</th>
+                                        <th style="width: 30px;" class="text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cartItemsBody">
+                                    <tr id="emptyCartRow" style="display:none;">
+                                        <td colspan="9" class="text-center py-5 text-muted">
+                                            <i class="bi bi-hand-index-thumb fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                                            <div class="fw-semibold">No items added to order yet.</div>
+                                            <small>Click on product cards on the left or use the search bar to add items.</small>
                                         </td>
                                     </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                            <tfoot class="table-light fw-bold">
-                                <tr>
-                                    <td class="text-end text-uppercase" colspan="2">Totals:</td>
-                                    <td class="text-center" id="footCtn">0</td>
-                                    <td class="text-center" id="footPack">0</td>
-                                    <td class="text-center" id="footPcs">0</td>
-                                    <td class="text-end" id="footGross">Rs. 0.00</td>
-                                    <td class="text-center text-danger" id="footDisc">Rs. 0.00</td>
-                                    <td class="text-end pe-3 text-navy fs-6" id="footNet">Rs. 0.00</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer bg-white py-3 px-3 d-flex justify-content-between align-items-center">
-                    <div class="col-md-6">
-                        <input type="text" name="remarks" class="form-control form-control-sm" placeholder="Order notes or delivery remarks..." value="<?= e($order['remarks']) ?>">
-                    </div>
-                    <div>
-                        <a href="view.php?id=<?= $order['id'] ?>" class="btn btn-sm btn-outline-secondary me-2">Cancel</a>
-                        <button type="submit" class="btn btn-sm btn-primary px-4 fw-bold">
-                            <i class="bi bi-check2-circle me-1"></i> Save Changes (F9)
-                        </button>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Real-time Order Totals Footer -->
+                        <div class="pos-cart-footer">
+                            <div class="row g-2 align-items-center mb-3">
+                                <div class="col-md-3 text-center border-end">
+                                    <div class="text-muted small">Total Cartons</div>
+                                    <div class="fw-bold fs-6 text-dark" id="summaryTotalCartons">0 Ctns</div>
+                                </div>
+                                <div class="col-md-3 text-center border-end">
+                                    <div class="text-muted small">Total Pieces</div>
+                                    <div class="fw-bold fs-6 text-dark" id="summaryTotalPieces">0 Pcs</div>
+                                </div>
+                                <div class="col-md-3 text-center border-end">
+                                    <div class="text-muted small" id="lblSummaryDiscount">Total Discount</div>
+                                    <div class="fw-bold fs-6 text-danger" id="summaryDiscountAmount">Rs. 0.00</div>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <div class="text-muted small">Net Order Amount</div>
+                                    <div class="fw-bold fs-5 text-navy" id="summaryNetAmount">Rs. 0.00</div>
+                                </div>
+                            </div>
+
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-7">
+                                    <input type="text" name="remarks" class="form-control form-control-sm" placeholder="Booking remarks, delivery notes, or special instructions..." value="<?= e($order['remarks']) ?>">
+                                </div>
+                                <div class="col-md-5 text-end">
+                                    <a href="<?= APP_URL ?>/modules/orders/view.php?id=<?= $order['id'] ?>" class="btn btn-outline-secondary btn-sm px-3 me-2">
+                                        Cancel (ESC)
+                                    </a>
+                                    <button type="submit" class="btn btn-navy btn-sm px-4 fw-bold">
+                                        <i class="bi bi-check2-circle me-1"></i> Save Changes (F9)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -447,58 +601,298 @@ require_once INCLUDES_PATH . '/topbar.php';
     </div>
 </div>
 
-<template id="orderRowTpl">
-    <tr class="item-row" data-ratio="1" data-pack-ratio="1">
-        <td>
-            <select name="item_product_id[]" class="form-select form-select-sm prod-select" onchange="onProductChange(this)">
-                <option value="">-- Select Product --</option>
-                <?php foreach ($products as $p): 
-                    $pPacksPerCtn = (float)$p['carton_qty'] > 0 ? (float)$p['carton_qty'] : 1;
-                    $pPcsPerPack  = (float)$p['pack_qty'] > 0 ? (float)$p['pack_qty'] : 1;
-                ?>
-                    <option value="<?= $p['id'] ?>" 
-                            data-rate="<?= (float)$p['carton_rate'] ?>" 
-                            data-carton-rate="<?= (float)$p['carton_rate'] ?>" 
-                            data-piece-rate="<?= (float)$p['piece_rate'] ?>" 
-                            data-ratio="<?= $pPacksPerCtn ?>" 
-                            data-pack-ratio="<?= $pPcsPerPack ?>">
-                        <?= e($p['product_name']) ?> (<?= e($p['product_code']) ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </td>
-        <td class="text-center">
-            <select name="item_unit[]" class="form-select form-select-sm unit-inp text-center py-0 px-1" onchange="onOrderUnitChange(this)">
-                <option value="ctn" selected>Ctn</option>
-                <option value="pcs">Pcs</option>
-            </select>
-        </td>
-        <td>
-            <input type="number" step="1" min="0" name="item_carton_qty[]" class="form-control form-control-sm text-center ctn-inp" value="1" oninput="recalcOrderLine(this)">
-        </td>
-        <td>
-            <input type="number" step="1" min="0" name="item_pack_qty[]" class="form-control form-control-sm text-center pack-inp" value="0" oninput="recalcOrderLine(this)">
-        </td>
-        <td>
-            <input type="number" step="1" min="0" name="item_pcs_qty[]" class="form-control form-control-sm text-center pcs-inp" value="0" oninput="recalcOrderLine(this)">
-        </td>
-        <td>
-            <input type="number" step="0.01" min="0" name="item_rate[]" class="form-control form-control-sm text-end rate-inp" value="0.00" oninput="recalcOrderLine(this)">
-            <span class="small text-muted rate-unit-lbl" style="font-size: 10px;">/ Carton</span>
-        </td>
-        <td>
-            <input type="number" step="0.01" min="0" name="item_discount_percent[]" class="form-control form-control-sm text-center disc-inp" value="0" oninput="recalcOrderLine(this)">
-        </td>
-        <td class="text-end pe-3 fw-bold line-total text-navy">
-            0.00
-        </td>
-        <td class="text-center">
-            <button type="button" class="btn btn-xs text-danger" onclick="removeOrderRow(this)"><i class="bi bi-x-circle-fill"></i></button>
-        </td>
-    </tr>
-</template>
+<!-- Embedded Product Cache & Existing Order Items for Real-Time Calculations -->
+<script>
+    const DMS_PRODUCTS = <?= json_encode($products) ?>;
+    const EXISTING_ORDER_ITEMS = <?= json_encode($orderItems) ?>;
+    const productMap = {};
+    DMS_PRODUCTS.forEach(p => { productMap[p.id] = p; });
+</script>
 
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const customerSelect = document.getElementById('customerSelect');
+    const bookerSelect   = document.getElementById('bookerSelect');
+    const areaSelect     = document.getElementById('areaSelect');
+    const creditAlert    = document.getElementById('customerCreditAlert');
+    const creditInfo     = document.getElementById('custCreditInfo');
+    const productSearch  = document.getElementById('productSearch');
+
+    // Customer change auto-populates route & booker
+    customerSelect.addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        if (!opt || !opt.value) {
+            creditAlert.style.display = 'none';
+            return;
+        }
+
+        const areaId = opt.getAttribute('data-area');
+        const bookerId = opt.getAttribute('data-booker');
+        const balance = parseFloat(opt.getAttribute('data-balance') || 0);
+        const limit = parseFloat(opt.getAttribute('data-limit') || 0);
+
+        if (areaId && !areaSelect.value) areaSelect.value = areaId;
+        if (bookerId && !bookerSelect.value) bookerSelect.value = bookerId;
+
+        creditAlert.style.display = 'block';
+        creditInfo.innerHTML = `<i class="bi bi-wallet2 me-1"></i> Outstanding Balance: <strong><?= DEFAULT_CURRENCY ?> ${balance.toLocaleString('en-US', {minimumFractionDigits:2})}</strong> | Credit Limit: <?= DEFAULT_CURRENCY ?> ${limit.toLocaleString('en-US', {minimumFractionDigits:2})} ${balance > limit && limit > 0 ? '<span class="badge bg-danger ms-2">Limit Exceeded</span>' : ''}`;
+    });
+
+    if (customerSelect.value) {
+        customerSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Real-time Product Search Filter
+    productSearch.addEventListener('input', function () {
+        filterProductCards();
+    });
+
+    const companyFilter = document.getElementById('companyFilter');
+    if (companyFilter) {
+        companyFilter.addEventListener('change', function () {
+            filterProductCards();
+        });
+    }
+
+    // Category Filter Pills
+    document.querySelectorAll('.pos-category-pill').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.pos-category-pill').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            filterProductCards();
+        });
+    });
+
+    // Arrow Key Navigation & Enter on Search Input
+    productSearch.addEventListener('keydown', function (e) {
+        const visibleCards = getVisibleCards();
+        if (visibleCards.length === 0) return;
+
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            let nextIndex = selectedCardIndex + 1;
+            if (nextIndex >= visibleCards.length) nextIndex = 0;
+            highlightCard(nextIndex);
+        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            let prevIndex = selectedCardIndex - 1;
+            if (prevIndex < 0) prevIndex = visibleCards.length - 1;
+            highlightCard(prevIndex);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedCardIndex >= 0 && selectedCardIndex < visibleCards.length) {
+                const card = visibleCards[selectedCardIndex];
+                const prodId = parseInt(card.getAttribute('data-id'), 10);
+                if (prodId) addProductToCart(prodId);
+            } else if (visibleCards.length > 0) {
+                const prodId = parseInt(visibleCards[0].getAttribute('data-id'), 10);
+                if (prodId) addProductToCart(prodId);
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            productSearch.value = '';
+            filterProductCards();
+        }
+    });
+
+    function validateOrderForm() {
+        const custVal = parseInt(customerSelect.value, 10);
+        if (!custVal || isNaN(custVal) || custVal <= 0) {
+            alert('Please select a Retailer / Shop before saving the order.');
+            const wrapper = customerSelect.closest('.dms-searchable-wrapper');
+            if (wrapper) {
+                const ctrl = wrapper.querySelector('.dms-searchable-control');
+                if (ctrl) ctrl.focus();
+            } else {
+                customerSelect.focus();
+            }
+            return false;
+        }
+
+        const bkrVal = parseInt(bookerSelect.value, 10);
+        if (!bkrVal || isNaN(bkrVal) || bkrVal <= 0) {
+            alert('Please select an Order Booker.');
+            bookerSelect.focus();
+            return false;
+        }
+
+        const areaVal = parseInt(areaSelect.value, 10);
+        if (!areaVal || isNaN(areaVal) || areaVal <= 0) {
+            alert('Please select a Route / Area.');
+            areaSelect.focus();
+            return false;
+        }
+
+        const cartKeys = Object.keys(cartItems);
+        if (cartKeys.length === 0) {
+            alert('Order cart is empty! Please click on products to add items to the order.');
+            if (productSearch) productSearch.focus();
+            return false;
+        }
+
+        return true;
+    }
+
+    const orderForm = document.getElementById('orderForm');
+    if (orderForm) {
+        orderForm.addEventListener('submit', function (e) {
+            if (!validateOrderForm()) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+
+    // Keyboard Shortcuts: '/' or F2 to search, F9 to submit, ESC to cancel
+    document.addEventListener('keydown', function(e) {
+        const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        const isInput = tag === 'input' || tag === 'textarea' || tag === 'select' || (document.activeElement && document.activeElement.closest('.dms-searchable-wrapper'));
+
+        if (e.key === '/' || e.key === 'F2') {
+            if (document.activeElement !== productSearch) {
+                e.preventDefault();
+                productSearch.focus();
+                productSearch.select();
+            }
+        } else if (e.key === 'F9') {
+            e.preventDefault();
+            if (validateOrderForm()) {
+                if (orderForm) orderForm.submit();
+            }
+        } else if (e.key === 'Escape' && !isInput) {
+            window.location.href = "<?= APP_URL ?>/modules/orders/view.php?id=<?= $order['id'] ?>";
+        } else if (!isInput) {
+            const visibleCards = getVisibleCards();
+            if (visibleCards.length > 0) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    let nextIndex = selectedCardIndex + 1;
+                    if (nextIndex >= visibleCards.length) nextIndex = 0;
+                    highlightCard(nextIndex);
+                } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    let prevIndex = selectedCardIndex - 1;
+                    if (prevIndex < 0) prevIndex = visibleCards.length - 1;
+                    highlightCard(prevIndex);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectedCardIndex >= 0 && selectedCardIndex < visibleCards.length) {
+                        const card = visibleCards[selectedCardIndex];
+                        const prodId = parseInt(card.getAttribute('data-id'), 10);
+                        if (prodId) addProductToCart(prodId);
+                    }
+                }
+            }
+        }
+    });
+
+    // Populate Existing Order Items into Cart on Page Load
+    if (Array.isArray(EXISTING_ORDER_ITEMS) && EXISTING_ORDER_ITEMS.length > 0) {
+        EXISTING_ORDER_ITEMS.forEach(oi => {
+            const prod = productMap[oi.product_id];
+            const packsPerCtn = parseFloat(oi.ctn_ratio) > 0 ? parseFloat(oi.ctn_ratio) : (parseFloat(prod?.carton_qty) || 1);
+            const pcsPerPack  = parseFloat(oi.pack_ratio) > 0 ? parseFloat(oi.pack_ratio) : (parseFloat(prod?.pack_qty) || 1);
+            const pcsPerCtn   = packsPerCtn * pcsPerPack;
+            const cartonRate  = parseFloat(prod?.carton_rate) || parseFloat(prod?.wholesale_rate) || parseFloat(oi.rate) || 0;
+            const pieceRate   = parseFloat(prod?.piece_rate) || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
+
+            let unit = 'ctn';
+            if (parseInt(oi.unit_id) === 4 || (oi.unit_symbol && oi.unit_symbol.toLowerCase().includes('pc'))) {
+                unit = 'pcs';
+            }
+
+            cartItems[oi.product_id] = {
+                product_id: parseInt(oi.product_id),
+                product_name: oi.product_name,
+                product_code: oi.product_code,
+                packs_per_ctn: packsPerCtn,
+                pcs_per_pack: pcsPerPack,
+                pcs_per_ctn: pcsPerCtn,
+                carton_qty: parseFloat(oi.carton_qty) || 0,
+                pack_qty: parseFloat(oi.pack_qty) || 0,
+                pcs_qty: parseFloat(oi.pcs_qty) || 0,
+                unit: unit,
+                carton_rate: cartonRate,
+                piece_rate: pieceRate,
+                rate: parseFloat(oi.rate) || 0,
+                discount_percent: parseFloat(oi.discount_percent) || 0,
+                line_total: parseFloat(oi.line_total) || 0
+            };
+
+            renderNewCartRow(oi.product_id);
+            updateCardBadge(oi.product_id);
+        });
+
+        recalculateCartSummary();
+        onDiscountModeChange();
+    }
+
+    // Initial highlight on first card
+    highlightCard(0);
+});
+
+let selectedCardIndex = -1;
+
+function getVisibleCards() {
+    return Array.from(document.querySelectorAll('.pos-product-card:not(.d-none)'));
+}
+
+function highlightCard(index) {
+    const visibleCards = getVisibleCards();
+    if (visibleCards.length === 0) {
+        selectedCardIndex = -1;
+        return;
+    }
+
+    if (index < 0) index = 0;
+    if (index >= visibleCards.length) index = visibleCards.length - 1;
+
+    selectedCardIndex = index;
+
+    document.querySelectorAll('.pos-product-card').forEach(c => c.classList.remove('active-selected'));
+    const targetCard = visibleCards[selectedCardIndex];
+    if (targetCard) {
+        targetCard.classList.add('active-selected');
+        targetCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
+function filterProductCards() {
+    const productSearch = document.getElementById('productSearch');
+    const query = productSearch ? productSearch.value.trim().toLowerCase() : '';
+    const activeCatEl = document.querySelector('.pos-category-pill.active');
+    const activeCat = activeCatEl ? activeCatEl.getAttribute('data-cat') : '';
+    const companyFilter = document.getElementById('companyFilter');
+    const activeSup = companyFilter ? companyFilter.value : '';
+
+    let visibleCount = 0;
+    document.querySelectorAll('.pos-product-card').forEach(card => {
+        const name = (card.getAttribute('data-name') || '').toLowerCase();
+        const code = (card.getAttribute('data-code') || '').toLowerCase();
+        const cat  = card.getAttribute('data-cat');
+        const sup  = card.getAttribute('data-supplier-id');
+
+        const matchQuery = !query || name.includes(query) || code.includes(query);
+        const matchCat   = !activeCat || cat === activeCat;
+        const matchSup   = !activeSup || sup === activeSup;
+
+        if (matchQuery && matchCat && matchSup) {
+            card.classList.remove('d-none');
+            visibleCount++;
+        } else {
+            card.classList.add('d-none');
+            card.classList.remove('active-selected');
+        }
+    });
+
+    const visible = getVisibleCards();
+    if (visible.length > 0) {
+        highlightCard(0);
+    } else {
+        selectedCardIndex = -1;
+    }
+}
+
 function getDiscountMode() {
     const radio = document.querySelector('input[name="discount_mode"]:checked');
     return radio ? radio.value : 'item_rate';
@@ -507,7 +901,8 @@ function getDiscountMode() {
 function onDiscountModeChange() {
     const mode = getDiscountMode();
     const subtotalBox = document.getElementById('subtotalDiscountInputs');
-    const discInps = document.querySelectorAll('.disc-inp');
+    const discInps = document.querySelectorAll('.pos-cart-table input[name="item_discount_percent[]"]');
+    const lblSummary = document.getElementById('lblSummaryDiscount');
 
     if (mode === 'subtotal') {
         if (subtotalBox) {
@@ -519,6 +914,8 @@ function onDiscountModeChange() {
             inp.classList.add('bg-light', 'text-muted');
             inp.title = 'Disabled in subtotal discount mode';
         });
+        if (lblSummary) lblSummary.innerText = 'Subtotal Discount';
+        // Auto-trigger calculation from subtotal percent or amount
         const pctEl = document.getElementById('subtotalDiscountPercent');
         const amtEl = document.getElementById('subtotalDiscountAmount');
         if (parseFloat(pctEl?.value) > 0) {
@@ -536,10 +933,11 @@ function onDiscountModeChange() {
             inp.classList.remove('bg-light', 'text-muted');
             inp.title = '';
         });
+        if (lblSummary) lblSummary.innerText = 'Total Discount';
     }
 
-    recalcAllOrderLines();
-    recalcOrderTotals();
+    recalculateAllRows();
+    recalculateCartSummary();
 }
 
 function isFreeLoosePiecesActive() {
@@ -548,7 +946,7 @@ function isFreeLoosePiecesActive() {
 }
 
 function onFreeLoosePiecesChange() {
-    recalcAllOrderLines();
+    recalculateAllRows();
     if (getDiscountMode() === 'subtotal') {
         const pctEl = document.getElementById('subtotalDiscountPercent');
         if (pctEl && parseFloat(pctEl.value) > 0) {
@@ -556,29 +954,19 @@ function onFreeLoosePiecesChange() {
             return;
         }
     }
-    recalcOrderTotals();
+    recalculateCartSummary();
 }
 
-function calculateOrderRowGross(row) {
-    const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
-    const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
-    const pcsPerCtn   = packsPerCtn * pcsPerPack;
-
-    const ctn  = parseFloat(row.querySelector('.ctn-inp')?.value) || 0;
-    const pack = parseFloat(row.querySelector('.pack-inp')?.value) || 0;
-    const pcs  = parseFloat(row.querySelector('.pcs-inp')?.value) || 0;
-    const rate = parseFloat(row.querySelector('.rate-inp')?.value) || 0;
-    const unit = row.querySelector('.unit-inp')?.value || 'ctn';
-
+function calculateLineGross(item) {
+    if (!item) return 0;
     const isFreeLoose = isFreeLoosePiecesActive();
-    const effectivePcs = isFreeLoose ? 0 : pcs;
-
-    if (unit === 'pcs') {
-        const totalPieces = (ctn * pcsPerCtn) + (pack * pcsPerPack) + effectivePcs;
-        return totalPieces * rate;
+    const effectivePcs = isFreeLoose ? 0 : item.pcs_qty;
+    if (item.unit === 'pcs') {
+        const totalPieces = (item.carton_qty * item.pcs_per_ctn) + (item.pack_qty * item.pcs_per_pack) + effectivePcs;
+        return totalPieces * item.rate;
     } else {
-        const baseCartons = ctn + (pack / packsPerCtn) + (effectivePcs / pcsPerCtn);
-        return baseCartons * rate;
+        const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (effectivePcs / item.pcs_per_ctn);
+        return baseCartons * item.rate;
     }
 }
 
@@ -587,18 +975,18 @@ function onSubtotalPercentChange() {
     if (mode !== 'subtotal') return;
 
     const pctVal = parseFloat(document.getElementById('subtotalDiscountPercent')?.value) || 0;
-    let grossTotal = 0;
-    document.querySelectorAll('.item-row').forEach(row => {
-        grossTotal += calculateOrderRowGross(row);
+    let grossAmount = 0;
+    Object.values(cartItems).forEach(item => {
+        grossAmount += calculateLineGross(item);
     });
 
-    const amt = Math.round(((grossTotal * pctVal) / 100.0) * 100) / 100;
+    const amt = Math.round(((grossAmount * pctVal) / 100.0) * 100) / 100;
     const amtEl = document.getElementById('subtotalDiscountAmount');
     if (amtEl && document.activeElement !== amtEl) {
         amtEl.value = amt > 0 ? amt.toFixed(2) : '';
     }
 
-    recalcOrderTotals();
+    recalculateCartSummary();
 }
 
 function onSubtotalAmountChange() {
@@ -606,171 +994,302 @@ function onSubtotalAmountChange() {
     if (mode !== 'subtotal') return;
 
     const amtVal = parseFloat(document.getElementById('subtotalDiscountAmount')?.value) || 0;
-    let grossTotal = 0;
-    document.querySelectorAll('.item-row').forEach(row => {
-        grossTotal += calculateOrderRowGross(row);
+    let grossAmount = 0;
+    Object.values(cartItems).forEach(item => {
+        grossAmount += calculateLineGross(item);
     });
 
-    const pct = grossTotal > 0 ? Math.round(((amtVal / grossTotal) * 100.0) * 100) / 100 : 0;
+    const pct = grossAmount > 0 ? Math.round(((amtVal / grossAmount) * 100.0) * 100) / 100 : 0;
     const pctEl = document.getElementById('subtotalDiscountPercent');
     if (pctEl && document.activeElement !== pctEl) {
         pctEl.value = pct > 0 ? pct.toFixed(2) : '';
     }
 
-    recalcOrderTotals();
+    recalculateCartSummary();
 }
 
-function recalcAllOrderLines() {
+function recalculateAllRows() {
     const mode = getDiscountMode();
-    document.querySelectorAll('.item-row').forEach(row => {
-        const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
-        const gross = calculateOrderRowGross(row);
-        const discAmt = (mode === 'subtotal') ? 0 : ((gross * disc) / 100);
-        const net = gross - discAmt;
+    Object.keys(cartItems).forEach(productId => {
+        const item = cartItems[productId];
+        const lineGross = calculateLineGross(item);
+        const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
+        item.line_total = lineGross - lineDisc;
 
-        row.querySelector('.line-total').innerText = net.toLocaleString('en-US', {minimumFractionDigits: 2});
+        const lblTotal = document.getElementById('lbl_total_' + productId);
+        if (lblTotal) {
+            lblTotal.innerText = `<?= DEFAULT_CURRENCY ?> ${item.line_total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        }
     });
 }
 
-function addOrderRow() {
-    const tpl = document.getElementById('orderRowTpl').content.cloneNode(true);
-    document.getElementById('orderItemsTbody').appendChild(tpl);
+let cartItems = {};
+
+function addProductToCart(productId) {
+    const prod = productMap[productId];
+    if (!prod) return;
+
+    if (cartItems[productId]) {
+        // If already in cart, increment carton qty by +1
+        cartItems[productId].carton_qty += 1;
+        updateCartRow(productId);
+    } else {
+        const packsPerCtn = parseFloat(prod.carton_qty) > 0 ? parseFloat(prod.carton_qty) : 1;
+        const pcsPerPack  = parseFloat(prod.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
+        const pcsPerCtn   = packsPerCtn * pcsPerPack;
+        const cartonRate  = parseFloat(prod.carton_rate) || parseFloat(prod.wholesale_rate) || 0;
+        const pieceRate   = parseFloat(prod.piece_rate) || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
+
+        cartItems[productId] = {
+            product_id: productId,
+            product_name: prod.product_name,
+            product_code: prod.product_code,
+            packs_per_ctn: packsPerCtn,
+            pcs_per_pack: pcsPerPack,
+            pcs_per_ctn: pcsPerCtn,
+            carton_qty: 1,
+            pack_qty: 0,
+            pcs_qty: 0,
+            unit: 'ctn',
+            carton_rate: cartonRate,
+            piece_rate: pieceRate,
+            rate: cartonRate,
+            discount_percent: 0,
+            line_total: cartonRate
+        };
+
+        renderNewCartRow(productId);
+    }
+
+    updateCardBadge(productId);
+    recalculateCartSummary();
+
+    const card = document.getElementById('card_prod_' + productId);
+    if (card) {
+        const visible = getVisibleCards();
+        const idx = visible.indexOf(card);
+        if (idx >= 0) highlightCard(idx);
+    }
+
+    // Focus the carton quantity input of the added row
+    const rowInput = document.getElementById('input_carton_' + productId);
+    if (rowInput) {
+        rowInput.focus();
+        rowInput.select();
+    }
+}
+
+function renderNewCartRow(productId) {
+    const emptyRow = document.getElementById('emptyCartRow');
+    if (emptyRow) emptyRow.style.display = 'none';
+    document.getElementById('btnClearCart').style.display = 'inline-block';
+
+    const item = cartItems[productId];
+    const tbody = document.getElementById('cartItemsBody');
+
+    const ratioText = item.pcs_per_pack > 1 
+        ? `1*${item.packs_per_ctn}*${item.pcs_per_pack}` 
+        : `1*${item.packs_per_ctn}`;
+
+    const tr = document.createElement('tr');
+    tr.id = 'cart_row_' + productId;
+    tr.innerHTML = `
+        <td>
+            <input type="hidden" name="item_product_id[]" value="${item.product_id}">
+            <div class="fw-bold text-navy" style="font-size: 13px;">${item.product_name}</div>
+            <small class="text-muted">Pack: ${ratioText} &bull; ${item.product_code}</small>
+        </td>
+        <td class="text-center">
+            <input type="number" step="1" min="0" name="item_carton_qty[]" id="input_carton_${productId}" 
+                   class="form-control form-control-sm text-center fw-bold pos-cart-input" 
+                   value="${item.carton_qty}" 
+                   oninput="onCartRowChange(${productId})"
+                   onkeydown="onCartInputKeyDown(event, ${productId}, 'carton')" required>
+        </td>
+        <td class="text-center">
+            <input type="number" step="1" min="0" name="item_pack_qty[]" id="input_pack_${productId}" 
+                   class="form-control form-control-sm text-center pos-cart-input" 
+                   value="${item.pack_qty}" 
+                   oninput="onCartRowChange(${productId})"
+                   onkeydown="onCartInputKeyDown(event, ${productId}, 'pack')">
+        </td>
+        <td class="text-center">
+            <input type="number" step="1" min="0" name="item_pcs_qty[]" id="input_pcs_${productId}" 
+                   class="form-control form-control-sm text-center pos-cart-input" 
+                   value="${item.pcs_qty}" 
+                   oninput="onCartRowChange(${productId})"
+                   onkeydown="onCartInputKeyDown(event, ${productId}, 'pcs')">
+        </td>
+        <td class="text-center">
+            <select name="item_unit[]" id="input_unit_${productId}" 
+                    class="form-select form-select-sm text-center fw-bold py-0 px-1" 
+                    onchange="onCartUnitChange(${productId}, this.value)">
+                <option value="ctn" ${item.unit === 'ctn' ? 'selected' : ''}>Ctn</option>
+                <option value="pcs" ${item.unit === 'pcs' ? 'selected' : ''}>Pcs</option>
+            </select>
+        </td>
+        <td class="text-end">
+            <input type="number" step="0.01" name="item_rate[]" id="input_rate_${productId}" 
+                   class="form-control form-control-sm text-end fw-semibold pos-cart-input" 
+                   value="${item.rate.toFixed(2)}" 
+                   oninput="onCartRowChange(${productId})"
+                   onkeydown="onCartInputKeyDown(event, ${productId}, 'rate')" required>
+            <small class="text-muted text-end d-block" id="lbl_rate_unit_${productId}" style="font-size: 10px;">/ ${item.unit === 'pcs' ? 'Piece' : 'Carton'}</small>
+        </td>
+        <td class="text-end">
+            <input type="number" step="0.01" name="item_discount_percent[]" id="input_disc_${productId}" 
+                   class="form-control form-control-sm text-end pos-cart-input" 
+                   value="${item.discount_percent}" 
+                   oninput="onCartRowChange(${productId})"
+                   onkeydown="onCartInputKeyDown(event, ${productId}, 'disc')">
+        </td>
+        <td class="text-end fw-bold text-navy" id="lbl_total_${productId}">
+            <?= DEFAULT_CURRENCY ?> ${item.line_total.toFixed(2)}
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" onclick="removeProductFromCart(${productId})" title="Remove item">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </td>
+    `;
+    tbody.prepend(tr);
+
     if (getDiscountMode() === 'subtotal') {
-        const lastRow = document.querySelector('#orderItemsTbody tr:last-child');
-        const discInp = lastRow?.querySelector('.disc-inp');
+        const discInp = document.getElementById('input_disc_' + productId);
         if (discInp) {
             discInp.disabled = true;
             discInp.classList.add('bg-light', 'text-muted');
             discInp.title = 'Disabled in subtotal discount mode';
         }
     }
-    recalcOrderTotals();
 }
 
-function removeOrderRow(btn) {
-    const row = btn.closest('tr');
-    if (document.querySelectorAll('.item-row').length > 1) {
-        row.remove();
-        recalcOrderTotals();
-    } else {
-        alert('Order must contain at least one item.');
-    }
-}
+function onCartUnitChange(productId, unit) {
+    const item = cartItems[productId];
+    if (!item) return;
 
-function onOrderUnitChange(sel) {
-    const row = sel.closest('tr');
-    const unit = sel.value;
-    const prodSel = row.querySelector('.prod-select');
-    const opt = prodSel ? prodSel.selectedOptions[0] : null;
-
-    const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
-    const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
-    const pcsPerCtn   = packsPerCtn * pcsPerPack;
-
-    const cartonRate = opt ? (parseFloat(opt.getAttribute('data-carton-rate')) || parseFloat(opt.getAttribute('data-rate')) || 0) : 0;
-    const pieceRate  = opt ? (parseFloat(opt.getAttribute('data-piece-rate')) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate)) : 0;
-
-    const ctnInp  = row.querySelector('.ctn-inp');
-    const pcsInp  = row.querySelector('.pcs-inp');
-    const rateInp = row.querySelector('.rate-inp');
-    const lblUnit = row.querySelector('.rate-unit-lbl');
-
+    item.unit = unit;
     if (unit === 'pcs') {
-        if (rateInp) rateInp.value = pieceRate.toFixed(2);
-        if (lblUnit) lblUnit.innerText = '/ Piece';
-        const ctnVal = parseFloat(ctnInp?.value) || 0;
-        const pcsVal = parseFloat(pcsInp?.value) || 0;
-        if (ctnVal > 0 && pcsVal === 0) {
-            if (pcsInp) pcsInp.value = ctnVal * pcsPerCtn;
-            if (ctnInp) ctnInp.value = 0;
+        item.rate = item.piece_rate;
+        if (item.carton_qty === 1 && item.pcs_qty === 0) {
+            item.carton_qty = 0;
+            item.pcs_qty = 1;
+            const inputCtn = document.getElementById('input_carton_' + productId);
+            const inputPcs = document.getElementById('input_pcs_' + productId);
+            if (inputCtn) inputCtn.value = 0;
+            if (inputPcs) inputPcs.value = 1;
         }
     } else {
-        if (rateInp) rateInp.value = cartonRate.toFixed(2);
-        if (lblUnit) lblUnit.innerText = '/ Carton';
-        const ctnVal = parseFloat(ctnInp?.value) || 0;
-        const pcsVal = parseFloat(pcsInp?.value) || 0;
-        if (ctnVal === 0 && pcsVal > 0 && pcsPerCtn > 0) {
-            if (ctnInp) ctnInp.value = Math.floor(pcsVal / pcsPerCtn);
-            if (pcsInp) pcsInp.value = pcsVal % pcsPerCtn;
+        item.rate = item.carton_rate;
+        if (item.carton_qty === 0 && item.pcs_qty === 1) {
+            item.carton_qty = 1;
+            item.pcs_qty = 0;
+            const inputCtn = document.getElementById('input_carton_' + productId);
+            const inputPcs = document.getElementById('input_pcs_' + productId);
+            if (inputCtn) inputCtn.value = 1;
+            if (inputPcs) inputPcs.value = 0;
         }
     }
 
-    recalcOrderLine(sel);
+    const inputRate = document.getElementById('input_rate_' + productId);
+    if (inputRate) inputRate.value = item.rate.toFixed(2);
+
+    const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (unit === 'pcs' ? 'Piece' : 'Carton');
+
+    updateCartRow(productId);
+    recalculateCartSummary();
 }
 
-function onProductChange(sel) {
-    const row = sel.closest('tr');
-    const opt = sel.selectedOptions[0];
-    if (opt && opt.value) {
-        const ratio = parseFloat(opt.getAttribute('data-ratio')) || 1;
-        const packRatio = parseFloat(opt.getAttribute('data-pack-ratio')) || 1;
-        row.setAttribute('data-ratio', ratio);
-        row.setAttribute('data-pack-ratio', packRatio);
+function updateCartRow(productId) {
+    const item = cartItems[productId];
+    if (!item) return;
 
-        const pcsPerCtn = ratio * packRatio;
-        const cartonRate = parseFloat(opt.getAttribute('data-carton-rate')) || parseFloat(opt.getAttribute('data-rate')) || 0;
-        const pieceRate  = parseFloat(opt.getAttribute('data-piece-rate')) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate);
+    const inputCarton = document.getElementById('input_carton_' + productId);
+    const inputPack   = document.getElementById('input_pack_' + productId);
+    const inputPcs    = document.getElementById('input_pcs_' + productId);
+    const inputUnit   = document.getElementById('input_unit_' + productId);
+    const inputRate   = document.getElementById('input_rate_' + productId);
+    const inputDisc   = document.getElementById('input_disc_' + productId);
+    const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
+    const lblTotal    = document.getElementById('lbl_total_' + productId);
 
-        const unit = row.querySelector('.unit-inp')?.value || 'ctn';
-        const rateInp = row.querySelector('.rate-inp');
-        const lblUnit = row.querySelector('.rate-unit-lbl');
+    if (inputCarton) inputCarton.value = item.carton_qty;
+    if (inputPack) inputPack.value = item.pack_qty;
+    if (inputPcs) inputPcs.value = item.pcs_qty;
+    if (inputUnit) inputUnit.value = item.unit || 'ctn';
+    if (inputRate) inputRate.value = item.rate.toFixed(2);
+    if (inputDisc) inputDisc.value = item.discount_percent;
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : 'Carton');
 
-        if (unit === 'pcs') {
-            if (rateInp) rateInp.value = pieceRate.toFixed(2);
-            if (lblUnit) lblUnit.innerText = '/ Piece';
-        } else {
-            if (rateInp) rateInp.value = cartonRate.toFixed(2);
-            if (lblUnit) lblUnit.innerText = '/ Carton';
-        }
+    const lineGross = calculateLineGross(item);
+    const mode = getDiscountMode();
+    const lineDisc  = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
+    item.line_total = lineGross - lineDisc;
 
-        recalcOrderLine(sel);
+    if (lblTotal) {
+        lblTotal.innerText = `<?= DEFAULT_CURRENCY ?> ${item.line_total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 }
 
-function recalcOrderLine(el) {
-    const row = el.closest('tr');
-    const packsPerCtn = parseFloat(row.getAttribute('data-ratio')) || 1;
-    const pcsPerPack  = parseFloat(row.getAttribute('data-pack-ratio')) || 1;
-    const pcsPerCtn   = packsPerCtn * pcsPerPack;
+function onCartRowChange(productId) {
+    const item = cartItems[productId];
+    if (!item) return;
 
-    const ctnInp  = row.querySelector('.ctn-inp');
-    const pcsInp  = row.querySelector('.pcs-inp');
-    const unitInp = row.querySelector('.unit-inp');
-    const rateInp = row.querySelector('.rate-inp');
-    const lblUnit = row.querySelector('.rate-unit-lbl');
+    const ctnVal  = parseFloat(document.getElementById('input_carton_' + productId).value) || 0;
+    const packVal = parseFloat(document.getElementById('input_pack_' + productId).value) || 0;
+    const pcsVal  = parseFloat(document.getElementById('input_pcs_' + productId).value) || 0;
+    const rateVal = parseFloat(document.getElementById('input_rate_' + productId).value) || 0;
+    const discVal = parseFloat(document.getElementById('input_disc_' + productId).value) || 0;
 
-    const ctnVal  = parseFloat(ctnInp?.value) || 0;
-    const pcsVal  = parseFloat(pcsInp?.value) || 0;
-    const rateVal = parseFloat(rateInp?.value) || 0;
-    const discVal = parseFloat(row.querySelector('.disc-inp')?.value) || 0;
-    let unitVal   = unitInp ? unitInp.value : 'ctn';
+    item.carton_qty = ctnVal;
+    item.pack_qty = packVal;
+    item.pcs_qty = pcsVal;
+    item.rate = rateVal;
+    item.discount_percent = discVal;
+
+    // Keep carton_rate and piece_rate in sync if rate input was edited
+    if (item.unit === 'pcs') {
+        item.piece_rate = rateVal;
+        item.carton_rate = rateVal * item.pcs_per_ctn;
+    } else {
+        item.carton_rate = rateVal;
+        item.piece_rate = item.pcs_per_ctn > 0 ? (rateVal / item.pcs_per_ctn) : rateVal;
+    }
 
     // Auto-switch unit if user specifically entered 0 Cartons and >0 Pieces
-    if (unitVal === 'ctn' && ctnVal === 0 && pcsVal > 0) {
-        const prodSel = row.querySelector('.prod-select');
-        const opt = prodSel ? prodSel.selectedOptions[0] : null;
-        const pieceRate = opt ? (parseFloat(opt.getAttribute('data-piece-rate')) || (pcsPerCtn > 0 ? rateVal / pcsPerCtn : rateVal)) : (pcsPerCtn > 0 ? rateVal / pcsPerCtn : rateVal);
-        unitVal = 'pcs';
-        if (unitInp) unitInp.value = 'pcs';
-        if (rateInp) rateInp.value = pieceRate.toFixed(2);
-        if (lblUnit) lblUnit.innerText = '/ Piece';
-    } else if (unitVal === 'pcs' && ctnVal > 0 && pcsVal === 0) {
-        const prodSel = row.querySelector('.prod-select');
-        const opt = prodSel ? prodSel.selectedOptions[0] : null;
-        const cartonRate = opt ? (parseFloat(opt.getAttribute('data-carton-rate')) || rateVal * pcsPerCtn) : rateVal * pcsPerCtn;
-        unitVal = 'ctn';
-        if (unitInp) unitInp.value = 'ctn';
-        if (rateInp) rateInp.value = cartonRate.toFixed(2);
-        if (lblUnit) lblUnit.innerText = '/ Carton';
+    if (item.unit === 'ctn' && ctnVal === 0 && pcsVal > 0) {
+        item.unit = 'pcs';
+        item.rate = item.piece_rate;
+        const unitSel = document.getElementById('input_unit_' + productId);
+        if (unitSel) unitSel.value = 'pcs';
+        const inputRate = document.getElementById('input_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Piece';
+    } else if (item.unit === 'pcs' && ctnVal > 0 && pcsVal === 0) {
+        item.unit = 'ctn';
+        item.rate = item.carton_rate;
+        const unitSel = document.getElementById('input_unit_' + productId);
+        if (unitSel) unitSel.value = 'ctn';
+        const inputRate = document.getElementById('input_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Carton';
     }
 
+    const lineGross = calculateLineGross(item);
     const mode = getDiscountMode();
-    const gross = calculateOrderRowGross(row);
-    const discAmt = (mode === 'subtotal') ? 0 : ((gross * discVal) / 100);
-    const net = gross - discAmt;
+    const lineDisc  = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
+    item.line_total = lineGross - lineDisc;
 
-    row.querySelector('.line-total').innerText = net.toLocaleString('en-US', {minimumFractionDigits: 2});
-    
+    const lblTotal = document.getElementById('lbl_total_' + productId);
+    if (lblTotal) {
+        lblTotal.innerText = `<?= DEFAULT_CURRENCY ?> ${item.line_total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    }
+
+    updateCardBadge(productId);
+
     if (mode === 'subtotal') {
         const pctEl = document.getElementById('subtotalDiscountPercent');
         if (pctEl && parseFloat(pctEl.value) > 0) {
@@ -779,68 +1298,134 @@ function recalcOrderLine(el) {
         }
     }
 
-    recalcOrderTotals();
+    recalculateCartSummary();
 }
 
-function recalcOrderTotals() {
+function onCartInputKeyDown(e, productId, field) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const searchInput = document.getElementById('productSearch');
+        if (searchInput) {
+            searchInput.value = '';
+            filterProductCards();
+            searchInput.focus();
+            searchInput.select();
+        }
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        const searchInput = document.getElementById('productSearch');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+}
+
+function removeProductFromCart(productId) {
+    delete cartItems[productId];
+    const row = document.getElementById('cart_row_' + productId);
+    if (row) row.remove();
+
+    updateCardBadge(productId);
+
+    if (Object.keys(cartItems).length === 0) {
+        const emptyRow = document.getElementById('emptyCartRow');
+        if (emptyRow) emptyRow.style.display = '';
+        document.getElementById('btnClearCart').style.display = 'none';
+    }
+
+    recalculateCartSummary();
+}
+
+function clearCart() {
+    if (confirm('Clear all items from the current order?')) {
+        cartItems = {};
+        document.querySelectorAll('#cartItemsBody tr:not(#emptyCartRow)').forEach(tr => tr.remove());
+        const emptyRow = document.getElementById('emptyCartRow');
+        if (emptyRow) emptyRow.style.display = '';
+        document.getElementById('btnClearCart').style.display = 'none';
+
+        document.querySelectorAll('.pos-product-card').forEach(card => {
+            card.classList.remove('in-cart');
+        });
+        document.querySelectorAll('.card-badge-cart').forEach(badge => {
+            badge.classList.add('d-none');
+            badge.innerText = '0 in cart';
+        });
+
+        recalculateCartSummary();
+    }
+}
+
+function updateCardBadge(productId) {
+    const card  = document.getElementById('card_prod_' + productId);
+    const badge = document.getElementById('badge_cart_' + productId);
+    const item  = cartItems[productId];
+
+    if (card && badge) {
+        if (item && (item.carton_qty > 0 || item.pack_qty > 0 || item.pcs_qty > 0)) {
+            card.classList.add('in-cart');
+            badge.classList.remove('d-none');
+            let badgeText = `${item.carton_qty} Ctn`;
+            if (item.pack_qty > 0) badgeText += ` +${item.pack_qty}k`;
+            if (item.pcs_qty > 0) badgeText += ` +${item.pcs_qty}p`;
+            badge.innerText = badgeText;
+        } else {
+            card.classList.remove('in-cart');
+            badge.classList.add('d-none');
+            badge.innerText = '0 in cart';
+        }
+    }
+}
+
+function recalculateCartSummary() {
     const mode = getDiscountMode();
-    let totCtn = 0;
-    let totPack = 0;
-    let totPcs = 0;
-    let totGross = 0;
-    let totItemDisc = 0;
+    let totalCartons = 0;
+    let totalPacks   = 0;
+    let totalPieces  = 0;
+    let grossAmount  = 0;
+    let itemDiscSum  = 0;
+    let itemCount    = 0;
 
-    document.querySelectorAll('.item-row').forEach(row => {
-        const ctn  = parseFloat(row.querySelector('.ctn-inp').value) || 0;
-        const pack = parseFloat(row.querySelector('.pack-inp') ? row.querySelector('.pack-inp').value : 0) || 0;
-        const pcs  = parseFloat(row.querySelector('.pcs-inp').value) || 0;
-        const disc = parseFloat(row.querySelector('.disc-inp').value) || 0;
+    Object.values(cartItems).forEach(item => {
+        itemCount++;
+        totalCartons += item.carton_qty;
+        totalPacks   += item.pack_qty;
+        totalPieces  += item.pcs_qty;
 
-        const gross = calculateOrderRowGross(row);
-        const discAmt = (mode === 'subtotal') ? 0 : ((gross * disc) / 100);
+        const lineGross = calculateLineGross(item);
+        const lineDisc  = (mode === 'subtotal') ? 0 : ((lineGross * item.discount_percent) / 100.0);
 
-        totCtn += ctn;
-        totPack += pack;
-        totPcs += pcs;
-        totGross += gross;
-        totItemDisc += discAmt;
+        grossAmount += lineGross;
+        itemDiscSum += lineDisc;
     });
 
-    let finalDisc = 0;
+    let discountAmt = 0;
     if (mode === 'subtotal') {
         const subtotalAmt = parseFloat(document.getElementById('subtotalDiscountAmount')?.value) || 0;
         const subtotalPct = parseFloat(document.getElementById('subtotalDiscountPercent')?.value) || 0;
         if (subtotalAmt > 0) {
-            finalDisc = subtotalAmt;
+            discountAmt = subtotalAmt;
         } else if (subtotalPct > 0) {
-            finalDisc = (totGross * subtotalPct) / 100.0;
+            discountAmt = (grossAmount * subtotalPct) / 100.0;
         }
     } else {
-        finalDisc = totItemDisc;
+        discountAmt = itemDiscSum;
     }
 
-    const finalNet = Math.max(0, totGross - finalDisc);
+    const netAmount = Math.max(0, grossAmount - discountAmt);
 
-    document.getElementById('footCtn').innerText = totCtn;
-    if (document.getElementById('footPack')) document.getElementById('footPack').innerText = totPack;
-    document.getElementById('footPcs').innerText = totPcs;
-    document.getElementById('footGross').innerText = 'Rs. ' + totGross.toLocaleString('en-US', {minimumFractionDigits: 2});
-    document.getElementById('footDisc').innerText = '-Rs. ' + finalDisc.toLocaleString('en-US', {minimumFractionDigits: 2});
-    document.getElementById('footNet').innerText = 'Rs. ' + finalNet.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('cartItemCount').innerText = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+    let ctnSummaryText = `${totalCartons.toLocaleString('en-US', {maximumFractionDigits:2})} Ctns`;
+    if (totalPacks > 0) ctnSummaryText += ` + ${totalPacks} Pck`;
+    document.getElementById('summaryTotalCartons').innerText = ctnSummaryText;
+    document.getElementById('summaryTotalPieces').innerText = `${totalPieces} Pcs`;
+    document.getElementById('summaryDiscountAmount').innerText = `<?= DEFAULT_CURRENCY ?> ${discountAmt.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    document.getElementById('summaryNetAmount').innerText = `<?= DEFAULT_CURRENCY ?> ${netAmount.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
 }
-
-document.addEventListener('DOMContentLoaded', function() {
-    if (getDiscountMode() === 'subtotal') {
-        document.querySelectorAll('.disc-inp').forEach(inp => {
-            inp.disabled = true;
-            inp.classList.add('bg-light', 'text-muted');
-            inp.title = 'Disabled in subtotal discount mode';
-        });
-    }
-    recalcOrderTotals();
-});
 </script>
 
 <?php
+require_once INCLUDES_PATH . '/drawers/product_price_modal.php';
 require_once INCLUDES_PATH . '/footer.php';
 ?>
