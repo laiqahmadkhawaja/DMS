@@ -419,16 +419,19 @@ html, body {
 .dms-drawer {
     position: fixed;
     top: 0;
-    right: -480px;
+    right: 0;
+    transform: translateX(110%);
     width: 460px;
     max-width: 95vw;
     height: 100vh;
     background: #ffffff;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
-    transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, visibility 0.25s;
     z-index: 1050;
     display: flex;
     flex-direction: column;
+    visibility: hidden;
+    pointer-events: none;
 }
 
 /* Specific stacked drawers - ensure child drawer always slides on top of parent drawer */
@@ -438,6 +441,10 @@ html, body {
 
 .dms-drawer.open {
     right: 0;
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    box-shadow: -4px 0 25px rgba(0, 0, 0, 0.2);
 }
 
 .dms-drawer-header {

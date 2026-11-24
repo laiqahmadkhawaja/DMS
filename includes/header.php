@@ -23,7 +23,7 @@ $activeMenu = get_active_menu();
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/icons/bootstrap-icons.css">
     
     <!-- Custom DMS Desktop Light/Navy Styling -->
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css">
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css?v=<?= filemtime(BASE_PATH . '/assets/css/app.css') ?>">
     
     <script>
         window.DMS_APP_URL = "<?= APP_URL ?>";
