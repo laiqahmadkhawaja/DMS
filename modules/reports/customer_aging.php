@@ -15,13 +15,51 @@ require_permission('customers_statement');
 $pageTitle = "Customer Aging & Parties Credit";
 $activeMenu = "rpt_daily";
 
-$areaId   = !empty($_GET['area_id']) ? (int)$_GET['area_id'] : null;
-$bookerId = !empty($_GET['booker_id']) ? (int)$_GET['booker_id'] : null;
-$minBal   = isset($_GET['min_balance']) ? (float)$_GET['min_balance'] : 1.0; // Default to customers with balance > 0
+$areaId         = !empty($_GET['area_id']) ? (int)$_GET['area_id'] : null;
+$bookerId       = !empty($_GET['booker_id']) ? (int)$_GET['booker_id'] : null;
+$supplierFilter = !empty($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
+$minBal         = isset($_GET['min_balance']) ? (float)$_GET['min_balance'] : 1.0; // Default to customers with balance > 0
+
+$suppliers = db_fetch_all("SELECT id, supplier_name, company_name FROM suppliers WHERE is_deleted = 0 ORDER BY id ASC");
+
+// Fetch open invoices with remaining credit partitioned by supplier in a single fast query
+$openInvoicesRaw = db_fetch_all("
+    SELECT 
+        si.id,
+        si.customer_id,
+        si.invoice_date,
+        (si.net_amount - si.paid_amount - si.return_amount) as total_outstanding,
+        COALESCE(SUM(CASE WHEN p.supplier_id = 1 THEN (sii.line_total / NULLIF(si.gross_amount, 0)) * (si.net_amount - si.paid_amount - si.return_amount) ELSE 0 END), 0) as ujab_credit,
+        COALESCE(SUM(CASE WHEN p.supplier_id = 2 THEN (sii.line_total / NULLIF(si.gross_amount, 0)) * (si.net_amount - si.paid_amount - si.return_amount) ELSE 0 END), 0) as sms_credit
+    FROM sales_invoices si
+    JOIN sales_invoice_items sii ON si.id = sii.invoice_id
+    JOIN products p ON sii.product_id = p.id
+    WHERE si.status != 'cancelled' AND (si.net_amount - si.paid_amount - si.return_amount) > 0.01
+    GROUP BY si.id, si.customer_id, si.invoice_date, si.net_amount, si.paid_amount, si.return_amount
+    ORDER BY si.invoice_date DESC
+");
+
+$customerInvoicesMap = [];
+$customerSupplierTotals = [];
+
+foreach ($openInvoicesRaw as $inv) {
+    $cid = (int)$inv['customer_id'];
+    $customerInvoicesMap[$cid][] = $inv;
+    if (!isset($customerSupplierTotals[$cid])) {
+        $customerSupplierTotals[$cid] = ['sms' => 0.0, 'ujab' => 0.0, 'total' => 0.0];
+    }
+    $customerSupplierTotals[$cid]['sms']   += (float)$inv['sms_credit'];
+    $customerSupplierTotals[$cid]['ujab']  += (float)$inv['ujab_credit'];
+    $customerSupplierTotals[$cid]['total'] += (float)$inv['total_outstanding'];
+}
 
 $params = [];
-$where = "c.is_deleted = 0 AND c.current_balance >= ?";
-$params[] = $minBal;
+$where = "c.is_deleted = 0";
+
+if ($supplierFilter == 0) {
+    $where .= " AND c.current_balance >= ?";
+    $params[] = $minBal;
+}
 
 if ($areaId) {
     $where .= " AND c.area_id = ?";
@@ -33,7 +71,7 @@ if ($bookerId) {
 }
 
 // Fetch Customers with balances
-$customers = db_fetch_all("
+$customersRaw = db_fetch_all("
     SELECT 
         c.id as customer_id,
         c.customer_code,
@@ -57,36 +95,62 @@ $today = date('Y-m-d');
 $todayTs = strtotime($today);
 
 $grandTotals = [
-    'current_15' => 0.0,
-    'days_16_30' => 0.0,
-    'days_31_60' => 0.0,
-    'days_60_plus' => 0.0,
+    'sms_total'     => 0.0,
+    'ujab_total'    => 0.0,
+    'current_15'    => 0.0,
+    'days_16_30'    => 0.0,
+    'days_31_60'    => 0.0,
+    'days_60_plus'  => 0.0,
     'total_balance' => 0.0
 ];
 
-foreach ($customers as &$c) {
-    $cid = (int)$c['customer_id'];
-    $bal = (float)$c['current_balance'];
-    $grandTotals['total_balance'] += $bal;
+$customers = [];
 
-    // Fetch open invoices with remaining credit
-    $openInvoices = db_fetch_all("
-        SELECT invoice_date, (net_amount - paid_amount - return_amount) as outstanding
-        FROM sales_invoices
-        WHERE customer_id = ? AND status != 'cancelled' AND (net_amount - paid_amount - return_amount) > 0
-        ORDER BY invoice_date DESC
-    ", [$cid]);
+foreach ($customersRaw as $c) {
+    $cid = (int)$c['customer_id'];
+    $supTotals = $customerSupplierTotals[$cid] ?? ['sms' => 0.0, 'ujab' => 0.0, 'total' => 0.0];
+    $c['sms_balance']  = round($supTotals['sms'], 2);
+    $c['ujab_balance'] = round($supTotals['ujab'], 2);
+
+    // If filtering by specific company
+    if ($supplierFilter == 1) { // Ujab
+        $activeBal = $c['ujab_balance'];
+        if ($activeBal < $minBal) continue;
+        $c['display_balance'] = $activeBal;
+    } elseif ($supplierFilter == 2) { // SMS
+        $activeBal = $c['sms_balance'];
+        if ($activeBal < $minBal) continue;
+        $c['display_balance'] = $activeBal;
+    } else {
+        $c['display_balance'] = (float)$c['current_balance'];
+    }
+
+    $bal = (float)$c['display_balance'];
+    $grandTotals['total_balance'] += $bal;
+    $grandTotals['sms_total']     += $c['sms_balance'];
+    $grandTotals['ujab_total']    += $c['ujab_balance'];
+
+    $openInvoices = $customerInvoicesMap[$cid] ?? [];
 
     $c15 = 0.0;
     $c30 = 0.0;
     $c60 = 0.0;
     $cPlus = 0.0;
-
     $allocated = 0.0;
+
     foreach ($openInvoices as $inv) {
         $invTs = strtotime($inv['invoice_date']);
         $days = max(0, (int)floor(($todayTs - $invTs) / 86400));
-        $amt = (float)$inv['outstanding'];
+        
+        if ($supplierFilter == 1) {
+            $amt = (float)$inv['ujab_credit'];
+        } elseif ($supplierFilter == 2) {
+            $amt = (float)$inv['sms_credit'];
+        } else {
+            $amt = (float)$inv['total_outstanding'];
+        }
+
+        if ($amt <= 0.01) continue;
 
         if ($days <= 15) {
             $c15 += $amt;
@@ -115,8 +179,9 @@ foreach ($customers as &$c) {
     $grandTotals['days_16_30']   += $c['b_30'];
     $grandTotals['days_31_60']   += $c['b_60'];
     $grandTotals['days_60_plus'] += $c['b_plus'];
+
+    $customers[] = $c;
 }
-unset($c);
 
 $areas = db_fetch_all("SELECT id, area_name FROM areas WHERE is_deleted = 0 ORDER BY area_name ASC");
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_deleted = 0 ORDER BY booker_name ASC");
@@ -152,8 +217,45 @@ require_once INCLUDES_PATH . '/topbar.php';
 
         <!-- Filter Bar -->
         <div class="card border-0 shadow-sm mb-4 no-print">
-            <div class="card-body py-2">
+            <div class="card-body py-3">
+                <!-- Quick Company Switcher Pills -->
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pb-3 mb-3 border-bottom">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted small fw-bold"><i class="bi bi-buildings me-1"></i>کمپنی فلٹر:</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="customer_aging.php?area_id=<?= $areaId ?>&booker_id=<?= $bookerId ?>&min_balance=<?= $minBal ?>&supplier_id=0" 
+                               class="btn <?= $supplierFilter === 0 ? 'btn-primary fw-bold' : 'btn-outline-secondary' ?>">
+                                <i class="bi bi-collection me-1"></i> دونوں اکٹھا (Both Combined)
+                            </a>
+                            <a href="customer_aging.php?area_id=<?= $areaId ?>&booker_id=<?= $bookerId ?>&min_balance=<?= $minBal ?>&supplier_id=1" 
+                               class="btn <?= $supplierFilter === 1 ? 'btn-success fw-bold' : 'btn-outline-secondary' ?>">
+                                <i class="bi bi-box-seam me-1"></i> اجاب انٹرپرائزز (Ujab)
+                            </a>
+                            <a href="customer_aging.php?area_id=<?= $areaId ?>&booker_id=<?= $bookerId ?>&min_balance=<?= $minBal ?>&supplier_id=2" 
+                               class="btn <?= $supplierFilter === 2 ? 'btn-info text-white fw-bold' : 'btn-outline-secondary' ?>">
+                                <i class="bi bi-building me-1"></i> ایس ایم ایس (SMS / کنافہ / جج)
+                            </a>
+                        </div>
+                    </div>
+                    <?php if ($supplierFilter > 0): ?>
+                        <span class="badge bg-warning text-dark px-3 py-2 border fs-7">
+                            <i class="bi bi-funnel-fill me-1"></i> صرف <strong><?= $supplierFilter === 1 ? 'Ujab Enterprises' : 'SMS' ?></strong> کے بلز کا ادھار دکھایا جا رہا ہے
+                        </span>
+                    <?php endif; ?>
+                </div>
+
                 <form method="GET" action="customer_aging.php" class="row g-2 align-items-end">
+                    <div class="col-md-3 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Company / Supplier (کمپنی)</label>
+                        <select name="supplier_id" class="form-select form-select-sm">
+                            <option value="0">-- All Companies (دونوں اکٹھا) --</option>
+                            <?php foreach ($suppliers as $s): ?>
+                                <option value="<?= $s['id'] ?>" <?= $supplierFilter === (int)$s['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($s['supplier_name']) ?> (<?= (int)$s['id'] === 1 ? 'Ujab' : 'SMS' ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div class="col-md-3 col-sm-6">
                         <label class="form-label small text-muted mb-1">Route / Area</label>
                         <select name="area_id" class="form-select form-select-sm">
@@ -165,7 +267,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-md-2 col-sm-6">
                         <label class="form-label small text-muted mb-1">Order Booker</label>
                         <select name="booker_id" class="form-select form-select-sm">
                             <option value="">-- All Bookers --</option>
@@ -176,11 +278,11 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-md-2 col-sm-6">
                         <label class="form-label small text-muted mb-1">Minimum Balance (Rs.)</label>
                         <input type="number" step="1" name="min_balance" class="form-control form-control-sm" value="<?= htmlspecialchars($minBal) ?>">
                     </div>
-                    <div class="col-md-3 col-sm-6 d-flex gap-2">
+                    <div class="col-md-2 col-sm-6 d-flex gap-2">
                         <button type="submit" class="btn btn-primary btn-sm w-100">
                             <i class="bi bi-funnel"></i> Filter
                         </button>
@@ -196,28 +298,30 @@ require_once INCLUDES_PATH . '/topbar.php';
         <div class="row g-3 mb-4">
             <div class="col-md-3 col-sm-6">
                 <div class="card border-0 shadow-sm bg-white p-3 h-100 border-start border-4 border-warning">
-                    <div class="text-muted small fw-semibold text-uppercase">Total Market Credit</div>
+                    <div class="text-muted small fw-semibold text-uppercase">
+                        <?= $supplierFilter === 1 ? 'Ujab Market Credit' : ($supplierFilter === 2 ? 'SMS Market Credit' : 'Total Market Credit (کل ادھار)') ?>
+                    </div>
                     <div class="h5 fw-bold text-navy mt-1 mb-0"><?= format_currency($grandTotals['total_balance']) ?></div>
                     <div class="small text-muted mt-1"><?= count($customers) ?> parties with balances</div>
                 </div>
             </div>
             <div class="col-md-3 col-sm-6">
-                <div class="card border-0 shadow-sm bg-white p-3 h-100 border-start border-4 border-success">
-                    <div class="text-muted small fw-semibold text-uppercase">Current (0-15 Days)</div>
-                    <div class="h5 fw-bold text-success mt-1 mb-0"><?= format_currency($grandTotals['current_15']) ?></div>
-                    <div class="small text-muted mt-1">Normal credit cycle</div>
+                <div class="card border-0 shadow-sm bg-white p-3 h-100 border-start border-4 border-info">
+                    <div class="text-muted small fw-semibold text-uppercase">SMS Credit Share (ایس ایم ایس)</div>
+                    <div class="h5 fw-bold text-info mt-1 mb-0"><?= format_currency($grandTotals['sms_total']) ?></div>
+                    <div class="small text-muted mt-1">Dubai Kunafa & Jaj Enterprises</div>
                 </div>
             </div>
             <div class="col-md-3 col-sm-6">
-                <div class="card border-0 shadow-sm bg-white p-3 h-100 border-start border-4 border-info">
-                    <div class="text-muted small fw-semibold text-uppercase">16 - 30 Days</div>
-                    <div class="h5 fw-bold text-info mt-1 mb-0"><?= format_currency($grandTotals['days_16_30']) ?></div>
-                    <div class="small text-muted mt-1">Due for follow-up</div>
+                <div class="card border-0 shadow-sm bg-white p-3 h-100 border-start border-4 border-success">
+                    <div class="text-muted small fw-semibold text-uppercase">Ujab Credit Share (اجاب)</div>
+                    <div class="h5 fw-bold text-success mt-1 mb-0"><?= format_currency($grandTotals['ujab_total']) ?></div>
+                    <div class="small text-muted mt-1">Ujab Enterprises Range</div>
                 </div>
             </div>
             <div class="col-md-3 col-sm-6">
                 <div class="card border-0 shadow-sm bg-white p-3 h-100 border-start border-4 border-danger">
-                    <div class="text-muted small fw-semibold text-uppercase">Overdue (31+ Days)</div>
+                    <div class="text-muted small fw-semibold text-uppercase">Overdue (31+ Days رسک)</div>
                     <div class="h5 fw-bold text-danger mt-1 mb-0"><?= format_currency($grandTotals['days_31_60'] + $grandTotals['days_60_plus']) ?></div>
                     <div class="small text-muted mt-1">Aging risk recovery</div>
                 </div>
@@ -232,10 +336,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <h4 class="fw-bold mb-0 text-uppercase tracking-wider"><?= CLIENT_NAME ?></h4>
                     <div class="text-muted small">Wholesale & FMCG Distribution • Gujranwala</div>
                     <div class="mt-2">
-                        <span class="badge bg-secondary text-white px-3 py-1 fs-6 text-uppercase fw-bold">Parties Credit & Aging Register</span>
+                        <span class="badge bg-secondary text-white px-3 py-1 fs-6 text-uppercase fw-bold">
+                            Parties Credit & Aging Register <?= $supplierFilter === 1 ? '- Ujab Enterprises' : ($supplierFilter === 2 ? '- SMS Agency' : '(Combined / دونوں کمپنیاں)') ?>
+                        </span>
                     </div>
                     <div class="small text-muted mt-1">
-                        Report Date: <strong><?= date('d-m-Y') ?></strong>
+                        Report Date: <strong><?= date('d-m-Y') ?></strong> | Filter: <strong><?= $supplierFilter === 1 ? 'Ujab Enterprises Only' : ($supplierFilter === 2 ? 'SMS Agency Only' : 'All Companies Combined') ?></strong>
                     </div>
                 </div>
 
@@ -243,20 +349,24 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <table class="table table-bordered align-middle text-nowrap mb-0">
                         <thead class="table-secondary border-dark text-dark fw-bold">
                             <tr>
-                                <th style="width: 50px;" class="text-center">Sr.</th>
+                                <th style="width: 45px;" class="text-center">Sr.</th>
                                 <th>Booker / Shop Name</th>
                                 <th>Address / Route</th>
+                                <?php if ($supplierFilter === 0): ?>
+                                    <th class="text-end bg-info-subtle text-dark" style="width: 110px;">SMS Udhar</th>
+                                    <th class="text-end bg-success-subtle text-dark" style="width: 110px;">Ujab Udhar</th>
+                                <?php endif; ?>
                                 <th class="text-end">0 - 15 Days</th>
                                 <th class="text-end">16 - 30 Days</th>
                                 <th class="text-end">31 - 60 Days</th>
                                 <th class="text-end">60+ Days</th>
-                                <th class="text-end" style="background-color: #e5b800; color: #000; width: 150px;">Total Amount</th>
+                                <th class="text-end" style="background-color: #e5b800; color: #000; width: 140px;">Total Udhar</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($customers)): ?>
                                 <tr>
-                                    <td colspan="8" class="text-center py-4 text-muted">No parties found with outstanding balances.</td>
+                                    <td colspan="<?= $supplierFilter === 0 ? 10 : 8 ?>" class="text-center py-4 text-muted">No parties found with outstanding balances.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php $sn = 1; foreach ($customers as $row): ?>
@@ -269,6 +379,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <td class="small text-muted">
                                             <?= htmlspecialchars($row['address'] ?: $row['area_name']) ?>
                                         </td>
+                                        <?php if ($supplierFilter === 0): ?>
+                                            <td class="text-end text-info fw-semibold small bg-info-subtle">
+                                                <?= $row['sms_balance'] > 0 ? number_format($row['sms_balance'], 0) : '—' ?>
+                                            </td>
+                                            <td class="text-end text-success fw-semibold small bg-success-subtle">
+                                                <?= $row['ujab_balance'] > 0 ? number_format($row['ujab_balance'], 0) : '—' ?>
+                                            </td>
+                                        <?php endif; ?>
                                         <td class="text-end text-muted small">
                                             <?= $row['b_15'] > 0 ? number_format($row['b_15'], 0) : '—' ?>
                                         </td>
@@ -282,7 +400,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <?= $row['b_plus'] > 0 ? number_format($row['b_plus'], 0) : '—' ?>
                                         </td>
                                         <td class="text-end fw-bold text-navy fs-6" style="background-color: #fff9e6;">
-                                            <?= number_format($row['current_balance'], 0) ?>
+                                            <?= number_format($row['display_balance'], 0) ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -291,8 +409,19 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <tfoot class="border-dark fw-bold">
                             <tr style="background-color: #d49a00; color: #000;">
                                 <td colspan="3" class="text-center text-uppercase fs-6">Total Parties Credit:</td>
+                                <?php if ($supplierFilter === 0): ?>
+                                    <td class="text-end"><?= number_format($grandTotals['sms_total'], 0) ?></td>
+                                    <td class="text-end"><?= number_format($grandTotals['ujab_total'], 0) ?></td>
+                                <?php endif; ?>
                                 <td class="text-end"><?= number_format($grandTotals['current_15'], 0) ?></td>
                                 <td class="text-end"><?= number_format($grandTotals['days_16_30'], 0) ?></td>
+                                <td class="text-end"><?= number_format($grandTotals['days_31_60'], 0) ?></td>
+                                <td class="text-end text-danger"><?= number_format($grandTotals['days_60_plus'], 0) ?></td>
+                                <td class="text-end fs-5" style="background-color: #e5b800; color: #000;">
+                                    <?= number_format($grandTotals['total_balance'], 0) ?>
+                                </td>
+                            </tr>
+                        </tfoot>
                                 <td class="text-end"><?= number_format($grandTotals['days_31_60'], 0) ?></td>
                                 <td class="text-end text-danger"><?= number_format($grandTotals['days_60_plus'], 0) ?></td>
                                 <td class="text-end fs-5" style="background-color: #e5b800; color: #000;">

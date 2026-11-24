@@ -23,9 +23,10 @@ $fromDate   = clean_input($_GET['from_date'] ?? $firstOfMonth);
 $toDate     = clean_input($_GET['to_date'] ?? $today);
 $bookerId   = !empty($_GET['booker_id']) ? (int)$_GET['booker_id'] : null;
 $salesmanId = !empty($_GET['salesman_id']) ? (int)$_GET['salesman_id'] : null;
+$supplierId = !empty($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : null;
 $viewMode   = clean_input($_GET['view_mode'] ?? 'summary'); // 'summary' (Photo 8) or 'detailed' (Photo 1)
 
-// Summary Query: Grouped by Date
+// Summary Query: Grouped by Date with multi-brand Company attribution
 $params = [$fromDate, $toDate];
 $whereInvoices = "si.invoice_date >= ? AND si.invoice_date <= ? AND si.status != 'cancelled'";
 
@@ -38,25 +39,56 @@ if ($salesmanId) {
     $params[] = $salesmanId;
 }
 
-// Fetch Daily Grouped Summary (Strictly matching Photo 8: Date | Invoices | Cash Received | Credit | Return)
+$whereItems = $whereInvoices;
+$paramsItems = $params;
+if ($supplierId) {
+    $whereItems .= " AND p.supplier_id = ?";
+    $paramsItems[] = $supplierId;
+}
+
+// Fetch Daily Grouped Summary with Brand partition (SMS vs Ujab)
 $dailySummary = db_fetch_all("
     SELECT 
         si.invoice_date,
-        COUNT(si.id) as total_bills,
-        COALESCE(SUM(si.net_amount), 0) as total_invoices,
-        COALESCE(SUM(si.paid_amount), 0) as cash_received,
-        COALESCE(SUM(si.credit_amount), 0) as credit_given,
-        COALESCE(SUM(si.return_amount), 0) as return_amount
-    FROM sales_invoices si
-    WHERE {$whereInvoices}
+        COUNT(DISTINCT si.id) as total_bills,
+        COALESCE(SUM(sii.line_total), 0) as total_invoices,
+        COALESCE(SUM(CASE WHEN p.supplier_id = 2 THEN sii.line_total ELSE 0 END), 0) as sms_sales,
+        COALESCE(SUM(CASE WHEN p.supplier_id = 1 THEN sii.line_total ELSE 0 END), 0) as ujab_sales,
+        COALESCE(SUM(
+            CASE 
+                WHEN si.gross_amount > 0 AND si.paid_amount > 0 
+                THEN (sii.line_total / si.gross_amount) * si.paid_amount 
+                ELSE 0 
+            END
+        ), 0) as cash_received,
+        COALESCE(SUM(
+            CASE 
+                WHEN si.gross_amount > 0 AND si.credit_amount > 0 
+                THEN (sii.line_total / si.gross_amount) * si.credit_amount 
+                ELSE 0 
+            END
+        ), 0) as credit_given,
+        COALESCE(SUM(
+            CASE 
+                WHEN si.gross_amount > 0 AND si.return_amount > 0 
+                THEN (sii.line_total / si.gross_amount) * si.return_amount 
+                ELSE 0 
+            END
+        ), 0) as return_amount
+    FROM sales_invoice_items sii
+    JOIN sales_invoices si ON sii.invoice_id = si.id
+    JOIN products p ON sii.product_id = p.id
+    WHERE {$whereItems}
     GROUP BY si.invoice_date
     ORDER BY si.invoice_date DESC
-", $params);
+", $paramsItems);
 
 // Fetch Overall Totals
 $grandTotals = [
     'bills'    => 0,
     'invoices' => 0.0,
+    'sms'      => 0.0,
+    'ujab'     => 0.0,
     'cash'     => 0.0,
     'credit'   => 0.0,
     'returns'  => 0.0
@@ -65,6 +97,8 @@ $grandTotals = [
 foreach ($dailySummary as $ds) {
     $grandTotals['bills']    += (int)$ds['total_bills'];
     $grandTotals['invoices'] += (float)$ds['total_invoices'];
+    $grandTotals['sms']      += (float)$ds['sms_sales'];
+    $grandTotals['ujab']     += (float)$ds['ujab_sales'];
     $grandTotals['cash']     += (float)$ds['cash_received'];
     $grandTotals['credit']   += (float)$ds['credit_given'];
     $grandTotals['returns']  += (float)$ds['return_amount'];
@@ -78,23 +112,48 @@ if ($viewMode === 'detailed') {
             si.id,
             si.invoice_number,
             si.invoice_date,
-            si.net_amount as total_amount,
-            si.paid_amount as cash_amount,
-            si.credit_amount,
-            si.return_amount,
-            (si.net_amount - (si.paid_amount + si.credit_amount + si.return_amount)) as difference,
+            COALESCE(SUM(sii.line_total), 0) as total_amount,
+            COALESCE(SUM(CASE WHEN p.supplier_id = 2 THEN sii.line_total ELSE 0 END), 0) as sms_amount,
+            COALESCE(SUM(CASE WHEN p.supplier_id = 1 THEN sii.line_total ELSE 0 END), 0) as ujab_amount,
+            COALESCE(SUM(
+                CASE 
+                    WHEN si.gross_amount > 0 AND si.paid_amount > 0 
+                    THEN (sii.line_total / si.gross_amount) * si.paid_amount 
+                    ELSE 0 
+                END
+            ), 0) as cash_amount,
+            COALESCE(SUM(
+                CASE 
+                    WHEN si.gross_amount > 0 AND si.credit_amount > 0 
+                    THEN (sii.line_total / si.gross_amount) * si.credit_amount 
+                    ELSE 0 
+                END
+            ), 0) as credit_amount,
+            COALESCE(SUM(
+                CASE 
+                    WHEN si.gross_amount > 0 AND si.return_amount > 0 
+                    THEN (sii.line_total / si.gross_amount) * si.return_amount 
+                    ELSE 0 
+                END
+            ), 0) as return_amount,
             c.shop_name,
             c.owner_name,
             b.booker_name,
             sm.salesman_name
-        FROM sales_invoices si
+        FROM sales_invoice_items sii
+        JOIN sales_invoices si ON sii.invoice_id = si.id
+        JOIN products p ON sii.product_id = p.id
         JOIN customers c ON si.customer_id = c.id
         LEFT JOIN bookers b ON si.booker_id = b.id
         LEFT JOIN salesmen sm ON si.salesman_id = sm.id
-        WHERE {$whereInvoices}
+        WHERE {$whereItems}
+        GROUP BY si.id, si.invoice_number, si.invoice_date, c.shop_name, c.owner_name, b.booker_name, sm.salesman_name
         ORDER BY si.invoice_date DESC, si.id ASC
-    ", $params);
+    ", $paramsItems);
 }
+
+// Suppliers, Bookers & Salesmen for filters
+$suppliers = db_fetch_all("SELECT id, supplier_code, supplier_name FROM suppliers WHERE is_deleted = 0 ORDER BY id ASC");
 
 // Bookers & Salesmen for filters
 $bookers = db_fetch_all("SELECT id, booker_name FROM bookers WHERE is_active = 1 AND is_deleted = 0 ORDER BY booker_name ASC");
@@ -138,7 +197,18 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <label class="form-label small text-muted mb-1">To Date</label>
                         <input type="date" name="to_date" class="form-control form-control-sm" value="<?= htmlspecialchars($toDate) ?>">
                     </div>
-                    <div class="col-md-3 col-sm-6">
+                    <div class="col-md-2 col-sm-6">
+                        <label class="form-label small text-muted mb-1">Company / Supplier</label>
+                        <select name="supplier_id" class="form-select form-select-sm fw-semibold">
+                            <option value="">-- All Companies --</option>
+                            <?php foreach ($suppliers as $s): ?>
+                                <option value="<?= $s['id'] ?>" <?= $supplierId === (int)$s['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($s['supplier_name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2 col-sm-6">
                         <label class="form-label small text-muted mb-1">Booker</label>
                         <select name="booker_id" class="form-select form-select-sm">
                             <option value="">-- All Bookers --</option>
@@ -160,14 +230,40 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-3 col-sm-12 d-flex gap-2">
+                    <div class="col-md-2 col-sm-12 d-flex gap-2">
                         <select name="view_mode" class="form-select form-select-sm">
-                            <option value="summary" <?= $viewMode === 'summary' ? 'selected' : '' ?>>Date Summary (Photo 8)</option>
-                            <option value="detailed" <?= $viewMode === 'detailed' ? 'selected' : '' ?>>Shop Details (Photo 1)</option>
+                            <option value="summary" <?= $viewMode === 'summary' ? 'selected' : '' ?>>Summary (Photo 8)</option>
+                            <option value="detailed" <?= $viewMode === 'detailed' ? 'selected' : '' ?>>Detailed (Photo 1)</option>
                         </select>
                         <button type="submit" class="btn btn-primary btn-sm px-3">
                             <i class="bi bi-funnel"></i> Filter
                         </button>
+                    </div>
+                </form>
+
+                <!-- Quick Company Filter Pills -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2 mt-2 border-top">
+                    <div class="d-flex align-items-center flex-wrap gap-1">
+                        <span class="small fw-bold text-secondary me-1"><i class="bi bi-buildings me-1 text-primary"></i> Company Filter:</span>
+                        <a href="daily_sales.php?from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&booker_id=<?= $bookerId ?>&salesman_id=<?= $salesmanId ?>&view_mode=<?= $viewMode ?>&supplier_id=" 
+                           class="btn btn-xs rounded-pill px-3 <?= empty($supplierId) ? 'btn-navy fw-bold shadow-sm' : 'btn-outline-secondary bg-white' ?>">
+                            <i class="bi bi-grid-fill me-1"></i> Both Combined (دونوں اکٹھا)
+                        </a>
+                        <a href="daily_sales.php?from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&booker_id=<?= $bookerId ?>&salesman_id=<?= $salesmanId ?>&view_mode=<?= $viewMode ?>&supplier_id=1" 
+                           class="btn btn-xs rounded-pill px-3 <?= $supplierId === 1 ? 'btn-success fw-bold shadow-sm' : 'btn-outline-success bg-white' ?>">
+                            <i class="bi bi-box-seam me-1"></i> Ujab Enterprises (اجاب)
+                        </a>
+                        <a href="daily_sales.php?from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&booker_id=<?= $bookerId ?>&salesman_id=<?= $salesmanId ?>&view_mode=<?= $viewMode ?>&supplier_id=2" 
+                           class="btn btn-xs rounded-pill px-3 <?= $supplierId === 2 ? 'btn-primary fw-bold shadow-sm' : 'btn-outline-primary bg-white' ?>">
+                            <i class="bi bi-box-seam me-1"></i> SMS Supplier (ایس ایم ایس)
+                        </a>
+                    </div>
+                    <?php if ($supplierId > 0): ?>
+                        <span class="badge bg-warning text-dark px-3 py-1 border shadow-xs">
+                            <i class="bi bi-funnel-fill me-1"></i> Showing records filtered for: <strong><?= $supplierId === 1 ? 'Ujab Enterprises' : 'SMS' ?></strong>
+                        </span>
+                    <?php endif; ?>
+                </div>
                     </div>
                 </form>
             </div>
@@ -225,17 +321,21 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                 <?php if ($viewMode === 'summary'): ?>
                     
-                    <!-- SUMMARY VIEW (EXACT REPLICATION OF PHOTO 8) -->
+                    <!-- SUMMARY VIEW (EXACT REPLICATION OF PHOTO 8 WITH COMPANY PARTITION) -->
                     <div class="table-responsive">
-                        <table class="table table-bordered align-middle text-nowrap mb-0">
+                        <table class="table table-bordered align-middle text-nowrap mb-0 font-monospace">
                             <thead class="table-warning border-dark text-dark fw-bold">
                                 <tr>
                                     <th style="width: 50px;" class="text-center">Sr.</th>
                                     <th>Date</th>
                                     <th class="text-center">Bills</th>
-                                    <th class="text-end" style="background-color: #e5b800; color: #000;">Invoices (Total Amount)</th>
-                                    <th class="text-end">Cash Recived</th>
-                                    <th class="text-end">Credit</th>
+                                    <th class="text-end" style="background-color: #e5b800; color: #000;">Total Invoices</th>
+                                    <?php if (empty($supplierId)): ?>
+                                        <th class="text-end text-primary" style="background-color: #e8f0fe;">SMS Sales</th>
+                                        <th class="text-end text-success" style="background-color: #e6f4ea;">Ujab Sales</th>
+                                    <?php endif; ?>
+                                    <th class="text-end">Cash Received</th>
+                                    <th class="text-end">Credit (ادھار)</th>
                                     <th class="text-end">Return</th>
                                     <th class="text-center no-print">Action</th>
                                 </tr>
@@ -243,7 +343,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <tbody>
                                 <?php if (empty($dailySummary)): ?>
                                     <tr>
-                                        <td colspan="8" class="text-center py-4 text-muted">No sales records found for this period.</td>
+                                        <td colspan="<?= empty($supplierId) ? '10' : '8' ?>" class="text-center py-4 text-muted">No sales records found for this period.</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php $sn = 1; foreach ($dailySummary as $row): ?>
@@ -254,6 +354,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end fw-bold text-navy" style="background-color: #fff9e6;">
                                                 <?= number_format($row['total_invoices'], 0) ?>
                                             </td>
+                                            <?php if (empty($supplierId)): ?>
+                                                <td class="text-end fw-bold text-primary" style="background-color: #f8fbff;">
+                                                    <?= (float)$row['sms_sales'] > 0 ? number_format($row['sms_sales'], 0) : '-' ?>
+                                                </td>
+                                                <td class="text-end fw-bold text-success" style="background-color: #f6fcf8;">
+                                                    <?= (float)$row['ujab_sales'] > 0 ? number_format($row['ujab_sales'], 0) : '-' ?>
+                                                </td>
+                                            <?php endif; ?>
                                             <td class="text-end fw-semibold text-success">
                                                 <?= $row['cash_received'] > 0 ? number_format($row['cash_received'], 0) : '' ?>
                                             </td>
@@ -264,7 +372,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 <?= $row['return_amount'] > 0 ? number_format($row['return_amount'], 0) : '' ?>
                                             </td>
                                             <td class="text-center no-print">
-                                                <a href="daily_sales.php?from_date=<?= $row['invoice_date'] ?>&to_date=<?= $row['invoice_date'] ?>&view_mode=detailed" class="btn btn-sm btn-outline-primary py-0 px-2" title="View Shop Breakdown">
+                                                <a href="daily_sales.php?from_date=<?= $row['invoice_date'] ?>&to_date=<?= $row['invoice_date'] ?>&view_mode=detailed&supplier_id=<?= $supplierId ?>" class="btn btn-sm btn-outline-primary py-0 px-2" title="View Shop Breakdown">
                                                     Breakdown
                                                 </a>
                                             </td>
@@ -279,6 +387,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-end" style="background-color: #d49a00; color: #fff; font-size: 1.1rem;">
                                         <?= number_format($grandTotals['invoices'], 0) ?>
                                     </td>
+                                    <?php if (empty($supplierId)): ?>
+                                        <td class="text-end text-primary" style="background-color: #d4e3fc;"><?= number_format($grandTotals['sms'], 0) ?></td>
+                                        <td class="text-end text-success" style="background-color: #ceead6;"><?= number_format($grandTotals['ujab'], 0) ?></td>
+                                    <?php endif; ?>
                                     <td class="text-end" style="font-size: 1.05rem;"><?= number_format($grandTotals['cash'], 0) ?></td>
                                     <td class="text-end" style="font-size: 1.05rem;"><?= number_format($grandTotals['credit'], 0) ?></td>
                                     <td class="text-end" style="font-size: 1.05rem;"><?= number_format($grandTotals['returns'], 0) ?></td>
@@ -290,16 +402,20 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                 <?php else: ?>
 
-                    <!-- DETAILED VIEW (EXACT REPLICATION OF PHOTO 1 & 3) -->
+                    <!-- DETAILED VIEW (EXACT REPLICATION OF PHOTO 1 & 3 WITH COMPANY PORTION) -->
                     <div class="table-responsive">
-                        <table class="table table-bordered align-middle text-nowrap mb-0">
+                        <table class="table table-bordered align-middle text-nowrap mb-0 font-monospace">
                             <thead class="table-warning border-dark text-dark fw-bold">
                                 <tr>
                                     <th style="width: 50px;" class="text-center">Sr.</th>
                                     <th>Shop Name</th>
                                     <th class="text-center">Bill No.</th>
                                     <th class="text-end" style="background-color: #e5b800; color: #000;">Total Amount</th>
-                                    <th class="text-end">Credit</th>
+                                    <?php if (empty($supplierId)): ?>
+                                        <th class="text-end text-primary" style="background-color: #e8f0fe;">SMS Part</th>
+                                        <th class="text-end text-success" style="background-color: #e6f4ea;">Ujab Part</th>
+                                    <?php endif; ?>
+                                    <th class="text-end">Credit (ادھار)</th>
                                     <th class="text-end">Return</th>
                                     <th class="text-end">Cash</th>
                                     <th class="text-center">Difference</th>
@@ -308,13 +424,13 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <tbody>
                                 <?php if (empty($detailedRows)): ?>
                                     <tr>
-                                        <td colspan="8" class="text-center py-4 text-muted">No bill records found for this period.</td>
+                                        <td colspan="<?= empty($supplierId) ? '10' : '8' ?>" class="text-center py-4 text-muted">No bill records found for this period.</td>
                                     </tr>
                                 <?php else: ?>
                                     <?php $sn = 1; foreach ($detailedRows as $row): ?>
                                         <tr>
                                             <td class="text-center text-muted"><?= $sn++ ?></td>
-                                            <td class="fw-semibold">
+                                            <td class="fw-semibold font-sans">
                                                 <?= htmlspecialchars($row['shop_name']) ?>
                                                 <?php if ($row['owner_name']): ?>
                                                     <span class="small text-muted">(<?= htmlspecialchars($row['owner_name']) ?>)</span>
@@ -324,6 +440,14 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end fw-bold text-navy" style="background-color: #fff9e6;">
                                                 <?= number_format($row['total_amount'], 0) ?>
                                             </td>
+                                            <?php if (empty($supplierId)): ?>
+                                                <td class="text-end text-primary fw-semibold" style="background-color: #f8fbff;">
+                                                    <?= (float)$row['sms_amount'] > 0 ? number_format($row['sms_amount'], 0) : '-' ?>
+                                                </td>
+                                                <td class="text-end text-success fw-semibold" style="background-color: #f6fcf8;">
+                                                    <?= (float)$row['ujab_amount'] > 0 ? number_format($row['ujab_amount'], 0) : '-' ?>
+                                                </td>
+                                            <?php endif; ?>
                                             <td class="text-end fw-semibold text-primary">
                                                 <?= $row['credit_amount'] > 0 ? number_format($row['credit_amount'], 0) : '' ?>
                                             </td>
@@ -333,9 +457,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end fw-semibold text-success">
                                                 <?= $row['cash_amount'] > 0 ? number_format($row['cash_amount'], 0) : '' ?>
                                             </td>
-                                            <td class="text-center small <?= abs($row['difference']) > 0.01 ? 'text-danger fw-bold' : 'text-muted' ?>">
-                                                <?= abs($row['difference']) > 0.01 ? number_format($row['difference'], 0) : '0' ?>
-                                            </td>
+                                            <td class="text-center small text-muted">0</td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -346,6 +468,10 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <td class="text-end" style="background-color: #d49a00; color: #fff; font-size: 1.1rem;">
                                         <?= number_format($grandTotals['invoices'], 0) ?>
                                     </td>
+                                    <?php if (empty($supplierId)): ?>
+                                        <td class="text-end text-primary" style="background-color: #d4e3fc;"><?= number_format($grandTotals['sms'], 0) ?></td>
+                                        <td class="text-end text-success" style="background-color: #ceead6;"><?= number_format($grandTotals['ujab'], 0) ?></td>
+                                    <?php endif; ?>
                                     <td class="text-end" style="font-size: 1.05rem;"><?= number_format($grandTotals['credit'], 0) ?></td>
                                     <td class="text-end" style="font-size: 1.05rem;"><?= number_format($grandTotals['returns'], 0) ?></td>
                                     <td class="text-end" style="font-size: 1.05rem;"><?= number_format($grandTotals['cash'], 0) ?></td>

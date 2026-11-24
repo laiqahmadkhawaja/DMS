@@ -47,7 +47,11 @@ switch ($period) {
 $areaFilter     = (int)($_GET['area_id'] ?? 0);
 $bookerFilter   = (int)($_GET['booker_id'] ?? 0);
 $salesmanFilter = (int)($_GET['salesman_id'] ?? 0);
+$supplierFilter = (int)($_GET['supplier_id'] ?? 0);
 $activeTab      = sanitize_input($_GET['tab'] ?? 'overview');
+
+// Fetch active suppliers for filter
+$suppliers = db_fetch_all("SELECT id, supplier_code, supplier_name, company_name FROM suppliers WHERE is_deleted = 0 ORDER BY id ASC");
 
 // Base Where Clauses for Sales Invoices
 $invWhere = ["si.invoice_date BETWEEN ? AND ?", "si.status != 'cancelled'"];
@@ -69,20 +73,89 @@ if ($salesmanFilter > 0) {
 $invWhereSql = implode(" AND ", $invWhere);
 
 // 1. Executive Sales Totals
-$salesSummary = db_fetch_one("
+if ($supplierFilter > 0) {
+    $invWhereSup = $invWhere;
+    $invWhereSup[] = "p.supplier_id = ?";
+    $invParamsSup = $invParams;
+    $invParamsSup[] = $supplierFilter;
+    $invWhereSupSql = implode(" AND ", $invWhereSup);
+
+    $salesSummary = db_fetch_one("
+        SELECT 
+            COUNT(DISTINCT si.id) as total_bills,
+            COALESCE(SUM(sii.line_total), 0) as total_gross,
+            COALESCE(SUM(sii.discount_amount), 0) as total_discounts,
+            COALESCE(SUM(sii.line_total), 0) as total_net,
+            COALESCE(SUM(
+                CASE 
+                    WHEN si.gross_amount > 0 AND si.paid_amount > 0 
+                    THEN (sii.line_total / si.gross_amount) * si.paid_amount 
+                    ELSE 0 
+                END
+            ), 0) as spot_cash_paid,
+            COALESCE(SUM(
+                CASE 
+                    WHEN si.gross_amount > 0 AND (si.net_amount - si.paid_amount) > 0 
+                    THEN (sii.line_total / si.gross_amount) * (si.net_amount - si.paid_amount) 
+                    ELSE 0 
+                END
+            ), 0) as credit_extended
+        FROM sales_invoice_items sii
+        JOIN sales_invoices si ON sii.invoice_id = si.id
+        JOIN products p ON sii.product_id = p.id
+        WHERE {$invWhereSupSql}
+    ", $invParamsSup) ?: [
+        'total_bills' => 0, 'total_gross' => 0.0, 'total_discounts' => 0.0,
+        'total_net' => 0.0, 'spot_cash_paid' => 0.0, 'credit_extended' => 0.0
+    ];
+} else {
+    $salesSummary = db_fetch_one("
+        SELECT 
+            COUNT(si.id) as total_bills,
+            COALESCE(SUM(si.gross_amount), 0) as total_gross,
+            COALESCE(SUM(si.item_discount_amount + si.extra_discount_amount), 0) as total_discounts,
+            COALESCE(SUM(si.net_amount), 0) as total_net,
+            COALESCE(SUM(si.paid_amount), 0) as spot_cash_paid,
+            COALESCE(SUM(si.net_amount - si.paid_amount), 0) as credit_extended
+        FROM sales_invoices si
+        WHERE {$invWhereSql}
+    ", $invParams) ?: [
+        'total_bills' => 0, 'total_gross' => 0.0, 'total_discounts' => 0.0,
+        'total_net' => 0.0, 'spot_cash_paid' => 0.0, 'credit_extended' => 0.0
+    ];
+}
+
+// Company-Wise Sales & Udhar Breakdown (Always computed for executive multi-brand analysis)
+$companyBreakdown = db_fetch_all("
     SELECT 
-        COUNT(si.id) as total_bills,
-        COALESCE(SUM(si.gross_amount), 0) as total_gross,
-        COALESCE(SUM(si.item_discount_amount + si.extra_discount_amount), 0) as total_discounts,
-        COALESCE(SUM(si.net_amount), 0) as total_net,
-        COALESCE(SUM(si.paid_amount), 0) as spot_cash_paid,
-        COALESCE(SUM(si.net_amount - si.paid_amount), 0) as credit_extended
-    FROM sales_invoices si
+        s.id as supplier_id,
+        s.supplier_name,
+        s.company_name,
+        COUNT(DISTINCT si.id) as bills_count,
+        COALESCE(SUM(sii.line_total), 0) as sales_amount,
+        COALESCE(SUM(sii.discount_amount), 0) as discount_amount,
+        COALESCE(SUM(
+            CASE 
+                WHEN si.gross_amount > 0 AND si.paid_amount > 0 
+                THEN (sii.line_total / si.gross_amount) * si.paid_amount 
+                ELSE 0 
+            END
+        ), 0) as cash_received,
+        COALESCE(SUM(
+            CASE 
+                WHEN si.gross_amount > 0 AND (si.net_amount - si.paid_amount) > 0 
+                THEN (sii.line_total / si.gross_amount) * (si.net_amount - si.paid_amount) 
+                ELSE 0 
+            END
+        ), 0) as udhar_extended
+    FROM sales_invoice_items sii
+    JOIN sales_invoices si ON sii.invoice_id = si.id
+    JOIN products p ON sii.product_id = p.id
+    JOIN suppliers s ON p.supplier_id = s.id
     WHERE {$invWhereSql}
-", $invParams) ?: [
-    'total_bills' => 0, 'total_gross' => 0.0, 'total_discounts' => 0.0,
-    'total_net' => 0.0, 'spot_cash_paid' => 0.0, 'credit_extended' => 0.0
-];
+    GROUP BY s.id, s.supplier_name, s.company_name
+    ORDER BY s.id ASC
+", $invParams);
 
 // 2. Customer Payments & Market Recoveries
 $recParams = [$fromDate, $toDate];
@@ -113,14 +186,33 @@ if ($areaFilter > 0) {
 }
 $retWhereSql = implode(" AND ", $retWhere);
 
-$returnsSummary = db_fetch_one("
-    SELECT 
-        COUNT(sr.id) as return_count,
-        COALESCE(SUM(sr.total_amount), 0) as total_returns
-    FROM sales_returns sr
-    JOIN customers c ON sr.customer_id = c.id
-    WHERE {$retWhereSql}
-", $retParams) ?: ['return_count' => 0, 'total_returns' => 0.0];
+if ($supplierFilter > 0) {
+    $retWhereSup = $retWhere;
+    $retWhereSup[] = "p.supplier_id = ?";
+    $retParamsSup = $retParams;
+    $retParamsSup[] = $supplierFilter;
+    $retWhereSupSql = implode(" AND ", $retWhereSup);
+
+    $returnsSummary = db_fetch_one("
+        SELECT 
+            COUNT(DISTINCT sr.id) as return_count,
+            COALESCE(SUM(sri.amount), 0) as total_returns
+        FROM sales_return_items sri
+        JOIN sales_returns sr ON sri.sales_return_id = sr.id
+        JOIN products p ON sri.product_id = p.id
+        JOIN customers c ON sr.customer_id = c.id
+        WHERE {$retWhereSupSql}
+    ", $retParamsSup) ?: ['return_count' => 0, 'total_returns' => 0.0];
+} else {
+    $returnsSummary = db_fetch_one("
+        SELECT 
+            COUNT(sr.id) as return_count,
+            COALESCE(SUM(sr.total_amount), 0) as total_returns
+        FROM sales_returns sr
+        JOIN customers c ON sr.customer_id = c.id
+        WHERE {$retWhereSql}
+    ", $retParams) ?: ['return_count' => 0, 'total_returns' => 0.0];
+}
 
 // 4. Daily Operational Expenses
 $expenseSummary = db_fetch_one("
@@ -143,11 +235,21 @@ $supplierPaymentSummary = db_fetch_one("
 ", [$fromDate, $toDate]) ?: ['count' => 0, 'total_supplier_paid' => 0.0, 'cash_supplier_paid' => 0.0];
 
 // 6. Item-Wise Sales Breakdown & Estimated Profit / COGS
+$itemWhere = $invWhere;
+$itemParams = $invParams;
+if ($supplierFilter > 0) {
+    $itemWhere[] = "p.supplier_id = ?";
+    $itemParams[] = $supplierFilter;
+}
+$itemWhereSql = implode(" AND ", $itemWhere);
+
 $itemBreakdown = db_fetch_all("
     SELECT 
         p.id as product_id,
         p.product_code,
         p.product_name,
+        p.supplier_id,
+        s.supplier_name,
         cat.category_name,
         p.carton_qty as pcs_per_carton,
         p.purchase_rate as cost_rate,
@@ -159,11 +261,12 @@ $itemBreakdown = db_fetch_all("
     FROM sales_invoice_items sii
     JOIN sales_invoices si ON sii.invoice_id = si.id
     JOIN products p ON sii.product_id = p.id
+    LEFT JOIN suppliers s ON p.supplier_id = s.id
     LEFT JOIN product_categories cat ON p.category_id = cat.id
-    WHERE {$invWhereSql}
-    GROUP BY p.id, p.product_code, p.product_name, cat.category_name, p.carton_qty, p.purchase_rate
+    WHERE {$itemWhereSql}
+    GROUP BY p.id, p.product_code, p.product_name, p.supplier_id, s.supplier_name, cat.category_name, p.carton_qty, p.purchase_rate
     ORDER BY total_sale_amount DESC
-", $invParams);
+", $itemParams);
 
 // Compute total COGS & Gross Profit across items
 $totalEstimatedCOGS = 0.0;
@@ -187,21 +290,43 @@ $grossMarginPct = (float)$salesSummary['total_net'] > 0 ? round(($grossProfit / 
 $netOperatingProfit = $grossProfit - (float)$expenseSummary['total_expenses'];
 
 // 7. Invoices List for the Tab
-$invoicesList = db_fetch_all("
-    SELECT 
-        si.*, 
-        c.shop_name, 
-        a.area_name, 
-        b.booker_name,
-        sm.salesman_name
-    FROM sales_invoices si
-    JOIN customers c ON si.customer_id = c.id
-    LEFT JOIN areas a ON si.area_id = a.id
-    LEFT JOIN bookers b ON si.booker_id = b.id
-    LEFT JOIN salesmen sm ON si.salesman_id = sm.id
-    WHERE {$invWhereSql}
-    ORDER BY si.invoice_date DESC, si.id DESC
-", $invParams);
+if ($supplierFilter > 0) {
+    $invoicesList = db_fetch_all("
+        SELECT 
+            si.*, 
+            c.shop_name, 
+            a.area_name, 
+            b.booker_name,
+            sm.salesman_name,
+            COALESCE(SUM(sii.line_total), 0) as supplier_items_total
+        FROM sales_invoices si
+        JOIN sales_invoice_items sii ON si.id = sii.invoice_id
+        JOIN products p ON sii.product_id = p.id
+        JOIN customers c ON si.customer_id = c.id
+        LEFT JOIN areas a ON si.area_id = a.id
+        LEFT JOIN bookers b ON si.booker_id = b.id
+        LEFT JOIN salesmen sm ON si.salesman_id = sm.id
+        WHERE {$invWhereSql} AND p.supplier_id = ?
+        GROUP BY si.id
+        ORDER BY si.invoice_date DESC, si.id DESC
+    ", array_merge($invParams, [$supplierFilter]));
+} else {
+    $invoicesList = db_fetch_all("
+        SELECT 
+            si.*, 
+            c.shop_name, 
+            a.area_name, 
+            b.booker_name,
+            sm.salesman_name
+        FROM sales_invoices si
+        JOIN customers c ON si.customer_id = c.id
+        LEFT JOIN areas a ON si.area_id = a.id
+        LEFT JOIN bookers b ON si.booker_id = b.id
+        LEFT JOIN salesmen sm ON si.salesman_id = sm.id
+        WHERE {$invWhereSql}
+        ORDER BY si.invoice_date DESC, si.id DESC
+    ", $invParams);
+}
 
 // 8. Detailed Daily Expenses List
 $expensesList = db_fetch_all("
@@ -305,12 +430,48 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </select>
                     </div>
 
+                    <!-- Company / Supplier Filter -->
+                    <div class="col-md-2">
+                        <select name="supplier_id" class="form-select form-select-sm fw-semibold">
+                            <option value="0">🏢 All Companies (اکٹھا)</option>
+                            <?php foreach ($suppliers as $s): ?>
+                                <option value="<?= $s['id'] ?>" <?= $supplierFilter === (int)$s['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($s['supplier_name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
                     <div class="col-md-2 d-flex gap-1">
                         <button type="submit" class="btn btn-sm btn-primary w-100">
                             <i class="bi bi-filter me-1"></i> Apply Filter
                         </button>
                     </div>
                 </form>
+
+                <!-- Company Quick Switcher Pills -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2 mt-2 border-top">
+                    <div class="d-flex align-items-center flex-wrap gap-1">
+                        <span class="small fw-bold text-secondary me-1"><i class="bi bi-building me-1 text-primary"></i> Company Filter (کمپنی وائز فلٹر):</span>
+                        <a href="daily_closing.php?period=<?= $period ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&area_id=<?= $areaFilter ?>&supplier_id=0&tab=<?= $activeTab ?>" 
+                           class="btn btn-xs rounded-pill px-3 <?= $supplierFilter === 0 ? 'btn-navy fw-bold shadow-sm' : 'btn-outline-secondary bg-white' ?>">
+                            <i class="bi bi-grid-fill me-1"></i> Both Combined (دونوں اکٹھا)
+                        </a>
+                        <a href="daily_closing.php?period=<?= $period ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&area_id=<?= $areaFilter ?>&supplier_id=1&tab=<?= $activeTab ?>" 
+                           class="btn btn-xs rounded-pill px-3 <?= $supplierFilter === 1 ? 'btn-success fw-bold shadow-sm' : 'btn-outline-success bg-white' ?>">
+                            <i class="bi bi-box-seam me-1"></i> Ujab Enterprises (اجاب)
+                        </a>
+                        <a href="daily_closing.php?period=<?= $period ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&area_id=<?= $areaFilter ?>&supplier_id=2&tab=<?= $activeTab ?>" 
+                           class="btn btn-xs rounded-pill px-3 <?= $supplierFilter === 2 ? 'btn-primary fw-bold shadow-sm' : 'btn-outline-primary bg-white' ?>">
+                            <i class="bi bi-box-seam me-1"></i> SMS Supplier (ایس ایم ایس)
+                        </a>
+                    </div>
+                    <?php if ($supplierFilter > 0): ?>
+                        <span class="badge bg-warning text-dark px-3 py-1 border shadow-xs">
+                            <i class="bi bi-funnel-fill me-1"></i> Showing records filtered for: <strong><?= $supplierFilter === 1 ? 'Ujab Enterprises' : 'SMS' ?></strong>
+                        </span>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 
@@ -417,6 +578,62 @@ require_once INCLUDES_PATH . '/topbar.php';
             </div>
         </div>
 
+        <!-- COMPANY BREAKDOWN COMPARISON WIDGET (SMS vs Ujab Enterprises) -->
+        <?php if (!empty($companyBreakdown)): ?>
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-navy"><i class="bi bi-buildings-fill text-primary me-2"></i>Company-Wise Sales & Market Udhar (کمپنی وائز سیلز اور ادھار سمری)</span>
+                    <a href="company_sales.php?period=<?= $period ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-xs btn-outline-primary">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Full Company Exposure Report
+                    </a>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-3">
+                        <?php foreach ($companyBreakdown as $cb): 
+                            $isSMS = ((int)$cb['supplier_id'] === 2 || stripos($cb['supplier_name'], 'SMS') !== false);
+                            $badgeColor = $isSMS ? 'primary' : 'success';
+                            $borderClass = $isSMS ? 'border-primary' : 'border-success';
+                        ?>
+                            <div class="col-md-6">
+                                <div class="p-3 rounded border border-2 <?= $borderClass ?> bg-light h-100 position-relative">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <span class="badge bg-<?= $badgeColor ?> text-white fw-bold mb-1">
+                                                <?= htmlspecialchars($cb['supplier_name']) ?>
+                                            </span>
+                                            <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($cb['company_name'] ?: $cb['supplier_name']) ?></h6>
+                                        </div>
+                                        <a href="daily_closing.php?period=<?= $period ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&area_id=<?= $areaFilter ?>&supplier_id=<?= $cb['supplier_id'] ?>&tab=<?= $activeTab ?>" 
+                                           class="btn btn-xs btn-<?= $badgeColor ?> shadow-xs">
+                                            <i class="bi bi-filter me-1"></i> View Only <?= htmlspecialchars($cb['supplier_name']) ?>
+                                        </a>
+                                    </div>
+
+                                    <div class="row g-2 mt-2 pt-2 border-top">
+                                        <div class="col-4">
+                                            <div class="text-muted small">Company Sales:</div>
+                                            <div class="fw-bold text-navy fs-6"><?= format_currency((float)$cb['sales_amount']) ?></div>
+                                            <small class="text-muted"><?= number_format($cb['bills_count']) ?> bills</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-muted small">Cash Inflow:</div>
+                                            <div class="fw-bold text-success fs-6"><?= format_currency((float)$cb['cash_received']) ?></div>
+                                            <small class="text-muted">Proportional cash</small>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-muted small">Market Udhar (ادھار):</div>
+                                            <div class="fw-bold text-danger fs-6"><?= format_currency((float)$cb['udhar_extended']) ?></div>
+                                            <small class="text-danger">Unpaid balance</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- TABS CONTAINER -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white border-bottom p-0 no-print">
@@ -428,21 +645,27 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </button>
                     </li>
                     <li class="nav-item">
+                        <button class="nav-link fw-semibold py-3 <?= $activeTab === 'companies' ? 'active text-primary' : 'text-muted' ?>" 
+                                id="companies-tab" data-bs-toggle="tab" data-bs-target="#companies-pane" type="button" role="tab">
+                            <i class="bi bi-buildings-fill me-1"></i> 2. Company-Wise Sales & Udhar (کمپنی وائز حساب)
+                        </button>
+                    </li>
+                    <li class="nav-item">
                         <button class="nav-link fw-semibold py-3 <?= $activeTab === 'items' ? 'active text-primary' : 'text-muted' ?>" 
                                 id="items-tab" data-bs-toggle="tab" data-bs-target="#items-pane" type="button" role="tab">
-                            <i class="bi bi-boxes me-1"></i> 2. Item-Wise Sales & Profitability (اشیاء اور منافع)
+                            <i class="bi bi-boxes me-1"></i> 3. Item-Wise Sales & Profitability (اشیاء اور منافع)
                         </button>
                     </li>
                     <li class="nav-item">
                         <button class="nav-link fw-semibold py-3 <?= $activeTab === 'bills' ? 'active text-primary' : 'text-muted' ?>" 
                                 id="bills-tab" data-bs-toggle="tab" data-bs-target="#bills-pane" type="button" role="tab">
-                            <i class="bi bi-receipt me-1"></i> 3. Customer Billing & Udhaar Register (بل اور ادھار)
+                            <i class="bi bi-receipt me-1"></i> 4. Customer Billing & Udhaar Register (بل اور ادھار)
                         </button>
                     </li>
                     <li class="nav-item">
                         <button class="nav-link fw-semibold py-3 <?= $activeTab === 'expenses' ? 'active text-primary' : 'text-muted' ?>" 
                                 id="expenses-tab" data-bs-toggle="tab" data-bs-target="#expenses-pane" type="button" role="tab">
-                            <i class="bi bi-cash-stack me-1"></i> 4. Daily Expenses (اخراجات)
+                            <i class="bi bi-cash-stack me-1"></i> 5. Daily Expenses (اخراجات)
                         </button>
                     </li>
                 </ul>
@@ -530,7 +753,96 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
                     </div>
 
-                    <!-- TAB 2: ITEM-WISE SALES & PROFITABILITY BREAKDOWN -->
+                    <!-- TAB 2: COMPANY-WISE SALES & MARKET UDHAR BREAKDOWN -->
+                    <div class="tab-pane fade <?= $activeTab === 'companies' ? 'show active' : '' ?>" id="companies-pane" role="tabpanel">
+                        <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                            <span class="small text-muted">Multi-Brand Separation: Company sales revenue, cash recoveries, and market credit (ادھار) balance</span>
+                            <a href="company_sales.php?period=<?= $period ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-xs btn-primary shadow-xs">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Open In-Depth Company Exposure Report
+                            </a>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped align-middle mb-0 font-monospace small">
+                                <thead class="table-light text-uppercase">
+                                    <tr>
+                                        <th>Company / Supplier</th>
+                                        <th>Legal / Trading Entity</th>
+                                        <th class="text-center">Bills Count</th>
+                                        <th class="text-end">Gross Sales</th>
+                                        <th class="text-end">Discounts</th>
+                                        <th class="text-end">Cash Inflow (نقد وصولی)</th>
+                                        <th class="text-end">Market Udhar (مارکیٹ ادھار)</th>
+                                        <th class="text-end">Share %</th>
+                                        <th class="text-center no-print">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($companyBreakdown)): ?>
+                                        <tr>
+                                            <td colspan="9" class="text-center py-5 text-muted">
+                                                <i class="bi bi-buildings fs-1 d-block mb-2 text-secondary"></i>
+                                                No company sales data found for the selected period.
+                                            </td>
+                                        </tr>
+                                    <?php else: ?>
+                                        <?php 
+                                        $cbTotalSales = 0; $cbTotalCash = 0; $cbTotalUdhar = 0; $cbTotalDisc = 0;
+                                        foreach ($companyBreakdown as $c) {
+                                            $cbTotalSales += (float)$c['sales_amount'];
+                                            $cbTotalCash  += (float)$c['cash_received'];
+                                            $cbTotalUdhar += (float)$c['udhar_extended'];
+                                            $cbTotalDisc  += (float)$c['discount_amount'];
+                                        }
+                                        ?>
+                                        <?php foreach ($companyBreakdown as $c): 
+                                            $isSMS = ((int)$c['supplier_id'] === 2 || stripos($c['supplier_name'], 'SMS') !== false);
+                                            $pct = $cbTotalSales > 0 ? round(((float)$c['sales_amount'] / $cbTotalSales) * 100, 1) : 0;
+                                        ?>
+                                            <tr>
+                                                <td class="fw-bold font-sans">
+                                                    <span class="badge bg-<?= $isSMS ? 'primary' : 'success' ?> text-white me-1">
+                                                        <?= $isSMS ? 'SMS' : 'UJAB' ?>
+                                                    </span>
+                                                    <?= htmlspecialchars($c['supplier_name']) ?>
+                                                </td>
+                                                <td><?= htmlspecialchars($c['company_name'] ?: $c['supplier_name']) ?></td>
+                                                <td class="text-center fw-bold"><?= number_format($c['bills_count']) ?></td>
+                                                <td class="text-end fw-bold text-navy"><?= format_currency((float)$c['sales_amount']) ?></td>
+                                                <td class="text-end text-muted"><?= format_currency((float)$c['discount_amount']) ?></td>
+                                                <td class="text-end fw-bold text-success"><?= format_currency((float)$c['cash_received']) ?></td>
+                                                <td class="text-end fw-bold text-danger"><?= format_currency((float)$c['udhar_extended']) ?></td>
+                                                <td class="text-end">
+                                                    <div class="d-flex align-items-center justify-content-end gap-1">
+                                                        <span class="fw-bold"><?= $pct ?>%</span>
+                                                        <div class="progress" style="width: 45px; height: 6px;">
+                                                            <div class="progress-bar bg-<?= $isSMS ? 'primary' : 'success' ?>" style="width: <?= $pct ?>%"></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center no-print">
+                                                    <a href="daily_closing.php?period=<?= $period ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>&area_id=<?= $areaFilter ?>&supplier_id=<?= $c['supplier_id'] ?>" 
+                                                       class="btn btn-xs btn-outline-dark">
+                                                        <i class="bi bi-funnel me-1"></i> Filter Daily Roznamcha
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        <tr class="table-light fw-bold fs-6">
+                                            <td colspan="3" class="text-uppercase text-end">Total Distribution:</td>
+                                            <td class="text-end text-navy"><?= format_currency($cbTotalSales) ?></td>
+                                            <td class="text-end text-muted"><?= format_currency($cbTotalDisc) ?></td>
+                                            <td class="text-end text-success"><?= format_currency($cbTotalCash) ?></td>
+                                            <td class="text-end text-danger"><?= format_currency($cbTotalUdhar) ?></td>
+                                            <td class="text-end">100%</td>
+                                            <td></td>
+                                        </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: ITEM-WISE SALES & PROFITABILITY BREAKDOWN -->
                     <div class="tab-pane fade <?= $activeTab === 'items' ? 'show active' : '' ?>" id="items-pane" role="tabpanel">
                         <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
                             <span class="small text-muted">Breakdown of Products Sold, Cost of Goods Sold (COGS), and Gross Margin</span>
@@ -542,6 +854,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <tr>
                                         <th>Code</th>
                                         <th>Product Name</th>
+                                        <th>Company</th>
                                         <th>Category</th>
                                         <th class="text-end">Cartons</th>
                                         <th class="text-end">Packs</th>
@@ -555,7 +868,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <tbody>
                                     <?php if (empty($itemBreakdown)): ?>
                                         <tr>
-                                            <td colspan="10" class="text-center py-5 text-muted">
+                                            <td colspan="11" class="text-center py-5 text-muted">
                                                 <i class="bi bi-box-seam fs-1 d-block mb-2 text-secondary"></i>
                                                 No sales invoice items recorded for the selected period.
                                             </td>
@@ -572,10 +885,16 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             $totSale += (float)$row['total_sale_amount'];
                                             $totCogs += (float)$row['cogs'];
                                             $totProfit += (float)$row['profit'];
+                                            $isSMS = ((int)$row['supplier_id'] === 2 || stripos($row['supplier_name'] ?? '', 'SMS') !== false);
                                             ?>
                                             <tr>
                                                 <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['product_code']) ?></span></td>
                                                 <td class="fw-bold font-sans"><?= htmlspecialchars($row['product_name']) ?></td>
+                                                <td>
+                                                    <span class="badge bg-<?= $isSMS ? 'primary' : 'success' ?>-subtle text-<?= $isSMS ? 'primary' : 'success' ?> border border-<?= $isSMS ? 'primary' : 'success' ?>-subtle">
+                                                        <?= htmlspecialchars($row['supplier_name'] ?? 'Ujab') ?>
+                                                    </span>
+                                                </td>
                                                 <td><?= htmlspecialchars($row['category_name'] ?? 'General') ?></td>
                                                 <td class="text-end"><?= number_format((float)$row['total_ctn_sold'], 1) ?></td>
                                                 <td class="text-end"><?= number_format((float)$row['total_pck_sold']) ?></td>
@@ -591,7 +910,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             </tr>
                                         <?php endforeach; ?>
                                         <tr class="table-light fw-bold fs-6">
-                                            <td colspan="3" class="text-uppercase text-end">Grand Totals:</td>
+                                            <td colspan="4" class="text-uppercase text-end">Grand Totals:</td>
                                             <td class="text-end"><?= number_format($totCtns, 1) ?></td>
                                             <td class="text-end"><?= number_format($totPacks) ?></td>
                                             <td class="text-end"><?= number_format($totPcs) ?></td>

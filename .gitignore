@@ -9,6 +9,9 @@ storage/backups/*.sql
 *.bak
 *.swp
 *.log
+*.zip
+*.rar
+*.7z
 
 # OS generated files
 Thumbs.db

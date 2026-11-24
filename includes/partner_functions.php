@@ -323,6 +323,192 @@ function record_partner_drawing(int $partnerId, float $amount, string $date, str
 }
 
 /**
+ * Fetch Managing Partner / Cash Custodian
+ *
+ * @return array|null
+ */
+function get_managing_partner(): ?array {
+    $mp = db_fetch_one("SELECT * FROM partners WHERE role = 'managing_partner' AND is_active = 1 LIMIT 1");
+    if (!$mp) {
+        $mp = db_fetch_one("SELECT * FROM partners WHERE partner_code = 'PTR-CENTRAL' LIMIT 1");
+    }
+    if (!$mp) {
+        $mp = db_fetch_one("SELECT * FROM partners WHERE is_active = 1 ORDER BY id DESC LIMIT 1");
+    }
+    return $mp;
+}
+
+/**
+ * Record Daily Sales Cash Handover to Managing Partner from Day Closing
+ *
+ * @param int $partnerId
+ * @param float $amount
+ * @param string $date
+ * @param int $paidFromAccountId
+ * @param string $description
+ * @param int|null $closingReference
+ * @return int Transaction ID
+ */
+function record_partner_cash_handover(int $partnerId, float $amount, string $date, int $paidFromAccountId, string $description = '', ?int $closingReference = null): int {
+    $partner = get_partner_by_id($partnerId);
+    if (!$partner) {
+        throw new Exception("Selected partner does not exist.");
+    }
+    $amount = round($amount, 2);
+    if ($amount <= 0) {
+        throw new Exception("Handover cash amount must be greater than zero.");
+    }
+
+    $openedTxn = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $openedTxn = true;
+    }
+
+    try {
+        $note = $description ? $description : "Daily sales cash handed over to {$partner['partner_name']} at Day Closing (" . format_date($date) . ")";
+        
+        // 1. Record in Partner Khata (Debit partner, increases what partner holds / owes)
+        $txnId = record_partner_transaction([
+            'partner_id'       => $partnerId,
+            'transaction_date' => $date,
+            'transaction_type' => 'sales_cash_handover',
+            'reference_type'   => 'daily_closing',
+            'reference_id'     => $closingReference,
+            'debit'            => $amount,
+            'credit'           => 0.00,
+            'description'      => "سیلز کیش سپردگی: " . format_currency($amount) . " | " . $note
+        ]);
+
+        // 2. Post General Ledger Entry
+        // Debit: Partner Drawings / Owner Equity Account (3010)
+        // Credit: Cash in Hand (1001) / selected liquid drawer
+        $journalHeader = [
+            'entry_date'     => $date,
+            'reference_type' => 'sales_cash_handover',
+            'reference_id'   => $txnId,
+            'narration'      => "Sales Cash Handover to {$partner['partner_name']} (" . format_currency($amount) . ") | {$note}"
+        ];
+
+        $journalLines = [
+            [
+                'account_id'  => 3010, // Owner Capital / Drawings
+                'debit'       => $amount,
+                'credit'      => 0.00,
+                'description' => "Sales cash handed over to {$partner['partner_name']}",
+                'party_type'  => 'partner',
+                'party_id'    => $partnerId
+            ],
+            [
+                'account_id'  => $paidFromAccountId,
+                'debit'       => 0.00,
+                'credit'      => $amount,
+                'description' => "Cash transferred from drawer to {$partner['partner_name']}",
+                'party_type'  => null,
+                'party_id'    => null
+            ]
+        ];
+
+        post_journal_entry($journalHeader, $journalLines);
+
+        if ($openedTxn && db()->inTransaction()) {
+            db()->commit();
+        }
+        return $txnId;
+    } catch (Exception $e) {
+        if ($openedTxn && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
+ * Record Cash Received Back from Partner into Business Cash/Bank
+ *
+ * @param int $partnerId
+ * @param float $amount
+ * @param string $date
+ * @param int $depositToAccountId
+ * @param string $paymentMode
+ * @param string $description
+ * @return int Transaction ID
+ */
+function record_partner_cash_received(int $partnerId, float $amount, string $date, int $depositToAccountId, string $paymentMode = 'cash', string $description = ''): int {
+    $partner = get_partner_by_id($partnerId);
+    if (!$partner) {
+        throw new Exception("Selected partner does not exist.");
+    }
+    $amount = round($amount, 2);
+    if ($amount <= 0) {
+        throw new Exception("Received cash amount must be greater than zero.");
+    }
+
+    $openedTxn = false;
+    if (!db()->inTransaction()) {
+        db()->beginTransaction();
+        $openedTxn = true;
+    }
+
+    try {
+        $note = $description ? $description : "Cash received back / recovered from {$partner['partner_name']} (" . format_date($date) . ")";
+
+        // 1. Record in Partner Khata (Credit partner, reduces what partner holds / owes)
+        $txnId = record_partner_transaction([
+            'partner_id'       => $partnerId,
+            'transaction_date' => $date,
+            'transaction_type' => 'cash_returned',
+            'reference_type'   => 'partner_reimbursement',
+            'reference_id'     => null,
+            'debit'            => 0.00,
+            'credit'           => $amount,
+            'description'      => "کیش واپسی / وصولی از پارٹنر: " . format_currency($amount) . " | " . $note
+        ]);
+
+        // 2. Post General Ledger Entry
+        // Debit: Cash in Hand (1001) / Bank Account
+        // Credit: Partner Drawings / Owner Equity Account (3010)
+        $journalHeader = [
+            'entry_date'     => $date,
+            'reference_type' => 'partner_cash_received',
+            'reference_id'   => $txnId,
+            'narration'      => "Cash Received from {$partner['partner_name']} (" . format_currency($amount) . ") via {$paymentMode} | {$note}"
+        ];
+
+        $journalLines = [
+            [
+                'account_id'  => $depositToAccountId,
+                'debit'       => $amount,
+                'credit'      => 0.00,
+                'description' => "Cash received from {$partner['partner_name']} into drawer/bank",
+                'party_type'  => null,
+                'party_id'    => null
+            ],
+            [
+                'account_id'  => 3010, // Owner Capital / Drawings
+                'debit'       => 0.00,
+                'credit'      => $amount,
+                'description' => "Cash returned / reimbursement by {$partner['partner_name']}",
+                'party_type'  => 'partner',
+                'party_id'    => $partnerId
+            ]
+        ];
+
+        post_journal_entry($journalHeader, $journalLines);
+
+        if ($openedTxn && db()->inTransaction()) {
+            db()->commit();
+        }
+        return $txnId;
+    } catch (Exception $e) {
+        if ($openedTxn && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/**
  * Record an Inter-Partner Settlement / Balance Adjustment
  *
  * @param int $fromPartnerId Payer partner
