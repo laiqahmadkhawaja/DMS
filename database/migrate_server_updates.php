@@ -57,6 +57,8 @@ try {
     safe_add_column($db, 'orders', 'subtotal_discount_percent', "DECIMAL(5,2) NOT NULL DEFAULT 0.00 AFTER `discount_mode`");
     safe_add_column($db, 'orders', 'subtotal_discount_amount', "DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `subtotal_discount_percent`");
     safe_add_column($db, 'orders', 'free_loose_pieces', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `subtotal_discount_amount`");
+    $db->exec("ALTER TABLE orders MODIFY delivery_date DATE NULL DEFAULT NULL;");
+    add_log('success', "Ensured `orders`.`delivery_date` is nullable.");
 
     // --------------------------------------------------------------------------
     // 2. SALES INVOICES TABLE
