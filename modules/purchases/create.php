@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $itemQty = $totalQuantityInBaseUnits;
         } else {
             $lineGross = $billableCartons * $rate;
-            $unitId = (int)$prod['base_unit_id']; // Carton unit
+            $unitId = 1; // Carton unit (CTN) // Carton unit
             $itemQty = $baseCartons;
         }
 

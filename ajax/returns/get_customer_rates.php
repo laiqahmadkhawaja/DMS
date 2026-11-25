@@ -75,16 +75,16 @@ try {
             $pcsQty    = (float)$r['pcs_qty'];
 
             $unit = 'ctn';
-            if ($unitId === 4 || $unitCodeRaw === 'pcs') {
-                $unit = 'pcs';
-            } elseif ($unitId === 3 || $unitCodeRaw === 'pck' || $unitCodeRaw === 'pack') {
-                $unit = 'pack';
-            } elseif ($cartonQty > 0) {
+            if ($cartonQty > 0) {
                 $unit = 'ctn';
             } elseif ($packQty > 0) {
                 $unit = 'pack';
             } elseif ($pcsQty > 0) {
                 $unit = 'pcs';
+            } elseif ($unitId === 4 || $unitCodeRaw === 'pcs') {
+                $unit = 'pcs';
+            } elseif ($unitId === 3 || $unitCodeRaw === 'pck' || $unitCodeRaw === 'pack') {
+                $unit = 'pack';
             }
 
             $latestRates[$pid] = [

@@ -60,6 +60,11 @@ try {
     $db->exec("ALTER TABLE orders MODIFY delivery_date DATE NULL DEFAULT NULL;");
     add_log('success', "Ensured `orders`.`delivery_date` is nullable.");
 
+    // Fix legacy records where carton items were saved with piece unit_id (4 instead of 1)
+    $db->exec("UPDATE order_items SET unit_id = 1 WHERE carton_qty > 0 AND pack_qty = 0 AND pcs_qty = 0 AND unit_id = 4;");
+    $db->exec("UPDATE sales_invoice_items SET unit_id = 1 WHERE carton_qty > 0 AND pack_qty = 0 AND pcs_qty = 0 AND unit_id = 4;");
+    add_log('success', "Corrected legacy carton order_items & invoice_items unit_id from 4 to 1.");
+
     // --------------------------------------------------------------------------
     // 2. SALES INVOICES TABLE
     // --------------------------------------------------------------------------

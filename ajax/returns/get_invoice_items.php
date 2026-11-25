@@ -173,21 +173,37 @@ try {
 
         $remBasePieces = max(0, $billedBasePieces - $returnedBasePieces);
 
-        // Determine billed unit code
+        // Determine billed unit code and proportional rates
         $unitCodeRaw = strtolower(trim((string)($it['unit_code'] ?? '')));
         $unitId = (int)$it['unit_id'];
-        if ($unitId === 4 || $unitCodeRaw === 'pcs') {
-            $unitCode = 'pcs';
+
+        if ($billedCartons > 0) {
+            $unitCode   = 'ctn';
+            $cartonRate = $billedRate;
+            $packRate   = $packsPerCtn > 0 ? ($billedRate / $packsPerCtn) : $billedRate;
+            $pieceRate  = $pcsPerCtn > 0 ? ($billedRate / $pcsPerCtn) : $billedRate;
+        } elseif ($billedPacks > 0) {
+            $unitCode   = 'pack';
+            $packRate   = $billedRate;
+            $cartonRate = $billedRate * $packsPerCtn;
+            $pieceRate  = $pcsPerPack > 0 ? ($billedRate / $pcsPerPack) : $billedRate;
+        } elseif ($billedPcs > 0) {
+            $unitCode   = 'pcs';
             $pieceRate  = $billedRate;
             $packRate   = $billedRate * $pcsPerPack;
             $cartonRate = $billedRate * $pcsPerCtn;
         } elseif ($unitId === 3 || $unitCodeRaw === 'pck' || $unitCodeRaw === 'pack') {
-            $unitCode = 'pack';
+            $unitCode   = 'pack';
             $packRate   = $billedRate;
             $cartonRate = $billedRate * $packsPerCtn;
             $pieceRate  = $pcsPerPack > 0 ? ($billedRate / $pcsPerPack) : $billedRate;
+        } elseif ($unitId === 4 || $unitCodeRaw === 'pcs') {
+            $unitCode   = 'pcs';
+            $pieceRate  = $billedRate;
+            $packRate   = $billedRate * $pcsPerPack;
+            $cartonRate = $billedRate * $pcsPerCtn;
         } else {
-            $unitCode = 'ctn';
+            $unitCode   = 'ctn';
             $cartonRate = $billedRate;
             $packRate   = $packsPerCtn > 0 ? ($billedRate / $packsPerCtn) : $billedRate;
             $pieceRate  = $pcsPerCtn > 0 ? ($billedRate / $pcsPerCtn) : $billedRate;

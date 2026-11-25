@@ -160,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $unitId = 4; // Piece unit
             } else {
                 $lineGross = $billableCartons * $rate;
-                $unitId = (int)$prod['base_unit_id']; // Carton unit
+                $unitId = 1; // Carton unit (CTN) // Carton unit
             }
 
             if ($discountMode === 'subtotal') {
