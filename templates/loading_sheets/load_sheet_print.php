@@ -24,7 +24,7 @@ if (!defined('DMS_RUNNING')) {
                 TOTAL STOCK ISSUE SUMMARY (لوڈ فارم / LOAD FORM)
             </h4>
             <div class="fw-semibold text-dark" style="font-size: 10px;">
-                <?= CLIENT_NAME ?> &bull; 03000673276 &bull; Jandiala Bhagwala G.T. Road Gujranwala
+                <?= CLIENT_NAME ?><?php if (CLIENT_PHONE): ?> &bull; <?= e(CLIENT_PHONE) ?><?php endif; ?><?php if (CLIENT_ADDRESS): ?> &bull; <?= e(CLIENT_ADDRESS) ?><?php endif; ?>
             </div>
         </div>
         <div class="text-end">

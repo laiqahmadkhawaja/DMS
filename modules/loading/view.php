@@ -338,7 +338,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         TOTAL STOCK ISSUE SUMMARY
                     </h3>
                     <div class="small fw-semibold text-muted">
-                        <?= CLIENT_NAME ?> - <?= CLIENT_LOCATION ?> (Ph: 0300-0673276)
+                        <?= CLIENT_NAME ?> - <?= CLIENT_LOCATION ?><?= CLIENT_PHONE ? ' (Ph: ' . e(CLIENT_PHONE) . ')' : '' ?>
                     </div>
                 </div>
 

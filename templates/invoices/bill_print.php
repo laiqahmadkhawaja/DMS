@@ -40,9 +40,14 @@ $lineHeight = $compactMode ? '19px' : '23px';
         <h4 class="fw-bold mb-0 text-uppercase tracking-wider client-name" style="font-family: Arial, Helvetica, sans-serif; font-size: <?= $headerFontSize ?>; letter-spacing: 0.8px; line-height: 1.15; color: #000;">
             <?= CLIENT_NAME ?>
         </h4>
+        <?php
+            $headerContact = array_filter([CLIENT_PHONE, CLIENT_ADDRESS]);
+        ?>
+        <?php if (!empty($headerContact)): ?>
         <div class="fw-bold text-dark client-contact" style="font-size: <?= $compactMode ? '10px' : '11px' ?>; margin-top: 2px;">
-            03000673276 &nbsp; Jandiala Bhagwala G.T. Road Gujranwala
+            <?= htmlspecialchars(implode(' &nbsp; ', $headerContact)) ?>
         </div>
+        <?php endif; ?>
     </div>
 
     <!-- Metadata Section (Matches Photo 2 & 7 layout) -->
@@ -171,6 +176,16 @@ $lineHeight = $compactMode ? '19px' : '23px';
             </tr>
         </tfoot>
     </table>
+
+    <!-- Footer Instructions / Terms (if configured in Settings) -->
+    <?php 
+        $billInstructions = get_setting('bill_instructions', '');
+    ?>
+    <?php if (!empty($billInstructions)): ?>
+        <div class="bill-instructions text-center mt-1 mb-1 px-1 py-1" style="font-size: <?= $compactMode ? '8px' : '9.5px' ?>; border-top: 1px dashed #555; border-bottom: 1px dashed #555; color: #000; font-weight: 600; line-height: 1.25;">
+            <?= nl2br(htmlspecialchars($billInstructions)) ?>
+        </div>
+    <?php endif; ?>
 
     <!-- Footer Note & Signatures -->
     <div class="d-flex justify-content-between pt-1 small fw-bold" style="font-size: <?= $compactMode ? '9px' : '10.5px' ?>; color: #000; margin-top: <?= $compactMode ? '12px' : '28px' ?>; padding-top: 3px;">

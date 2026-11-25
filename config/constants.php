@@ -12,8 +12,7 @@ if (!defined('DMS_RUNNING')) {
 define('APP_NAME', 'Distribution Management System');
 define('APP_SHORT_NAME', 'DMS');
 define('APP_VERSION', '1.0.0');
-define('CLIENT_NAME', 'Muzzam Enterprises');
-define('CLIENT_LOCATION', 'Gujranwala, Pakistan');
+// Note: CLIENT_NAME, CLIENT_LOCATION, CLIENT_PHONE, CLIENT_ADDRESS are loaded dynamically from System Settings in config/config.php
 
 // Paths
 define('BASE_PATH', dirname(__DIR__));

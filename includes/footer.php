@@ -300,7 +300,7 @@ if (!defined('DMS_RUNNING')) {
         </div>
     </div>
     <div class="dms-drawer-footer d-flex justify-content-between align-items-center">
-        <span class="text-muted small">Muzzam Enterprises DMS v<?= APP_VERSION ?></span>
+        <span class="text-muted small"><?= e(CLIENT_NAME) ?> DMS v<?= APP_VERSION ?></span>
         <button type="button" class="btn btn-sm btn-secondary" onclick="closeDrawer()">بند کریں (ESC)</button>
     </div>
 </div>

@@ -129,9 +129,9 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                             <div class="row g-2 mb-3">
                                 <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Primary Contact Phone</label>
+                                    <label class="form-label fw-semibold">Primary Contact Phone <span class="text-muted small fw-normal">(Optional)</span></label>
                                     <input type="text" name="settings[distributor_phone]" class="form-control" 
-                                           value="<?= htmlspecialchars(get_setting('distributor_phone', '03000673276')) ?>" required>
+                                           value="<?= htmlspecialchars(get_setting('distributor_phone', '')) ?>" placeholder="e.g. 03001234567">
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold">City</label>
@@ -141,8 +141,8 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Warehouse / Physical Address</label>
-                                <textarea name="settings[distributor_address]" class="form-control" rows="2" required><?= htmlspecialchars(get_setting('distributor_address', 'Jandiala Bhagwala G.T. Road Gujranwala')) ?></textarea>
+                                <label class="form-label fw-semibold">Warehouse / Physical Address <span class="text-muted small fw-normal">(Optional)</span></label>
+                                <textarea name="settings[distributor_address]" class="form-control" rows="2" placeholder="e.g. G.T. Road, Gujranwala"><?= htmlspecialchars(get_setting('distributor_address', '')) ?></textarea>
                             </div>
 
                             <div class="row g-2">
@@ -186,6 +186,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                                     <option value="1" <?= get_setting('show_signature_boxes', '1') == '1' ? 'selected' : '' ?>>Enabled (Customer, Salesman & Cashier signatures)</option>
                                     <option value="0" <?= get_setting('show_signature_boxes') == '0' ? 'selected' : '' ?>>Disabled (Maximize printable line item space)</option>
                                 </select>
+                            </div>
+
+                            <div class="mb-0">
+                                <label class="form-label fw-semibold">Bill Terms & Customer Instructions (بل پر پرنٹ ہونے والی ہدایات / شرائط)</label>
+                                <textarea name="settings[bill_instructions]" class="form-control" rows="2" placeholder="e.g. مال چیک کر کے وصول کریں، بعد میں واپسی یا کلیم قابل قبول نہیں ہوگا۔"><?= htmlspecialchars(get_setting('bill_instructions', '')) ?></textarea>
+                                <small class="text-muted d-block mt-1">These notes/terms will be neatly printed at the bottom of customer sales bills and invoices. Leave blank if not needed.</small>
                             </div>
                         </div>
                     </div>

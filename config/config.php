@@ -78,6 +78,21 @@ set_exception_handler(function (Throwable $e) {
 require_once CONFIG_PATH . '/database.php';
 require_once INCLUDES_PATH . '/response.php';
 require_once INCLUDES_PATH . '/functions.php';
+
+// Dynamic Business Identity Constants (Driven by System Settings)
+if (!defined('CLIENT_NAME')) {
+    define('CLIENT_NAME', get_setting('distributor_name', 'Muzzam Enterprises'));
+}
+if (!defined('CLIENT_LOCATION')) {
+    $city = get_setting('city', 'Gujranwala');
+    define('CLIENT_LOCATION', $city . ', Pakistan');
+}
+if (!defined('CLIENT_PHONE')) {
+    define('CLIENT_PHONE', get_setting('distributor_phone', ''));
+}
+if (!defined('CLIENT_ADDRESS')) {
+    define('CLIENT_ADDRESS', get_setting('distributor_address', ''));
+}
 require_once INCLUDES_PATH . '/validation.php';
 require_once INCLUDES_PATH . '/auth.php';
 require_once INCLUDES_PATH . '/permission.php';
