@@ -148,6 +148,20 @@ $pendingSettlementRows = db_fetch_all("
     LIMIT 6
 ");
 
+/**
+ * Render KPI Value masked by default for privacy
+ *
+ * @param string $formattedVal
+ * @param string $defaultMask
+ * @return string
+ */
+function render_kpi_val(string $formattedVal, string $defaultMask = '••••••'): string {
+    return '<span class="kpi-value-wrapper text-decoration-none" role="button" title="Click to reveal/hide">'
+         . '<span class="kpi-masked font-monospace text-muted">Rs. ' . $defaultMask . '</span>'
+         . '<span class="kpi-unmasked d-none">' . $formattedVal . '</span>'
+         . '</span>';
+}
+
 require_once INCLUDES_PATH . '/header.php';
 require_once INCLUDES_PATH . '/sidebar.php';
 require_once INCLUDES_PATH . '/topbar.php';
@@ -159,20 +173,27 @@ require_once INCLUDES_PATH . '/topbar.php';
         <small class="text-muted">Real-time daily operations, loading status, and field cash reconciliation</small>
     </div>
     
-    <!-- Filter Toolbar -->
-    <form method="GET" action="<?= APP_URL ?>/dashboard.php" class="d-flex align-items-center gap-2">
-        <select name="date_filter" class="form-select form-select-sm" onchange="if(this.value==='custom'){ document.getElementById('custom_date_div').style.display='block'; } else { document.getElementById('custom_date_div').style.display='none'; this.form.submit(); }">
-            <option value="today" <?= $dateFilter === 'today' ? 'selected' : '' ?>>Today</option>
-            <option value="yesterday" <?= $dateFilter === 'yesterday' ? 'selected' : '' ?>>Yesterday</option>
-            <option value="this_week" <?= $dateFilter === 'this_week' ? 'selected' : '' ?>>This Week</option>
-            <option value="this_month" <?= $dateFilter === 'this_month' ? 'selected' : '' ?>>This Month</option>
-            <option value="custom" <?= $dateFilter === 'custom' ? 'selected' : '' ?>>Custom Date...</option>
-        </select>
-        
-        <div id="custom_date_div" style="display: <?= $dateFilter === 'custom' ? 'block' : 'none' ?>;">
-            <input type="date" name="custom_date" class="form-control form-control-sm" value="<?= e($customDate) ?>" onchange="this.form.submit()">
-        </div>
-    </form>
+    <!-- Filter Toolbar & KPI Privacy Toggle -->
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center shadow-xs" id="btnToggleKpiPrivacy" title="Show / Hide Financial Figures">
+            <i class="bi bi-eye-slash me-1 text-primary" id="kpiEyeIcon"></i>
+            <span id="kpiPrivacyText" class="fw-semibold small">Show Figures</span>
+        </button>
+
+        <form method="GET" action="<?= APP_URL ?>/dashboard.php" class="d-flex align-items-center gap-2 mb-0">
+            <select name="date_filter" class="form-select form-select-sm" onchange="if(this.value==='custom'){ document.getElementById('custom_date_div').style.display='block'; } else { document.getElementById('custom_date_div').style.display='none'; this.form.submit(); }">
+                <option value="today" <?= $dateFilter === 'today' ? 'selected' : '' ?>>Today</option>
+                <option value="yesterday" <?= $dateFilter === 'yesterday' ? 'selected' : '' ?>>Yesterday</option>
+                <option value="this_week" <?= $dateFilter === 'this_week' ? 'selected' : '' ?>>This Week</option>
+                <option value="this_month" <?= $dateFilter === 'this_month' ? 'selected' : '' ?>>This Month</option>
+                <option value="custom" <?= $dateFilter === 'custom' ? 'selected' : '' ?>>Custom Date...</option>
+            </select>
+            
+            <div id="custom_date_div" style="display: <?= $dateFilter === 'custom' ? 'block' : 'none' ?>;">
+                <input type="date" name="custom_date" class="form-control form-control-sm" value="<?= e($customDate) ?>" onchange="this.form.submit()">
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Primary Distribution KPIs (4 Key Metrics) -->
@@ -184,9 +205,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <span class="text-muted small fw-semibold text-uppercase">Sales Invoiced</span>
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><?= (int)$invStats['total_invoices'] ?> Bills</span>
             </div>
-            <h4 class="mb-1 fw-bold text-dark"><?= format_currency($invStats['net_sales']) ?></h4>
+            <h4 class="mb-1 fw-bold text-dark"><?= render_kpi_val(format_currency($invStats['net_sales'])) ?></h4>
             <div class="small text-muted">
-                Gross: <?= format_currency($invStats['gross_sales']) ?>
+                Gross: <?= render_kpi_val(format_currency($invStats['gross_sales'])) ?>
             </div>
         </div>
     </div>
@@ -198,7 +219,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <span class="text-muted small fw-semibold text-uppercase">Cash Collected</span>
                 <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-cash"></i> Field</span>
             </div>
-            <h4 class="mb-1 fw-bold text-success"><?= format_currency($setStats['total_cash_received']) ?></h4>
+            <h4 class="mb-1 fw-bold text-success"><?= render_kpi_val(format_currency($setStats['total_cash_received'])) ?></h4>
             <div class="small text-muted">
                 From settled routes
             </div>
@@ -212,9 +233,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <span class="text-muted small fw-semibold text-uppercase">Market Credit Added</span>
                 <span class="badge bg-warning-subtle text-dark border border-warning-subtle"><i class="bi bi-clock"></i> Khata</span>
             </div>
-            <h4 class="mb-1 fw-bold text-dark"><?= format_currency($setStats['total_credit_given']) ?></h4>
+            <h4 class="mb-1 fw-bold text-dark"><?= render_kpi_val(format_currency($setStats['total_credit_given'])) ?></h4>
             <div class="small text-muted">
-                Total Market Balance: <?= format_currency($totalReceivables) ?>
+                Total Market Balance: <?= render_kpi_val(format_currency($totalReceivables)) ?>
             </div>
         </div>
     </div>
@@ -226,9 +247,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <span class="text-muted small fw-semibold text-uppercase">Returns Recorded</span>
                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-arrow-counterclockwise"></i> Returns</span>
             </div>
-            <h4 class="mb-1 fw-bold text-danger"><?= format_currency($setStats['total_returns_amount']) ?></h4>
+            <h4 class="mb-1 fw-bold text-danger"><?= render_kpi_val(format_currency($setStats['total_returns_amount'])) ?></h4>
             <div class="small text-muted">
-                Unreconciled diff: <?= format_currency($setStats['total_difference']) ?>
+                Unreconciled diff: <?= render_kpi_val(format_currency($setStats['total_difference'])) ?>
             </div>
         </div>
     </div>
@@ -277,7 +298,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </div>
                 <div>
                     <div class="text-muted small">Total Stock Value</div>
-                    <div class="fw-bold"><?= format_currency($totalStockValue) ?></div>
+                    <div class="fw-bold"><?= render_kpi_val(format_currency($totalStockValue)) ?></div>
                     <small class="text-danger"><?= $lowStockCount ?> items below minimum level</small>
                 </div>
             </div>
@@ -293,7 +314,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                 </div>
                 <div>
                     <div class="text-muted small">Supplier Payables</div>
-                    <div class="fw-bold"><?= format_currency($totalPayables) ?></div>
+                    <div class="fw-bold"><?= render_kpi_val(format_currency($totalPayables)) ?></div>
                     <small class="text-muted">Total trade creditor balances</small>
                 </div>
             </div>
@@ -403,6 +424,65 @@ require_once INCLUDES_PATH . '/topbar.php';
         </div>
     </div>
 </div>
+
+<style>
+.kpi-value-wrapper {
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.15s ease-in-out;
+    display: inline-block;
+}
+.kpi-value-wrapper:hover .kpi-masked {
+    color: #0d6efd !important;
+}
+.kpi-masked {
+    letter-spacing: 2px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let kpiVisible = false;
+
+    function setKpiVisibility(show) {
+        kpiVisible = show;
+        document.querySelectorAll('.kpi-masked').forEach(el => {
+            el.classList.toggle('d-none', show);
+        });
+        document.querySelectorAll('.kpi-unmasked').forEach(el => {
+            el.classList.toggle('d-none', !show);
+        });
+        const icon = document.getElementById('kpiEyeIcon');
+        const text = document.getElementById('kpiPrivacyText');
+        if (icon && text) {
+            if (show) {
+                icon.className = 'bi bi-eye me-1 text-success';
+                text.textContent = 'Hide Figures';
+            } else {
+                icon.className = 'bi bi-eye-slash me-1 text-primary';
+                text.textContent = 'Show Figures';
+            }
+        }
+    }
+
+    document.getElementById('btnToggleKpiPrivacy')?.addEventListener('click', function() {
+        setKpiVisibility(!kpiVisible);
+    });
+
+    // Allow individual click on any KPI card value to toggle only that value
+    document.querySelectorAll('.kpi-value-wrapper').forEach(wrapper => {
+        wrapper.addEventListener('click', function(e) {
+            const masked = this.querySelector('.kpi-masked');
+            const unmasked = this.querySelector('.kpi-unmasked');
+            if (masked && unmasked) {
+                const isMasked = !masked.classList.contains('d-none');
+                masked.classList.toggle('d-none', isMasked);
+                unmasked.classList.toggle('d-none', !isMasked);
+            }
+        });
+    });
+});
+</script>
 
 <?php
 require_once INCLUDES_PATH . '/footer.php';
