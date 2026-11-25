@@ -190,7 +190,7 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                             <div class="mb-0">
                                 <label class="form-label fw-semibold">Bill Terms & Customer Instructions (بل پر پرنٹ ہونے والی ہدایات / شرائط)</label>
-                                <textarea name="settings[bill_instructions]" class="form-control" rows="2" placeholder="e.g. مال چیک کر کے وصول کریں، بعد میں واپسی یا کلیم قابل قبول نہیں ہوگا۔"><?= htmlspecialchars(get_setting('bill_instructions', '')) ?></textarea>
+                                <textarea name="settings[bill_instructions]" class="form-control" rows="2" placeholder="e.g. مال چیک کر کے وصول کریں، بعد میں واپسی یا کلیم قابل قبول نہیں ہوگا۔"><?= htmlspecialchars(get_setting('bill_instructions', 'نوٹ: برائے مہربانی مال گن کر اور چیک کر کے وصول کریں۔ بعد میں کسی کمی بیشی کی شکایت قابل قبول نہیں ہوگی۔')) ?></textarea>
                                 <small class="text-muted d-block mt-1">These notes/terms will be neatly printed at the bottom of customer sales bills and invoices. Leave blank if not needed.</small>
                             </div>
                         </div>

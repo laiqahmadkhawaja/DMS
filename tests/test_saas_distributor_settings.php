@@ -85,7 +85,24 @@ $billHtmlEmpty = ob_get_clean();
 assert(strpos($billHtmlEmpty, 'bill-instructions') === false, "When bill_instructions is empty, container should not be rendered");
 echo "   [PASS] Clean bill layout when instructions are blank.\n";
 
-// Restore original distributor name
+// 4. Test Order Voucher Print View (modules/orders/print.php)
+echo "\n4. Testing Order Booking Print View (modules/orders/print.php)...\n";
+update_setting('bill_instructions', $testInstruction);
+$_GET['id'] = 1;
+$_SESSION['user_id'] = 1;
+$_SESSION['role_id'] = 1;
+$_SESSION['username'] = 'admin';
+$_SESSION['roles'] = ['admin'];
+$_SESSION['permissions'] = ['orders_view'];
+
+ob_start();
+include __DIR__ . '/../modules/orders/print.php';
+$orderPrintHtml = ob_get_clean();
+
+assert(strpos($orderPrintHtml, $testInstruction) !== false, "Order printout MUST include configured bill instructions!");
+echo "   [PASS] Order print view includes bill instructions.\n";
+
+// Restore original distributor name and settings
 update_setting('distributor_name', $originalName);
 update_setting('distributor_phone', '03000673276');
 echo "\n=== ALL TESTS PASSED SUCCESSFULLY! ===\n";

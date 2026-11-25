@@ -179,7 +179,7 @@ $lineHeight = $compactMode ? '19px' : '23px';
 
     <!-- Footer Instructions / Terms (if configured in Settings) -->
     <?php 
-        $billInstructions = get_setting('bill_instructions', '');
+        $billInstructions = get_setting('bill_instructions', 'نوٹ: برائے مہربانی مال گن کر اور چیک کر کے وصول کریں۔ بعد میں کسی کمی بیشی کی شکایت قابل قبول نہیں ہوگی۔');
     ?>
     <?php if (!empty($billInstructions)): ?>
         <div class="bill-instructions text-center mt-1 mb-1 px-1 py-1" style="font-size: <?= $compactMode ? '8px' : '9.5px' ?>; border-top: 1px dashed #555; border-bottom: 1px dashed #555; color: #000; font-weight: 600; line-height: 1.25;">

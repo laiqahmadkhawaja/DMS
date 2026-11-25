@@ -210,9 +210,14 @@ $padRows = max(8, count($items));
                 <h4 class="fw-bold mb-0 text-uppercase order-title">
                     <?= CLIENT_NAME ?>
                 </h4>
+                <?php
+                    $orderContact = array_filter([CLIENT_PHONE, CLIENT_ADDRESS]);
+                ?>
+                <?php if (!empty($orderContact)): ?>
                 <div class="fw-semibold text-dark" style="font-size: 11px; margin-top: 2px;">
-                    03000673276 &nbsp;&bull;&nbsp; Jandiala Bhagwala G.T. Road Gujranwala
+                    <?= htmlspecialchars(implode(' &nbsp;&bull;&nbsp; ', $orderContact)) ?>
                 </div>
+                <?php endif; ?>
                 <div class="fw-bold text-uppercase mt-1" style="font-size: 13px; letter-spacing: 1px;">
                     Market Order Booking Voucher
                 </div>
@@ -353,6 +358,16 @@ $padRows = max(8, count($items));
             <?php if (!empty($order['remarks'])): ?>
                 <div class="p-1 px-2 border border-dark rounded mb-2 small fw-bold" style="font-size: 10.5px;">
                     Remarks: <?= htmlspecialchars($order['remarks']) ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- Footer Instructions / Terms (from Settings) -->
+            <?php 
+                $billInstructions = get_setting('bill_instructions', 'نوٹ: برائے مہربانی مال گن کر اور چیک کر کے وصول کریں۔ بعد میں کسی کمی بیشی کی شکایت قابل قبول نہیں ہوگی۔');
+            ?>
+            <?php if (!empty($billInstructions)): ?>
+                <div class="bill-instructions text-center mt-2 mb-2 px-2 py-1" style="font-size: 10px; border-top: 1px dashed #555; border-bottom: 1px dashed #555; color: #000; font-weight: 600; line-height: 1.35;">
+                    <?= nl2br(htmlspecialchars($billInstructions)) ?>
                 </div>
             <?php endif; ?>
 
