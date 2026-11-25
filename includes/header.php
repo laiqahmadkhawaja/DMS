@@ -27,6 +27,10 @@ $activeMenu = get_active_menu();
     
     <script>
         window.DMS_APP_URL = "<?= APP_URL ?>";
+        // Immediate zero-flicker sidebar collapse state
+        if (localStorage.getItem('dms_sidebar_collapsed') === 'true') {
+            document.documentElement.classList.add('dms-sidebar-collapsed');
+        }
     </script>
 </head>
 <body>

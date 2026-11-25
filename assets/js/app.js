@@ -286,6 +286,100 @@
         }
     });
 
+    // 6b. Collapsible Sidebar Toggle & Persistence
+    function initSidebarCollapse() {
+        const html = document.documentElement;
+
+        function toggleSidebar(forceState) {
+            let isCollapsed;
+            if (window.innerWidth < 768) {
+                // Mobile behavior: toggle off-canvas drawer
+                html.classList.toggle('dms-sidebar-open-mobile');
+                return;
+            }
+
+            if (typeof forceState === 'boolean') {
+                isCollapsed = forceState;
+                if (isCollapsed) {
+                    html.classList.add('dms-sidebar-collapsed');
+                } else {
+                    html.classList.remove('dms-sidebar-collapsed');
+                }
+            } else {
+                isCollapsed = html.classList.toggle('dms-sidebar-collapsed');
+            }
+
+            try {
+                localStorage.setItem('dms_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+            } catch (e) {}
+
+            // Trigger window resize so responsive tables / POS cards readjust smoothly
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 250);
+        }
+
+        // Toggle buttons
+        const topbarToggle = document.getElementById('dmsSidebarToggle');
+        if (topbarToggle) {
+            topbarToggle.addEventListener('click', function (e) {
+                e.preventDefault();
+                toggleSidebar();
+            });
+        }
+
+        const brandCollapseBtn = document.getElementById('sidebarCollapseBtn');
+        if (brandCollapseBtn) {
+            brandCollapseBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                toggleSidebar();
+            });
+        }
+
+        // Close mobile sidebar on outside click
+        document.addEventListener('click', function (e) {
+            if (window.innerWidth < 768 && html.classList.contains('dms-sidebar-open-mobile')) {
+                const sidebar = document.getElementById('dmsSidebar');
+                const toggle = document.getElementById('dmsSidebarToggle');
+                if (sidebar && !sidebar.contains(e.target) && toggle && !toggle.contains(e.target)) {
+                    html.classList.remove('dms-sidebar-open-mobile');
+                }
+            }
+        });
+
+        // Global Keyboard Shortcut: Ctrl + B or Alt + S
+        document.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey && (e.key === 'b' || e.key === 'B')) || (e.altKey && (e.key === 's' || e.key === 'S'))) {
+                const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+                if (tag !== 'input' && tag !== 'textarea' && !document.activeElement.isContentEditable) {
+                    e.preventDefault();
+                    toggleSidebar();
+                }
+            }
+        });
+
+        // Add title attribute to all menu links for native tooltips in collapsed state
+        const menuItems = document.querySelectorAll('.dms-sidebar-menu .dms-menu-item');
+        menuItems.forEach(item => {
+            if (!item.hasAttribute('title')) {
+                const text = item.textContent.trim().replace(/\s+/g, ' ');
+                if (text) {
+                    item.setAttribute('title', text);
+                }
+            }
+        });
+
+        const sectionToggles = document.querySelectorAll('.dms-sidebar-menu .dms-section-toggle');
+        sectionToggles.forEach(btn => {
+            if (!btn.hasAttribute('title')) {
+                const text = btn.textContent.trim().replace(/\s+/g, ' ');
+                if (text) {
+                    btn.setAttribute('title', text);
+                }
+            }
+        });
+    }
+
     // 7. Universal Searchable Select Component (For Customer & Party Selects)
     window.initSearchableSelect = function (select) {
         if (!select || select.dataset.dmsSearchableInit === 'true') return;
@@ -738,10 +832,12 @@
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
+            initSidebarCollapse();
             initSidebarScroll();
             initAllCustomerSelects();
         });
     } else {
+        initSidebarCollapse();
         initSidebarScroll();
         initAllCustomerSelects();
     }

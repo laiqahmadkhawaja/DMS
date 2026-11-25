@@ -14,6 +14,7 @@ if (!defined('DMS_RUNNING')) {
     <div class="dms-shortcut-bar no-print">
         <div><span class="shortcut-pill">F1</span> Help</div>
         <div><span class="shortcut-pill">F2</span> Search</div>
+        <div><span class="shortcut-pill">Ctrl+B</span> Sidebar</div>
         <div><span class="shortcut-pill">F6</span> New Order</div>
         <div><span class="shortcut-pill">F7</span> New Invoice</div>
         <div><span class="shortcut-pill">F8</span> Settlement</div>

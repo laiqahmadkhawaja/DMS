@@ -22,8 +22,11 @@ $user = current_user();
 ?>
 <div class="dms-main">
     <header class="dms-topbar">
-        <div class="dms-topbar-left">
-            <span class="fw-semibold text-secondary">
+        <div class="dms-topbar-left d-flex align-items-center">
+            <button type="button" class="btn btn-sm btn-light border py-1 px-2 me-2 dms-sidebar-toggle-btn shadow-none" id="dmsSidebarToggle" title="Toggle Sidebar (Ctrl+B)">
+                <i class="bi bi-list fs-5 lh-1"></i>
+            </button>
+            <span class="fw-semibold text-secondary d-none d-sm-inline">
                 <i class="bi bi-calendar3 me-1"></i> <?= date('D, d M Y') ?>
             </span>
             <span class="badge bg-light text-dark border ms-2">

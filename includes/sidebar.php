@@ -25,13 +25,18 @@ $isOperationsActive = in_array($activeMenu, ['areas', 'bookers', 'salesmen']);
 $isReportsActive    = in_array($activeMenu, ['reports', 'rpt_closing', 'rpt_daily', 'rpt_company', 'rpt_profitability', 'rpt_tb', 'rpt_pl', 'rpt_bs', 'excel']);
 $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
 ?>
-<aside class="dms-sidebar">
-    <div class="dms-sidebar-brand">
-        <i class="bi bi-box-seam-fill text-warning fs-5"></i>
-        <div>
-            <div><?= e(CLIENT_NAME) ?></div>
-            <small>Distribution Management</small>
+<aside class="dms-sidebar" id="dmsSidebar">
+    <div class="dms-sidebar-brand d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2 overflow-hidden text-nowrap">
+            <i class="bi bi-box-seam-fill text-warning fs-5 flex-shrink-0"></i>
+            <div class="dms-brand-text">
+                <div class="text-truncate fw-bold"><?= e(CLIENT_NAME) ?></div>
+                <small class="text-truncate d-block text-secondary">Distribution Management</small>
+            </div>
         </div>
+        <button type="button" class="btn btn-sm btn-link text-white-50 p-0 dms-sidebar-collapse-btn d-none d-md-inline-flex" id="sidebarCollapseBtn" title="Collapse Sidebar (Ctrl+B)">
+            <i class="bi bi-chevron-left"></i>
+        </button>
     </div>
     
     <ul class="dms-sidebar-menu">
