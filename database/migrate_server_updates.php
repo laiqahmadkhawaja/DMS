@@ -254,6 +254,22 @@ try {
         add_log('warning', "Partners table already has {$partnerCount} records. Preserved intact.");
     }
 
+    // --------------------------------------------------------------------------
+    // 11. DELIVERY RUNS & MANUAL CREDIT SHEETS SCHEMA
+    // --------------------------------------------------------------------------
+    add_log('info', 'Verifying `delivery_runs` and `delivery_run_bills` schema...');
+    safe_add_column($db, 'delivery_runs', 'area_id', "INT(10) UNSIGNED DEFAULT NULL AFTER `salesman_id`");
+    safe_add_column($db, 'delivery_runs', 'run_type', "VARCHAR(20) NOT NULL DEFAULT 'load_sheet' AFTER `load_sheet_id`");
+
+    // Make invoice_id nullable in delivery_run_bills to support manual recovery sheets
+    $db->exec("ALTER TABLE `delivery_run_bills` MODIFY COLUMN `invoice_id` BIGINT(20) UNSIGNED DEFAULT NULL;");
+    safe_add_column($db, 'delivery_run_bills', 'customer_id', "INT(10) UNSIGNED DEFAULT NULL AFTER `invoice_id`");
+    safe_add_column($db, 'delivery_run_bills', 'bill_number', "VARCHAR(50) DEFAULT NULL AFTER `customer_id`");
+    safe_add_column($db, 'delivery_run_bills', 'prev_balance', "DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `bill_number`");
+    safe_add_column($db, 'delivery_run_bills', 'bill_amount', "DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `prev_balance`");
+    safe_add_column($db, 'delivery_run_bills', 'total_due', "DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `bill_amount`");
+    add_log('success', 'Verified delivery_runs and delivery_run_bills schema.');
+
     // Ensure permissions
     $db->exec("
         INSERT IGNORE INTO `permissions` (`module`, `permission_code`, `permission_name`, `description`) VALUES

@@ -427,7 +427,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 Cost: <?= DEFAULT_CURRENCY ?> <?= number_format($purchaseCartonRate, 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
                                             </div>
                                             <div class="text-dark fw-semibold" style="font-size: 10.5px; line-height: 1.1;">
-                                                <?= DEFAULT_CURRENCY ?> <?= number_format($packsPerCtn > 0 ? ($purCtnRate / $packsPerCtn) : $purCtnRate, 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format($packsPerCtn > 0 ? ($purchaseCartonRate / $packsPerCtn) : $purchaseCartonRate, 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>
                                             </div>
                                             <div class="text-secondary fw-semibold" style="font-size: 11px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format($purchasePieceRate, 2) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Pc</span>
