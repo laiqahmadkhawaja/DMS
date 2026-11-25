@@ -120,7 +120,7 @@ $lineHeight = $compactMode ? '19px' : '23px';
                         <?= $pcsQty > 0 ? (float)$pcsQty : ((float)$item['quantity'] > 0 ? (float)$item['quantity'] : '') ?>
                     </td>
                     <td class="text-end pe-1" style="border: 1px solid #000 !important; padding: 1px 5px; text-align: right;">
-                        <?= number_format((float)$item['rate'], 0) ?><?= (($item['unit_code'] ?? '') === 'PCS' || (int)($item['unit_id'] ?? 0) === 4) ? ' <span style="font-size:8.5px;">/Pc</span>' : '' ?>
+                        <?= number_format((float)$item['rate'], 0) ?><?= (($item['unit_code'] ?? '') === 'PCS' || (int)($item['unit_id'] ?? 0) === 4) ? ' <span style="font-size:8.5px;">/Pc</span>' : (((int)($item['unit_id'] ?? 0) === 3 || (int)($item['unit_id'] ?? 0) === 2 || in_array(strtolower($item['unit_code'] ?? ''), ['pck', 'pack', 'box'])) ? ' <span style="font-size:8.5px;">/Pack</span>' : '') ?>
                     </td>
                     <td class="text-end pe-1 fw-bold" style="border: 1px solid #000 !important; padding: 1px 5px; text-align: right;">
                         <?= number_format((float)$item['line_total'], 0) ?>

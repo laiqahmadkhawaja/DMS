@@ -382,8 +382,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         </td>
                                         <td class="text-center">
                                             <select name="item_unit[]" class="form-select form-select-sm unit-inp text-center py-0 px-1" onchange="onInvUnitChange(this)">
-                                                <option value="ctn" <?= !$isPieceUnit ? 'selected' : '' ?>>Ctn</option>
-                                                <option value="pcs" <?= $isPieceUnit ? 'selected' : '' ?>>Pcs</option>
+                                                <option value="ctn" <?= (!in_array($it['unit_id'], [2, 3, 4])) ? 'selected' : '' ?>>Ctn</option>
+                                                <option value="pack" <?= in_array($it['unit_id'], [2, 3]) ? 'selected' : '' ?>>Pack</option>
+                                                <option value="pcs" <?= $it['unit_id'] == 4 ? 'selected' : '' ?>>Pcs</option>
                                             </select>
                                         </td>
                                         <td>
@@ -571,6 +572,9 @@ function calculateInvRowGross(row) {
     if (unit === 'pcs') {
         const totalPieces = (ctn * pcsPerCtn) + (pack * pcsPerPack) + effectivePcs;
         return totalPieces * rate;
+    } else if (unit === 'pack') {
+        const totalPacks = (ctn * packsPerCtn) + pack + (pcsPerPack > 0 ? (effectivePcs / pcsPerPack) : 0);
+        return totalPacks * rate;
     } else {
         const baseCartons = ctn + (pack / packsPerCtn) + (effectivePcs / pcsPerCtn);
         return baseCartons * rate;
@@ -663,9 +667,11 @@ function onInvUnitChange(sel) {
     const pcsPerCtn   = packsPerCtn * pcsPerPack;
 
     const cartonRate = opt ? (parseFloat(opt.getAttribute('data-carton-rate')) || parseFloat(opt.getAttribute('data-rate')) || 0) : 0;
+    const packRate   = packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate;
     const pieceRate  = opt ? (parseFloat(opt.getAttribute('data-piece-rate')) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate)) : 0;
 
     const ctnInp  = row.querySelector('.ctn-inp');
+    const packInp = row.querySelector('.pack-inp');
     const pcsInp  = row.querySelector('.pcs-inp');
     const rateInp = row.querySelector('.rate-inp');
     const lblUnit = row.querySelector('.rate-unit-lbl');
@@ -674,19 +680,34 @@ function onInvUnitChange(sel) {
         if (rateInp) rateInp.value = pieceRate.toFixed(2);
         if (lblUnit) lblUnit.innerText = '/ Piece';
         const ctnVal = parseFloat(ctnInp?.value) || 0;
+        const packVal = parseFloat(packInp?.value) || 0;
         const pcsVal = parseFloat(pcsInp?.value) || 0;
-        if (ctnVal > 0 && pcsVal === 0) {
-            if (pcsInp) pcsInp.value = ctnVal * pcsPerCtn;
+        if ((ctnVal === 1 && packVal === 0 && pcsVal === 0) || (ctnVal === 0 && packVal === 1 && pcsVal === 0)) {
             if (ctnInp) ctnInp.value = 0;
+            if (packInp) packInp.value = 0;
+            if (pcsInp) pcsInp.value = 1;
+        }
+    } else if (unit === 'pack') {
+        if (rateInp) rateInp.value = packRate.toFixed(2);
+        if (lblUnit) lblUnit.innerText = '/ Pack';
+        const ctnVal = parseFloat(ctnInp?.value) || 0;
+        const packVal = parseFloat(packInp?.value) || 0;
+        const pcsVal = parseFloat(pcsInp?.value) || 0;
+        if ((ctnVal === 1 && packVal === 0 && pcsVal === 0) || (ctnVal === 0 && packVal === 0 && pcsVal === 1)) {
+            if (ctnInp) ctnInp.value = 0;
+            if (packInp) packInp.value = 1;
+            if (pcsInp) pcsInp.value = 0;
         }
     } else {
         if (rateInp) rateInp.value = cartonRate.toFixed(2);
         if (lblUnit) lblUnit.innerText = '/ Carton';
         const ctnVal = parseFloat(ctnInp?.value) || 0;
+        const packVal = parseFloat(packInp?.value) || 0;
         const pcsVal = parseFloat(pcsInp?.value) || 0;
-        if (ctnVal === 0 && pcsVal > 0 && pcsPerCtn > 0) {
-            if (ctnInp) ctnInp.value = Math.floor(pcsVal / pcsPerCtn);
-            if (pcsInp) pcsInp.value = pcsVal % pcsPerCtn;
+        if ((ctnVal === 0 && packVal === 1 && pcsVal === 0) || (ctnVal === 0 && packVal === 0 && pcsVal === 1)) {
+            if (ctnInp) ctnInp.value = 1;
+            if (packInp) packInp.value = 0;
+            if (pcsInp) pcsInp.value = 0;
         }
     }
 

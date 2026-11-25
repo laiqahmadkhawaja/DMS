@@ -997,6 +997,9 @@ function calculateLineGross(item) {
     if (item.unit === 'pcs') {
         const totalPieces = (item.carton_qty * item.pcs_per_ctn) + (item.pack_qty * item.pcs_per_pack) + effectivePcs;
         return totalPieces * item.rate;
+    } else if (item.unit === 'pack') {
+        const totalPacks = (item.carton_qty * item.packs_per_ctn) + item.pack_qty + (item.pcs_per_pack > 0 ? (effectivePcs / item.pcs_per_pack) : 0);
+        return totalPacks * item.rate;
     } else {
         const baseCartons = item.carton_qty + (item.pack_qty / item.packs_per_ctn) + (effectivePcs / item.pcs_per_ctn);
         return baseCartons * item.rate;
@@ -1158,6 +1161,7 @@ function renderNewCartRow(productId) {
                     class="form-select form-select-sm text-center fw-bold py-0 px-1" 
                     onchange="onCartUnitChange(${productId}, this.value)">
                 <option value="ctn" ${item.unit === 'ctn' ? 'selected' : ''}>Ctn</option>
+                <option value="pack" ${item.unit === 'pack' ? 'selected' : ''}>Pack</option>
                 <option value="pcs" ${item.unit === 'pcs' ? 'selected' : ''}>Pcs</option>
             </select>
         </td>
@@ -1167,7 +1171,7 @@ function renderNewCartRow(productId) {
                    value="${item.rate.toFixed(2)}" 
                    oninput="onCartRowChange(${productId})"
                    onkeydown="onCartInputKeyDown(event, ${productId}, 'rate')" required>
-            <small class="text-muted text-end d-block" id="lbl_rate_unit_${productId}" style="font-size: 10px;">/ ${item.unit === 'pcs' ? 'Piece' : 'Carton'}</small>
+            <small class="text-muted text-end d-block" id="lbl_rate_unit_${productId}" style="font-size: 10px;">/ ${item.unit === 'pcs' ? 'Piece' : (item.unit === 'pack' ? 'Pack' : 'Carton')}</small>
         </td>
         <td class="text-end">
             <input type="number" step="0.01" name="item_discount_percent[]" id="input_disc_${productId}" 
@@ -1204,22 +1208,56 @@ function onCartUnitChange(productId, unit) {
     item.unit = unit;
     if (unit === 'pcs') {
         item.rate = item.piece_rate;
-        if (item.carton_qty === 1 && item.pcs_qty === 0) {
+        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
             item.carton_qty = 0;
+            item.pack_qty = 0;
             item.pcs_qty = 1;
             const inputCtn = document.getElementById('input_carton_' + productId);
+            const inputPack = document.getElementById('input_pack_' + productId);
             const inputPcs = document.getElementById('input_pcs_' + productId);
             if (inputCtn) inputCtn.value = 0;
+            if (inputPack) inputPack.value = 0;
             if (inputPcs) inputPcs.value = 1;
+        } else if (item.carton_qty === 0 && item.pack_qty === 1 && item.pcs_qty === 0) {
+            item.pack_qty = 0;
+            item.pcs_qty = 1;
+            const inputPack = document.getElementById('input_pack_' + productId);
+            const inputPcs = document.getElementById('input_pcs_' + productId);
+            if (inputPack) inputPack.value = 0;
+            if (inputPcs) inputPcs.value = 1;
+        }
+    } else if (unit === 'pack') {
+        item.rate = item.pack_rate;
+        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
+            item.carton_qty = 0;
+            item.pack_qty = 1;
+            item.pcs_qty = 0;
+            const inputCtn = document.getElementById('input_carton_' + productId);
+            const inputPack = document.getElementById('input_pack_' + productId);
+            const inputPcs = document.getElementById('input_pcs_' + productId);
+            if (inputCtn) inputCtn.value = 0;
+            if (inputPack) inputPack.value = 1;
+            if (inputPcs) inputPcs.value = 0;
+        } else if (item.carton_qty === 0 && item.pack_qty === 0 && item.pcs_qty === 1) {
+            item.pack_qty = 1;
+            item.pcs_qty = 0;
+            const inputPack = document.getElementById('input_pack_' + productId);
+            const inputPcs = document.getElementById('input_pcs_' + productId);
+            if (inputPack) inputPack.value = 1;
+            if (inputPcs) inputPcs.value = 0;
         }
     } else {
         item.rate = item.carton_rate;
-        if (item.carton_qty === 0 && item.pcs_qty === 1) {
+        if ((item.carton_qty === 0 && item.pack_qty === 1 && item.pcs_qty === 0) ||
+            (item.carton_qty === 0 && item.pack_qty === 0 && item.pcs_qty === 1)) {
             item.carton_qty = 1;
+            item.pack_qty = 0;
             item.pcs_qty = 0;
             const inputCtn = document.getElementById('input_carton_' + productId);
+            const inputPack = document.getElementById('input_pack_' + productId);
             const inputPcs = document.getElementById('input_pcs_' + productId);
             if (inputCtn) inputCtn.value = 1;
+            if (inputPack) inputPack.value = 0;
             if (inputPcs) inputPcs.value = 0;
         }
     }
@@ -1228,7 +1266,7 @@ function onCartUnitChange(productId, unit) {
     if (inputRate) inputRate.value = item.rate.toFixed(2);
 
     const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
-    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (unit === 'pcs' ? 'Piece' : 'Carton');
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (unit === 'pcs' ? 'Piece' : (unit === 'pack' ? 'Pack' : 'Carton'));
 
     updateCartRow(productId);
     recalculateCartSummary();
