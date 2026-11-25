@@ -70,6 +70,17 @@ try {
     };
 
     // --------------------------------------------------------------------------
+    // 0. USERS TABLE SECURITY & LOCKOUT COLUMNS
+    // --------------------------------------------------------------------------
+    log_step('info', 'Step 0: Verifying `users` security and lockout columns...');
+    $safeAddColumn('users', 'phone', "VARCHAR(25) DEFAULT NULL AFTER `full_name`");
+    $safeAddColumn('users', 'status', "ENUM('active', 'inactive') NOT NULL DEFAULT 'active' AFTER `phone`");
+    $safeAddColumn('users', 'last_login_at', "DATETIME DEFAULT NULL AFTER `status`");
+    $safeAddColumn('users', 'login_attempts', "INT NOT NULL DEFAULT 0 AFTER `last_login_at`");
+    $safeAddColumn('users', 'locked_until', "DATETIME DEFAULT NULL AFTER `login_attempts`");
+    $safeAddColumn('users', 'is_deleted', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `locked_until`");
+
+    // --------------------------------------------------------------------------
     // 1. ORDERS TABLE
     // --------------------------------------------------------------------------
     log_step('info', 'Step 1: Updating `orders` table constraints...');

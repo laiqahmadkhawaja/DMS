@@ -50,6 +50,17 @@ try {
     }
 
     // --------------------------------------------------------------------------
+    // 0. USERS & SECURITY TABLE
+    // --------------------------------------------------------------------------
+    add_log('info', 'Verifying `users` table security columns...');
+    safe_add_column($db, 'users', 'phone', "VARCHAR(25) DEFAULT NULL AFTER `full_name`");
+    safe_add_column($db, 'users', 'status', "ENUM('active', 'inactive') NOT NULL DEFAULT 'active' AFTER `phone`");
+    safe_add_column($db, 'users', 'last_login_at', "DATETIME DEFAULT NULL AFTER `status`");
+    safe_add_column($db, 'users', 'login_attempts', "INT NOT NULL DEFAULT 0 AFTER `last_login_at`");
+    safe_add_column($db, 'users', 'locked_until', "DATETIME DEFAULT NULL AFTER `login_attempts`");
+    safe_add_column($db, 'users', 'is_deleted', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `locked_until`");
+
+    // --------------------------------------------------------------------------
     // 1. ORDERS TABLE
     // --------------------------------------------------------------------------
     add_log('info', 'Verifying `orders` table schema...');

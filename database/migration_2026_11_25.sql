@@ -38,6 +38,16 @@ END$$
 DELIMITER ;
 
 -- ------------------------------------------------------------------------------
+-- 1b. Update users table (Security, Lockouts & Activity Columns)
+-- ------------------------------------------------------------------------------
+CALL `dms_add_column_if_not_exists`('users', 'phone', "VARCHAR(25) DEFAULT NULL AFTER `full_name`");
+CALL `dms_add_column_if_not_exists`('users', 'status', "ENUM('active', 'inactive') NOT NULL DEFAULT 'active' AFTER `phone`");
+CALL `dms_add_column_if_not_exists`('users', 'last_login_at', "DATETIME DEFAULT NULL AFTER `status`");
+CALL `dms_add_column_if_not_exists`('users', 'login_attempts', "INT NOT NULL DEFAULT 0 AFTER `last_login_at`");
+CALL `dms_add_column_if_not_exists`('users', 'locked_until', "DATETIME DEFAULT NULL AFTER `login_attempts`");
+CALL `dms_add_column_if_not_exists`('users', 'is_deleted', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `locked_until`");
+
+-- ------------------------------------------------------------------------------
 -- 2. Update orders table constraints (Make delivery_date nullable)
 -- ------------------------------------------------------------------------------
 ALTER TABLE `orders` MODIFY COLUMN `delivery_date` DATE NULL DEFAULT NULL;

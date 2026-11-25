@@ -67,6 +67,49 @@ function require_login(): void {
 }
 
 /**
+ * Safely inspect and auto-heal missing columns in the `users` table
+ * Ensures login never fails due to schema drift or incomplete table setups.
+ *
+ * @return array List of column names present in the `users` table
+ */
+function get_users_table_columns(): array {
+    static $cols = null;
+    if ($cols !== null) {
+        return $cols;
+    }
+
+    try {
+        $db = db();
+        $stmt = $db->query("SHOW COLUMNS FROM `users`");
+        $cols = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+    } catch (\Throwable $e) {
+        $cols = ['id', 'username', 'email', 'password_hash', 'full_name'];
+    }
+
+    $definitions = [
+        'phone'          => "VARCHAR(25) DEFAULT NULL AFTER `full_name`",
+        'status'         => "ENUM('active', 'inactive') NOT NULL DEFAULT 'active' AFTER `phone`",
+        'last_login_at'  => "DATETIME DEFAULT NULL AFTER `status`",
+        'login_attempts' => "INT NOT NULL DEFAULT 0 AFTER `last_login_at`",
+        'locked_until'   => "DATETIME DEFAULT NULL AFTER `login_attempts`",
+        'is_deleted'     => "TINYINT(1) NOT NULL DEFAULT 0 AFTER `locked_until`"
+    ];
+
+    foreach ($definitions as $col => $def) {
+        if (!in_array($col, $cols, true)) {
+            try {
+                $db->exec("ALTER TABLE `users` ADD COLUMN `{$col}` {$def}");
+                $cols[] = $col;
+            } catch (\Throwable $t) {
+                // If ALTER TABLE fails due to restricted host permissions, allow dynamic query fallback
+            }
+        }
+    }
+
+    return $cols;
+}
+
+/**
  * Attempt user login with rate limiting & lockouts
  *
  * @param string $username
@@ -80,18 +123,37 @@ function attempt_login(string $username, string $password): array {
     }
 
     try {
-        $stmt = db()->prepare("
-            SELECT id, username, email, password_hash, full_name, status, login_attempts, locked_until 
-            FROM users 
-            WHERE username = ? AND is_deleted = 0 
-            LIMIT 1
-        ");
+        $cols = get_users_table_columns();
+        $hasDeleted   = in_array('is_deleted', $cols, true);
+        $hasAttempts  = in_array('login_attempts', $cols, true);
+        $hasLocked    = in_array('locked_until', $cols, true);
+        $hasStatus    = in_array('status', $cols, true);
+        $hasLastLogin = in_array('last_login_at', $cols, true);
+
+        // Build SELECT dynamically based on existing columns
+        $fields = ['id', 'username', 'email', 'password_hash', 'full_name'];
+        if ($hasStatus)   $fields[] = 'status';
+        if ($hasAttempts) $fields[] = 'login_attempts';
+        if ($hasLocked)   $fields[] = 'locked_until';
+
+        $where = "WHERE username = ?";
+        if ($hasDeleted) {
+            $where .= " AND is_deleted = 0";
+        }
+
+        $sql = "SELECT " . implode(', ', $fields) . " FROM users {$where} LIMIT 1";
+        $stmt = db()->prepare($sql);
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
         if (!$user) {
             return ['success' => false, 'message' => 'Invalid username or password.'];
         }
+
+        // Fill safe defaults for any missing columns
+        if (!isset($user['status'])) $user['status'] = 'active';
+        if (!isset($user['login_attempts'])) $user['login_attempts'] = 0;
+        if (!isset($user['locked_until'])) $user['locked_until'] = null;
 
         // Check account status
         if ($user['status'] !== 'active') {
@@ -111,20 +173,38 @@ function attempt_login(string $username, string $password): array {
             if ($attempts >= 5) {
                 $lockedUntil = date('Y-m-d H:i:s', time() + (15 * 60)); // Lock for 15 minutes
             }
-            $upd = db()->prepare("UPDATE users SET login_attempts = ?, locked_until = ? WHERE id = ?");
-            $upd->execute([$attempts, $lockedUntil, $user['id']]);
+
+            if ($hasAttempts && $hasLocked) {
+                $upd = db()->prepare("UPDATE users SET login_attempts = ?, locked_until = ? WHERE id = ?");
+                $upd->execute([$attempts, $lockedUntil, $user['id']]);
+            } elseif ($hasAttempts) {
+                $upd = db()->prepare("UPDATE users SET login_attempts = ? WHERE id = ?");
+                $upd->execute([$attempts, $user['id']]);
+            }
 
             log_audit('login_failed', 'auth', $user['id'], "Failed login attempt ({$attempts}) for user: {$username}");
             return ['success' => false, 'message' => 'Invalid username or password.'];
         }
 
         // Password verified - reset attempts and update login time
-        $upd = db()->prepare("
-            UPDATE users 
-            SET login_attempts = 0, locked_until = NULL, last_login_at = NOW() 
-            WHERE id = ?
-        ");
-        $upd->execute([$user['id']]);
+        $updateSets = [];
+        $updateParams = [];
+        if ($hasAttempts) {
+            $updateSets[] = "login_attempts = 0";
+        }
+        if ($hasLocked) {
+            $updateSets[] = "locked_until = NULL";
+        }
+        if ($hasLastLogin) {
+            $updateSets[] = "last_login_at = NOW()";
+        }
+
+        if (!empty($updateSets)) {
+            $updSql = "UPDATE users SET " . implode(', ', $updateSets) . " WHERE id = ?";
+            $updateParams[] = $user['id'];
+            $upd = db()->prepare($updSql);
+            $upd->execute($updateParams);
+        }
 
         // Load roles
         $stmtRoles = db()->prepare("

@@ -11,6 +11,11 @@ if (is_logged_in()) {
     redirect(APP_URL . '/dashboard.php');
 }
 
+// Proactively ensure users table has security & lockout columns
+if (function_exists('get_users_table_columns')) {
+    get_users_table_columns();
+}
+
 $error = '';
 $usernameVal = '';
 
