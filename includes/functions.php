@@ -102,9 +102,27 @@ function sanitize_input($data): string {
  * @param string $default
  * @return string
  */
-function get_setting(string $key, string $default = ''): string {
+/**
+ * Settings memory cache reference
+ *
+ * @return array
+ */
+function &get_settings_cache(): array {
     static $cache = [];
-    if (isset($cache[$key])) {
+    return $cache;
+}
+
+/**
+ * Get a system setting value by key
+ *
+ * @param string $key
+ * @param string $default
+ * @param bool $fresh
+ * @return string
+ */
+function get_setting(string $key, string $default = '', bool $fresh = false): string {
+    $cache = &get_settings_cache();
+    if (!$fresh && isset($cache[$key])) {
         return $cache[$key];
     }
     try {
@@ -133,7 +151,12 @@ function update_setting(string $key, string $value, string $group = 'general'): 
             VALUES (?, ?, ?, NOW())
             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
         ");
-        return $stmt->execute([$group, $key, $value]);
+        $res = $stmt->execute([$group, $key, $value]);
+        if ($res) {
+            $cache = &get_settings_cache();
+            $cache[$key] = (string)$value;
+        }
+        return $res;
     } catch (Exception $e) {
         return false;
     }

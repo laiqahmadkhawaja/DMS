@@ -326,7 +326,7 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                     </li>
                     <?php endif; ?>
 
-                    <?php if (has_permission('partners_view')): ?>
+                    <?php if (has_permission('partners_view') && is_partner_expense_sharing_enabled()): ?>
                     <li>
                         <a href="<?= APP_URL ?>/modules/partners/index.php" class="dms-menu-item <?= in_array($activeMenu, ['partners', 'partner_drawings', 'partner_settle', 'partner_ledger']) ? 'active' : '' ?>">
                             <i class="bi bi-people-fill text-warning"></i> Partners & Khatas (پارٹنرز کھاتہ)

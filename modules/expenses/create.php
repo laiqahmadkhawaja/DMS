@@ -16,6 +16,9 @@ $pageTitle = "Record Operating Expense";
 $activeMenu = "expenses";
 $errors = [];
 
+$isPartnerEnabled = is_partner_expense_sharing_enabled();
+$activePartners   = $isPartnerEnabled ? get_partners(true) : [];
+
 // Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $expenseDate  = clean_input($_POST['expense_date'] ?? date('Y-m-d'));
@@ -27,30 +30,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $referenceNo  = clean_input($_POST['reference_voucher'] ?? '');
     $description  = clean_input($_POST['description'] ?? '');
 
-    // Partner Khata & Expense Sharing Parameters
-    $rawPaidByType = clean_input($_POST['paid_by_type'] ?? 'central_cash');
-    $paidByType    = 'central_cash';
-    $paidByPid     = null;
-
-    if ($rawPaidByType === 'partner_moazzam') {
-        $paidByType = 'partner';
-        $paidByPid  = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-MOAZZAM' LIMIT 1") ?: 1;
-    } elseif ($rawPaidByType === 'partner_rehman') {
-        $paidByType = 'partner';
-        $paidByPid  = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-REHMAN' LIMIT 1") ?: 2;
-    } elseif ($rawPaidByType === 'partner') {
-        $paidByType = 'partner';
-        $paidByPid  = !empty($_POST['paid_by_partner_id']) ? (int)$_POST['paid_by_partner_id'] : null;
-    }
-
-    $splitType       = clean_input($_POST['split_type'] ?? 'equal_50_50');
+    // Partner Khata & Expense Sharing Parameters (Controlled by System Settings)
+    $paidByType      = 'central_cash';
+    $paidByPid       = null;
+    $splitType       = 'none';
     $customSplitJson = null;
-    if ($splitType === 'custom') {
-        $moazzamId = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-MOAZZAM' LIMIT 1") ?: 1;
-        $rehmanId  = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-REHMAN' LIMIT 1") ?: 2;
-        $mSplit    = (float)($_POST['custom_split_moazzam'] ?? 0);
-        $rSplit    = (float)($_POST['custom_split_rehman'] ?? 0);
-        $customSplitJson = json_encode([$moazzamId => $mSplit, $rehmanId => $rSplit]);
+
+    if ($isPartnerEnabled) {
+        $rawPaidByType = clean_input($_POST['paid_by_type'] ?? 'central_cash');
+        if ($rawPaidByType === 'partner_moazzam') {
+            $paidByType = 'partner';
+            $paidByPid  = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-MOAZZAM' LIMIT 1") ?: 1;
+        } elseif ($rawPaidByType === 'partner_rehman') {
+            $paidByType = 'partner';
+            $paidByPid  = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-REHMAN' LIMIT 1") ?: 2;
+        } elseif (str_starts_with($rawPaidByType, 'partner_')) {
+            $paidByType = 'partner';
+            $pidVal     = (int)substr($rawPaidByType, 8);
+            $paidByPid  = $pidVal > 0 ? $pidVal : null;
+        } elseif ($rawPaidByType === 'partner') {
+            $paidByType = 'partner';
+            $paidByPid  = !empty($_POST['paid_by_partner_id']) ? (int)$_POST['paid_by_partner_id'] : null;
+        }
+
+        $splitType = clean_input($_POST['split_type'] ?? 'equal_50_50');
+        if ($splitType === 'custom') {
+            $customShares = [];
+            foreach ($activePartners as $ap) {
+                $pKey = 'custom_split_' . $ap['id'];
+                if (isset($_POST[$pKey])) {
+                    $customShares[$ap['id']] = (float)$_POST[$pKey];
+                }
+            }
+            if (empty($customShares)) {
+                $moazzamId = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-MOAZZAM' LIMIT 1") ?: 1;
+                $rehmanId  = (int)db_fetch_val("SELECT id FROM partners WHERE partner_code = 'PTR-REHMAN' LIMIT 1") ?: 2;
+                $mSplit    = (float)($_POST['custom_split_moazzam'] ?? 0);
+                $rSplit    = (float)($_POST['custom_split_rehman'] ?? 0);
+                $customShares = [$moazzamId => $mSplit, $rehmanId => $rSplit];
+            }
+            $customSplitJson = json_encode($customShares);
+        }
     }
 
     // Validation
@@ -127,10 +147,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'narration'      => "Expense: " . $category['category_name'] . ($payeeName ? " | Payee: {$payeeName}" : "") . ($description ? " | {$description}" : "")
             ];
 
-            $creditAccountId = ($paidByType === 'partner') ? 3010 : $paidFromAcc;
-            $creditDesc = ($paidByType === 'partner') 
+            $creditAccountId = ($paidByType === 'partner' && $isPartnerEnabled) ? 3010 : $paidFromAcc;
+            $creditDesc = ($paidByType === 'partner' && $isPartnerEnabled) 
                 ? "Funded by Partner out of personal pocket" 
-                : "Paid via {$paymentMode} from Central Pool for " . $category['category_name'];
+                : "Paid via {$paymentMode} from Company Account for " . $category['category_name'];
 
             $journalLines = [
                 [
@@ -146,8 +166,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'debit'       => 0.00,
                     'credit'      => $amount,
                     'description' => $creditDesc,
-                    'party_type'  => ($paidByType === 'partner' && $paidByPid > 0) ? 'partner' : null,
-                    'party_id'    => ($paidByType === 'partner' && $paidByPid > 0) ? $paidByPid : null
+                    'party_type'  => ($paidByType === 'partner' && $isPartnerEnabled && $paidByPid > 0) ? 'partner' : null,
+                    'party_id'    => ($paidByType === 'partner' && $isPartnerEnabled && $paidByPid > 0) ? $paidByPid : null
                 ]
             ];
 
@@ -155,7 +175,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             db()->commit();
 
-            set_flash('success', "Expense voucher {$expenseNumber} for " . format_currency($amount) . " recorded and synchronized with Partner Khatas successfully.");
+            $successMsg = $isPartnerEnabled 
+                ? "Expense voucher {$expenseNumber} for " . format_currency($amount) . " recorded and synchronized with Partner Khatas successfully."
+                : "Expense voucher {$expenseNumber} for " . format_currency($amount) . " recorded and posted to ledger successfully.";
+            set_flash('success', $successMsg);
             header('Location: view.php?id=' . $expenseId);
             exit;
 
@@ -312,6 +335,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 </div>
                             </div>
 
+                            <?php if ($isPartnerEnabled): ?>
                             <!-- Partner Khata & Expense Sharing System -->
                             <div class="card bg-light border-primary border-opacity-25 mb-4 shadow-sm">
                                 <div class="card-header bg-primary bg-opacity-10 py-2 d-flex justify-content-between align-items-center">
@@ -327,15 +351,21 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 Paid By (کس نے رقم ادا کی؟) <span class="text-danger">*</span>
                                             </label>
                                             <select name="paid_by_type" id="paidByType" class="form-select form-select-sm" onchange="onPayerChange()">
-                                                <option value="central_cash" <?= (isset($_POST['paid_by_type']) && $_POST['paid_by_type'] === 'central_cash') ? 'selected' : '' ?>>
-                                                    🏢 Central Sales Pool / گودام کیش (Partner 3 / کیش کسٹوڈین)
+                                                <option value="central_cash" <?= (!isset($_POST['paid_by_type']) || $_POST['paid_by_type'] === 'central_cash') ? 'selected' : '' ?>>
+                                                    🏢 Central Sales Pool / گودام کیش (Company Fund)
                                                 </option>
-                                                <option value="partner_moazzam" <?= (isset($_POST['paid_by_type']) && $_POST['paid_by_type'] === 'partner_moazzam') ? 'selected' : '' ?>>
-                                                    👤 Moazzam (معظم نے اپنی ذاتی جیب سے دیا)
-                                                </option>
-                                                <option value="partner_rehman" <?= (isset($_POST['paid_by_type']) && $_POST['paid_by_type'] === 'partner_rehman') ? 'selected' : '' ?>>
-                                                    👤 Abdur Rehman (عبدالرحمن نے اپنی ذاتی جیب سے دیا)
-                                                </option>
+                                                <?php foreach ($activePartners as $p): 
+                                                    $pKey = 'partner_' . $p['id'];
+                                                    $isPSelected = (isset($_POST['paid_by_type']) && (
+                                                        $_POST['paid_by_type'] === $pKey ||
+                                                        ($p['partner_code'] === 'PTR-MOAZZAM' && $_POST['paid_by_type'] === 'partner_moazzam') ||
+                                                        ($p['partner_code'] === 'PTR-REHMAN' && $_POST['paid_by_type'] === 'partner_rehman')
+                                                    ));
+                                                ?>
+                                                    <option value="<?= $pKey ?>" <?= $isPSelected ? 'selected' : '' ?>>
+                                                        👤 <?= htmlspecialchars($p['partner_name']) ?> <?= !empty($p['urdu_name']) ? '(' . htmlspecialchars($p['urdu_name']) . ')' : '' ?> (ذاتی جیب سے دیا)
+                                                    </option>
+                                                <?php endforeach; ?>
                                             </select>
                                             <div class="form-text small" id="payerNote">
                                                 اگر گودام کے سیلز کیش سے خرچہ ہوا ہے تو سنٹرل پول رکھیں، اگر پارٹنر نے ذاتی جیب سے ادا کیا ہے تو اس کا نام منتخب کریں۔
@@ -348,14 +378,19 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             </label>
                                             <select name="split_type" id="splitType" class="form-select form-select-sm" onchange="onSplitChange()">
                                                 <option value="equal_50_50" <?= (!isset($_POST['split_type']) || $_POST['split_type'] === 'equal_50_50') ? 'selected' : '' ?>>
-                                                    ⚖️ Shared 50 / 50 (50% معظم + 50% عبدالرحمن) — برابر تقسیم
+                                                    ⚖️ Shared Equal Split (برابر تقسیم)
                                                 </option>
-                                                <option value="only_moazzam" <?= (isset($_POST['split_type']) && $_POST['split_type'] === 'only_moazzam') ? 'selected' : '' ?>>
-                                                    🔵 100% Moazzam (صرف معظم کے کھاتے میں - SMS)
-                                                </option>
-                                                <option value="only_rehman" <?= (isset($_POST['split_type']) && $_POST['split_type'] === 'only_rehman') ? 'selected' : '' ?>>
-                                                    🟢 100% Abdur Rehman (صرف عبدالرحمن کے کھاتے میں - Ujab)
-                                                </option>
+                                                <?php foreach ($activePartners as $p): 
+                                                    $isOnlySelected = (isset($_POST['split_type']) && (
+                                                        $_POST['split_type'] === 'only_' . $p['id'] ||
+                                                        ($p['partner_code'] === 'PTR-MOAZZAM' && $_POST['split_type'] === 'only_moazzam') ||
+                                                        ($p['partner_code'] === 'PTR-REHMAN' && $_POST['split_type'] === 'only_rehman')
+                                                    ));
+                                                ?>
+                                                    <option value="<?= ($p['partner_code'] === 'PTR-MOAZZAM') ? 'only_moazzam' : (($p['partner_code'] === 'PTR-REHMAN') ? 'only_rehman' : 'only_' . $p['id']) ?>" <?= $isOnlySelected ? 'selected' : '' ?>>
+                                                        👤 100% <?= htmlspecialchars($p['partner_name']) ?> (صرف اس کے کھاتے میں)
+                                                    </option>
+                                                <?php endforeach; ?>
                                                 <option value="custom" <?= (isset($_POST['split_type']) && $_POST['split_type'] === 'custom') ? 'selected' : '' ?>>
                                                     ✏️ Custom Split (اپنی مرضی سے رقم تقسیم کریں)
                                                 </option>
@@ -368,14 +403,12 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                                     <!-- Custom Split Inputs -->
                                     <div id="customSplitRow" class="row g-2 d-none mt-2 p-2 bg-white rounded border">
-                                        <div class="col-6">
-                                            <label class="form-label small text-muted">Moazzam Share (Rs.):</label>
-                                            <input type="number" step="0.01" name="custom_split_moazzam" id="customSplitMoazzam" class="form-control form-control-sm" placeholder="0.00" oninput="updateSplitPreview()">
-                                        </div>
-                                        <div class="col-6">
-                                            <label class="form-label small text-muted">Abdur Rehman Share (Rs.):</label>
-                                            <input type="number" step="0.01" name="custom_split_rehman" id="customSplitRehman" class="form-control form-control-sm" placeholder="0.00" oninput="updateSplitPreview()">
-                                        </div>
+                                        <?php foreach ($activePartners as $p): ?>
+                                            <div class="col-6 mb-1">
+                                                <label class="form-label small text-muted"><?= htmlspecialchars($p['partner_name']) ?> Share (Rs.):</label>
+                                                <input type="number" step="0.01" name="custom_split_<?= $p['id'] ?>" class="form-control form-control-sm custom-partner-split" data-partner="<?= htmlspecialchars($p['partner_name']) ?>" placeholder="0.00" oninput="updateSplitPreview()">
+                                            </div>
+                                        <?php endforeach; ?>
                                     </div>
 
                                     <!-- Live Khata Split Preview Banner -->
@@ -383,13 +416,23 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <div class="d-flex align-items-center">
                                             <i class="bi bi-info-circle-fill me-2 fs-6"></i>
                                             <div id="splitPreviewText">
-                                                <strong>50 / 50 تقسیم:</strong> ہر پارٹنر (معظم اور عبدالرحمن) کے کھاتے میں آدھا آدھا خرچہ چارج ہوگا۔
+                                                <strong>برابر تقسیم:</strong> تمام ایکٹو پارٹنرز کے کھاتے میں خرچہ مساوی طور پر چارج ہوگا۔
                                             </div>
                                         </div>
                                     </div>
 
                                 </div>
                             </div>
+                            <?php else: ?>
+                            <!-- Standard Business Mode Notice -->
+                            <div class="alert alert-light border border-secondary-subtle py-2 px-3 mb-4 small text-muted d-flex align-items-center">
+                                <i class="bi bi-info-circle text-primary me-2 fs-5"></i>
+                                <div>
+                                    <strong>Standard Business Mode (سادہ کاروباری طریقہ کار):</strong>
+                                    یہ خرچہ براہ راست منتخب کردہ پیمنٹ اکاؤنٹ (کیش دراز یا بینک) سے کٹے گا اور بغیر پارٹنر تقسیم کے جنرل لیجر میں درج ہوگا۔
+                                </div>
+                            </div>
+                            <?php endif; ?>
 
                             <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
                                 <a href="index.php" class="btn btn-light">Cancel</a>
@@ -405,65 +448,78 @@ require_once INCLUDES_PATH . '/topbar.php';
         </div>
 
 <script>
+<?php if ($isPartnerEnabled): ?>
 function onPayerChange() {
-    const payer = document.getElementById('paidByType').value;
+    const payerEl = document.getElementById('paidByType');
+    if (!payerEl) return;
+    const payer = payerEl.value;
     const paidFromGroup = document.querySelector('select[name="paid_from_account_id"]').closest('.col-md-6');
     const payerNote = document.getElementById('payerNote');
 
     if (payer === 'central_cash') {
         paidFromGroup.style.opacity = '1';
         paidFromGroup.style.pointerEvents = 'auto';
-        payerNote.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i> خرچہ سنٹرل کیش پول (گودام دراز / تھرڈ پارٹنر) سے ادا ہوگا۔</span>';
-    } else if (payer === 'partner_moazzam') {
+        if (payerNote) payerNote.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i> خرچہ سنٹرل کیش پول (کمپنی فنڈ / دراز) سے ادا ہوگا۔</span>';
+    } else {
         paidFromGroup.style.opacity = '0.5';
-        payerNote.innerHTML = '<span class="text-primary fw-semibold"><i class="bi bi-wallet2 me-1"></i> معظم نے ذاتی جیب سے رقم دی ہے۔ معظم کے کھاتے میں کریڈٹ (اضافہ) ہوگا۔</span>';
-    } else if (payer === 'partner_rehman') {
-        paidFromGroup.style.opacity = '0.5';
-        payerNote.innerHTML = '<span class="text-primary fw-semibold"><i class="bi bi-wallet2 me-1"></i> عبدالرحمن نے ذاتی جیب سے رقم دی ہے۔ عبدالرحمن کے کھاتے میں کریڈٹ (اضافہ) ہوگا۔</span>';
+        const optText = payerEl.options[payerEl.selectedIndex]?.text || 'پارٹنر';
+        if (payerNote) payerNote.innerHTML = `<span class="text-primary fw-semibold"><i class="bi bi-wallet2 me-1"></i> ${optText} - پارٹنر کے کھاتے میں کریڈٹ (اضافہ) ہوگا۔</span>`;
     }
     updateSplitPreview();
 }
 
 function onSplitChange() {
-    const splitType = document.getElementById('splitType').value;
+    const splitEl = document.getElementById('splitType');
+    if (!splitEl) return;
+    const splitType = splitEl.value;
     const customRow = document.getElementById('customSplitRow');
-    if (splitType === 'custom') {
-        customRow.classList.remove('d-none');
-    } else {
-        customRow.classList.add('d-none');
+    if (customRow) {
+        if (splitType === 'custom') {
+            customRow.classList.remove('d-none');
+        } else {
+            customRow.classList.add('d-none');
+        }
     }
     updateSplitPreview();
 }
 
 function updateSplitPreview() {
-    const amount = parseFloat(document.querySelector('input[name="amount"]').value) || 0;
-    const payer = document.getElementById('paidByType').value;
-    const splitType = document.getElementById('splitType').value;
+    const amountInput = document.querySelector('input[name="amount"]');
+    const payerEl = document.getElementById('paidByType');
+    const splitEl = document.getElementById('splitType');
     const textEl = document.getElementById('splitPreviewText');
+    if (!amountInput || !payerEl || !splitEl || !textEl) return;
 
-    let payerStr = (payer === 'partner_moazzam') ? 'معظم' : ((payer === 'partner_rehman') ? 'عبدالرحمن' : 'سنٹرل کیش پول (تھرڈ پارٹنر)');
-    let half = (amount / 2).toFixed(2);
+    const amount = parseFloat(amountInput.value) || 0;
+    const payer = payerEl.value;
+    const splitType = splitEl.value;
+    const payerText = payerEl.options[payerEl.selectedIndex]?.text || 'سنٹرل پول';
 
     if (splitType === 'equal_50_50') {
-        textEl.innerHTML = `<strong>تقسیم کا نتیجہ:</strong> ادا کنندہ: <strong>${payerStr}</strong> | معظم کا حصہ: <strong>Rs. ${half}</strong> | عبدالرحمن کا حصہ: <strong>Rs. ${half}</strong>`;
-    } else if (splitType === 'only_moazzam') {
-        textEl.innerHTML = `<strong>تقسیم کا نتیجہ:</strong> پورا خرچہ (Rs. ${amount.toFixed(2)}) صرف <strong>معظم (SMS)</strong> کے کھاتے میں ڈیبٹ ہوگا۔`;
-    } else if (splitType === 'only_rehman') {
-        textEl.innerHTML = `<strong>تقسیم کا نتیجہ:</strong> پورا خرچہ (Rs. ${amount.toFixed(2)}) صرف <strong>عبدالرحمن (Ujab)</strong> کے کھاتے میں ڈیبٹ ہوگا۔`;
+        textEl.innerHTML = `<strong>تقسیم کا نتیجہ:</strong> کل رقم <strong>Rs. ${amount.toFixed(2)}</strong> تمام ایکٹو پارٹنرز میں مساوی تقسیم ہوگی۔ ادا کنندہ: <strong>${payerText}</strong>`;
+    } else if (splitType.startsWith('only_')) {
+        const selText = splitEl.options[splitEl.selectedIndex]?.text || 'پارٹنر';
+        textEl.innerHTML = `<strong>تقسیم کا نتیجہ:</strong> پورا خرچہ (Rs. ${amount.toFixed(2)}) صرف <strong>${selText}</strong> کے کھاتے میں ڈیبٹ ہوگا۔`;
     } else if (splitType === 'custom') {
-        const mVal = parseFloat(document.getElementById('customSplitMoazzam').value) || 0;
-        const rVal = parseFloat(document.getElementById('customSplitRehman').value) || 0;
-        textEl.innerHTML = `<strong>اپنی مرضی کی تقسیم:</strong> معظم: Rs. ${mVal.toFixed(2)} | عبدالرحمن: Rs. ${rVal.toFixed(2)}`;
+        const customInputs = document.querySelectorAll('.custom-partner-split');
+        let parts = [];
+        customInputs.forEach(inp => {
+            const val = parseFloat(inp.value) || 0;
+            const pName = inp.getAttribute('data-partner') || 'Partner';
+            parts.push(`${pName}: Rs. ${val.toFixed(2)}`);
+        });
+        textEl.innerHTML = `<strong>اپنی مرضی کی تقسیم:</strong> ` + (parts.length > 0 ? parts.join(' | ') : 'مطلوبہ شیئر درج کریں');
     } else {
-        textEl.innerHTML = `<strong>مشترکہ کمپنی پول:</strong> یہ خرچہ پارٹنرز کے ذاتی کھاتوں پر اثر انداز نہیں ہوگا، سنٹرل فنڈ سے کٹے گا۔`;
+        textEl.innerHTML = `<strong>مشترکہ کمپنی پول:</strong> یہ خرچہ پارٹنرز کے ذاتی کھاتوں پر اثر انداز نہیں ہوگا، کمپنی کے جنرل فنڈ سے کٹے گا۔`;
     }
 }
 
-document.querySelector('input[name="amount"]').addEventListener('input', updateSplitPreview);
+document.querySelector('input[name="amount"]')?.addEventListener('input', updateSplitPreview);
 document.addEventListener('DOMContentLoaded', function() {
     onPayerChange();
     onSplitChange();
 });
+<?php endif; ?>
 
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {

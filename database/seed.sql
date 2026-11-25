@@ -211,7 +211,8 @@ INSERT INTO `settings` (`setting_group`, `setting_key`, `setting_value`, `data_t
 ('print', 'show_signature_boxes', '1', 'boolean', 'Print receiver and salesman signature lines on bills'),
 ('distribution', 'route_assignment_mode', 'realtime', 'string', 'Route assignment policy: realtime allows dynamic area creation on all forms; fixed enforces strict salesman route assignment.'),
 ('distribution', 'allow_realtime_routes', '1', 'boolean', 'Allow adding new delivery areas / routes on-the-fly via slide drawer without reloading page'),
-('distribution', 'enforce_fixed_routes', '0', 'boolean', 'Enforce drivers and salesmen to operate strictly within their pre-assigned delivery routes')
+('distribution', 'enforce_fixed_routes', '0', 'boolean', 'Enforce drivers and salesmen to operate strictly within their pre-assigned delivery routes'),
+('general', 'expense_management_mode', 'standard', 'string', 'Expense management mode: standard (single owner) or partnership (shared split)')
 ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);
 
 -- ---------------------------------------------------------------------

@@ -80,6 +80,16 @@ require_once INCLUDES_PATH . '/topbar.php';
             </div>
         </div>
 
+        <?php if (!is_partner_expense_sharing_enabled()): ?>
+            <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center mb-4">
+                <i class="bi bi-exclamation-triangle-fill fs-4 text-warning me-3"></i>
+                <div>
+                    <strong>Standard Business Mode Active:</strong>
+                    The system is currently configured for single-owner / corporate standard expenses. Partner khata division and out-of-pocket shared expense features are currently disabled. You can enable them anytime from <a href="<?= APP_URL ?>/modules/settings/index.php" class="alert-link fw-bold">System Settings</a>.
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Quick Summary Cards -->
         <div class="row g-3 mb-4">
             <div class="col-md-4">

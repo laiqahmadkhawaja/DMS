@@ -1578,7 +1578,8 @@ INSERT INTO `settings` (`id`, `setting_group`, `setting_key`, `setting_value`, `
 ('17', 'print', 'show_signature_boxes', '1', 'boolean', 'Print receiver and salesman signature lines on bills', '2026-11-25 18:45:48'),
 ('18', 'distribution', 'route_assignment_mode', 'realtime', 'string', 'Route assignment policy: realtime allows dynamic area creation on all forms; fixed enforces strict salesman route assignment.', '2026-11-25 18:45:48'),
 ('19', 'distribution', 'allow_realtime_routes', '1', 'boolean', 'Allow adding new delivery areas / routes on-the-fly via slide drawer without reloading page', '2026-11-25 18:45:48'),
-('20', 'distribution', 'enforce_fixed_routes', '0', 'boolean', 'Enforce drivers and salesmen to operate strictly within their pre-assigned delivery routes', '2026-11-25 18:45:48');
+('20', 'distribution', 'enforce_fixed_routes', '0', 'boolean', 'Enforce drivers and salesmen to operate strictly within their pre-assigned delivery routes', '2026-11-25 18:45:48'),
+('21', 'general', 'expense_management_mode', 'partnership', 'string', 'Expense management mode: standard (single owner) or partnership (shared split)', NOW());
 
 -- -----------------------------------------------------------------------------
 -- Table structure for `settlement_items`

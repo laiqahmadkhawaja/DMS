@@ -9,6 +9,33 @@ if (!defined('DMS_RUNNING')) {
 }
 
 /**
+ * Check if the Partner Management & Expense Sharing System is enabled in System Settings
+ *
+ * Mode 'standard': Expenses are directly company-funded; no partner splits, personal funding, or partner khatas.
+ * Mode 'partnership': Shared expenses, personal pocket funding, and partner khata distribution enabled.
+ *
+ * @return bool
+ */
+function is_partner_expense_sharing_enabled(): bool {
+    $mode = function_exists('get_setting') ? get_setting('expense_management_mode', '') : '';
+    if ($mode === 'partnership') {
+        return true;
+    }
+    if ($mode === 'standard') {
+        return false;
+    }
+
+    // Default fallback: if not explicitly configured in settings yet,
+    // check if multiple active partners exist in the database (preserves backward compatibility)
+    try {
+        $count = (int)db_fetch_val("SELECT COUNT(*) FROM partners WHERE is_active = 1");
+        return ($count > 1);
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+/**
  * Fetch all partners
  *
  * @param bool $activeOnly
@@ -117,6 +144,10 @@ function record_partner_transaction(array $data): int {
  * @return array [partner_id => share_amount]
  */
 function calculate_expense_split(float $amount, string $splitType, ?array $customShares = null): array {
+    if (!is_partner_expense_sharing_enabled()) {
+        return [];
+    }
+
     $amount = round($amount, 2);
     if ($amount <= 0) return [];
 
@@ -194,6 +225,11 @@ function sync_expense_partner_transactions(int $expenseId, array $expenseData): 
 
     db()->prepare("DELETE FROM partner_transactions WHERE reference_type = 'expense' AND reference_id = ?")
         ->execute([$expenseId]);
+
+    // If partner expense sharing is disabled, stop here without recording partner transactions
+    if (!is_partner_expense_sharing_enabled()) {
+        return;
+    }
 
     $amount      = round((float)($expenseData['amount'] ?? 0), 2);
     $date        = $expenseData['expense_date'] ?? date('Y-m-d');

@@ -245,6 +245,45 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                 <!-- Right Column: Document Numbering & System Info -->
                 <div class="col-lg-6">
+                    <!-- Business Model & Expense Policy -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center">
+                            <i class="bi bi-pie-chart-fill text-primary me-2 fs-5"></i>
+                            <h6 class="mb-0 fw-bold text-navy">Business Model & Expense Policy (کاروباری ماڈل و اخراجات)</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">
+                                Choose how operating expenses and khatas are handled in your distribution business. Ideal for adapting to single-owner companies or multi-partner businesses in a SaaS environment.
+                            </p>
+
+                            <div class="mb-0">
+                                <label class="form-label fw-semibold">Expense & Khata Management Mode</label>
+                                <?php
+                                    $currentExpenseMode = get_setting('expense_management_mode', is_partner_expense_sharing_enabled() ? 'partnership' : 'standard');
+                                ?>
+                                <div class="form-check p-3 border rounded mb-3 <?= $currentExpenseMode === 'standard' ? 'border-primary bg-primary bg-opacity-10' : 'bg-light' ?>">
+                                    <input class="form-check-input" type="radio" name="settings[expense_management_mode]" id="modeStandard" value="standard" <?= $currentExpenseMode === 'standard' ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-bold text-dark d-block" for="modeStandard">
+                                        🏢 Standard Business Mode (سادہ کاروباری طریقہ کار - سنگل اونر / کمپنی اکاؤنٹ)
+                                    </label>
+                                    <small class="text-muted d-block mt-1">
+                                        For single-proprietorship or standard corporate businesses. Operating expenses are paid directly from Company Cash/Bank with simple, fast entry. Partner Khata splits, 50/50 options, and partner ledgers are hidden.
+                                    </small>
+                                </div>
+
+                                <div class="form-check p-3 border rounded mb-0 <?= $currentExpenseMode === 'partnership' ? 'border-primary bg-primary bg-opacity-10' : 'bg-light' ?>">
+                                    <input class="form-check-input" type="radio" name="settings[expense_management_mode]" id="modePartnership" value="partnership" <?= $currentExpenseMode === 'partnership' ? 'checked' : '' ?>>
+                                    <label class="form-check-label fw-bold text-dark d-block" for="modePartnership">
+                                        👥 Multi-Partner Sharing Mode (پارٹنرشپ ماڈل - مشترکہ اخراجات و پارٹنرز کھاتہ)
+                                    </label>
+                                    <small class="text-muted d-block mt-1">
+                                        For partnership distribution businesses. Enables shared expense division (50/50, custom, etc.), personal pocket funding, partner cash drawings, and automated partner ledger accounts.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Sequential Numbering Prefixes -->
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-header bg-white py-3 border-bottom d-flex align-items-center">

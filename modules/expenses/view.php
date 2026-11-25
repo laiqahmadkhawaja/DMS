@@ -173,7 +173,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </tfoot>
                     </table>
 
-                    <?php if (!empty($partnerTxns) || (!empty($expense['split_type']) && $expense['split_type'] !== 'none')): ?>
+                    <?php if (is_partner_expense_sharing_enabled() && (!empty($partnerTxns) || (!empty($expense['split_type']) && $expense['split_type'] !== 'none'))): ?>
                     <div class="card border border-primary-subtle bg-light mb-4">
                         <div class="card-header bg-white py-2 border-bottom border-primary-subtle d-flex justify-content-between align-items-center">
                             <span class="fw-bold text-navy small">

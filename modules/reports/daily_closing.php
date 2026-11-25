@@ -804,7 +804,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end text-muted">-</td>
                                             <td class="text-end">-</td>
                                         </tr>
-                                        <?php if ((float)$partnerCashSummary['total_returned'] > 0): ?>
+                                        <?php if (is_partner_expense_sharing_enabled() && (float)$partnerCashSummary['total_returned'] > 0): ?>
                                         <tr>
                                             <td><i class="bi bi-arrow-down-left-circle-fill text-success me-2"></i> Cash Received Back from Partner (پارٹنر سے کیش واپسی / وصولی)</td>
                                             <td class="text-end text-success fw-bold"><?= format_currency((float)$partnerCashSummary['total_returned']) ?></td>
@@ -824,6 +824,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end text-danger fw-bold"><?= format_currency((float)$supplierPaymentSummary['cash_supplier_paid']) ?></td>
                                             <td class="text-end">-</td>
                                         </tr>
+                                        <?php if (is_partner_expense_sharing_enabled()): ?>
                                         <tr>
                                             <td>
                                                 <i class="bi bi-person-fill-up text-danger me-2"></i> 
@@ -836,6 +837,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <td class="text-end text-danger fw-bold"><?= format_currency((float)$partnerCashSummary['total_handover']) ?></td>
                                             <td class="text-end">-</td>
                                         </tr>
+                                        <?php endif; ?>
                                         <?php 
                                         $totalDayInflow = (float)$salesSummary['spot_cash_paid'] + (float)$recoverySummary['cash_recovered'] + (float)$partnerCashSummary['total_returned'];
                                         $totalDayOutflow = (float)$expenseSummary['cash_expenses'] + (float)$supplierPaymentSummary['cash_supplier_paid'] + (float)$partnerCashSummary['total_handover'];
@@ -852,7 +854,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </div>
 
                             <!-- Managing Partner Cash Handover & Khata Position Widget -->
-                            <?php if ($managingPartner): 
+                            <?php if ($managingPartner && is_partner_expense_sharing_enabled()): 
                                 $mpBal = (float)$managingPartner['current_balance'];
                             ?>
                             <div class="mt-4 pt-3 border-top">

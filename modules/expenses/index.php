@@ -232,7 +232,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <span class="badge bg-light text-dark border">
                                                 <?= htmlspecialchars($row['category_name']) ?>
                                             </span>
-                                            <?php if (!empty($row['split_type']) && $row['split_type'] !== 'none'): ?>
+                                            <?php if (is_partner_expense_sharing_enabled() && !empty($row['split_type']) && $row['split_type'] !== 'none'): ?>
                                                 <div><span class="badge bg-info-subtle text-info border border-info-subtle small mt-1" style="font-size: 10px;"><i class="bi bi-people-fill me-1"></i><?= ucfirst(str_replace('_', ' ', $row['split_type'])) ?></span></div>
                                             <?php endif; ?>
                                         </td>
