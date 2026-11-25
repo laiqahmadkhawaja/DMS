@@ -116,8 +116,11 @@ try {
             p.product_name,
             p.carton_qty as packs_per_ctn,
             p.pack_qty as pcs_per_pack,
+            p.carton_rate,
+            p.piece_rate,
             p.packing_description,
             u.symbol as unit_symbol,
+            u.unit_code,
             sii.carton_qty,
             sii.pack_qty,
             sii.pcs_qty,
@@ -156,32 +159,86 @@ try {
             'returned_amount'   => 0.0,
         ];
 
+        // Total base pieces billed
+        $billedBasePieces = ($billedCartons * $pcsPerCtn) + ($billedPacks * $pcsPerPack) + $billedPcs;
+        if ($billedBasePieces <= 0 && (float)$it['total_cartons'] > 0) {
+            $billedBasePieces = (float)$it['total_cartons'];
+        }
+
+        // Total base pieces previously returned
+        $returnedBasePieces = ($prev['returned_cartons'] * $pcsPerCtn) + ($prev['returned_packs'] * $pcsPerPack) + $prev['returned_pcs'];
+        if ($returnedBasePieces <= 0 && $prev['returned_base_qty'] > 0) {
+            $returnedBasePieces = $prev['returned_base_qty'];
+        }
+
+        $remBasePieces = max(0, $billedBasePieces - $returnedBasePieces);
+
+        // Determine billed unit code
+        $unitCodeRaw = strtolower(trim((string)($it['unit_code'] ?? '')));
+        $unitId = (int)$it['unit_id'];
+        if ($unitId === 4 || $unitCodeRaw === 'pcs') {
+            $unitCode = 'pcs';
+            $pieceRate  = $billedRate;
+            $packRate   = $billedRate * $pcsPerPack;
+            $cartonRate = $billedRate * $pcsPerCtn;
+        } elseif ($unitId === 3 || $unitCodeRaw === 'pck' || $unitCodeRaw === 'pack') {
+            $unitCode = 'pack';
+            $packRate   = $billedRate;
+            $cartonRate = $billedRate * $packsPerCtn;
+            $pieceRate  = $pcsPerPack > 0 ? ($billedRate / $pcsPerPack) : $billedRate;
+        } else {
+            $unitCode = 'ctn';
+            $cartonRate = $billedRate;
+            $packRate   = $packsPerCtn > 0 ? ($billedRate / $packsPerCtn) : $billedRate;
+            $pieceRate  = $pcsPerCtn > 0 ? ($billedRate / $pcsPerCtn) : $billedRate;
+        }
+
+        // Available remaining quantities per unit
+        // 1. Direct remaining against what was billed
         $remCartons = max(0, $billedCartons - $prev['returned_cartons']);
+        $remPacks   = max(0, $billedPacks - $prev['returned_packs']);
         $remPcs     = max(0, $billedPcs - $prev['returned_pcs']);
 
+        // 2. If entire bill was in one unit, allow partial return in smaller units up to remaining base pieces
+        if ($remCartons > 0 && $remPacks == 0 && $remPcs == 0) {
+            $maxPossiblePacks  = floor($remBasePieces / $pcsPerPack);
+            $maxPossiblePieces = $remBasePieces;
+            $remPacks = $maxPossiblePacks;
+            $remPcs   = $maxPossiblePieces;
+        } elseif ($remPacks > 0 && $remCartons == 0 && $remPcs == 0) {
+            $remPcs = $remBasePieces;
+        }
+
         $enrichedItems[] = [
-            'line_id'           => (int)$it['line_id'],
-            'product_id'        => $pid,
-            'product_code'      => $it['product_code'],
-            'product_name'      => $it['product_name'],
-            'unit_id'           => (int)$it['unit_id'],
-            'unit_symbol'       => $it['unit_symbol'] ?: 'CTN',
-            'packs_per_ctn'     => $packsPerCtn,
-            'pcs_per_pack'      => $pcsPerPack,
-            'pcs_per_ctn'       => $pcsPerCtn,
-            'packing_desc'      => $it['packing_description'] ?: "{$packsPerCtn}x{$pcsPerPack}",
-            'billed_carton_qty' => $billedCartons,
-            'billed_pack_qty'   => $billedPacks,
-            'billed_pcs_qty'    => $billedPcs,
-            'rate'              => $billedRate,
-            'discount_percent'  => $discPct,
-            'line_total'        => $lineTotal,
-            'returned_cartons'  => $prev['returned_cartons'],
-            'returned_pcs'      => $prev['returned_pcs'],
-            'returned_amount'   => $prev['returned_amount'],
-            'remaining_cartons' => $remCartons,
-            'remaining_pcs'     => $remPcs,
-            'is_fully_returned' => ($remCartons <= 0 && $remPcs <= 0 && ($billedCartons > 0 || $billedPcs > 0))
+            'line_id'               => (int)$it['line_id'],
+            'product_id'            => $pid,
+            'product_code'          => $it['product_code'],
+            'product_name'          => $it['product_name'],
+            'unit_id'               => $unitId,
+            'unit_code'             => $unitCode,
+            'unit_symbol'           => $it['unit_symbol'] ?: ($unitCode === 'pack' ? 'Pck' : ($unitCode === 'pcs' ? 'Pcs' : 'Ctn')),
+            'packs_per_ctn'         => $packsPerCtn,
+            'pcs_per_pack'          => $pcsPerPack,
+            'pcs_per_ctn'           => $pcsPerCtn,
+            'packing_desc'          => $it['packing_description'] ?: "{$packsPerCtn}x{$pcsPerPack}",
+            'billed_carton_qty'     => $billedCartons,
+            'billed_pack_qty'       => $billedPacks,
+            'billed_pcs_qty'        => $billedPcs,
+            'rate'                  => $billedRate,
+            'carton_rate'           => $cartonRate,
+            'pack_rate'             => $packRate,
+            'piece_rate'            => $pieceRate,
+            'discount_percent'      => $discPct,
+            'line_total'            => $lineTotal,
+            'returned_cartons'      => $prev['returned_cartons'],
+            'returned_packs'        => $prev['returned_packs'],
+            'returned_pcs'          => $prev['returned_pcs'],
+            'returned_amount'       => $prev['returned_amount'],
+            'remaining_cartons'     => $remCartons,
+            'remaining_packs'       => $remPacks,
+            'remaining_pcs'         => $remPcs,
+            'remaining_base_pieces' => $remBasePieces,
+            'is_fully_returned'     => ($remBasePieces <= 0)
         ];
     }
 

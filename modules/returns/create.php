@@ -184,6 +184,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $lineGross = $billableBasePieces * $rate;
             $unitId = 4; // Piece unit
             $itemQty = $billableBasePieces;
+        } elseif ($unitCode === 'pack' || $unitCode === 'pck') {
+            $packsEquivalent = $pcsPerPack > 0 ? ($billableBasePieces / $pcsPerPack) : 0;
+            $lineGross = $packsEquivalent * $rate;
+            $unitId = 3; // Packet / Pack unit
+            $itemQty = $packsEquivalent;
         } else {
             $lineGross = $billableCartons * $rate;
             $unitId = (int)$prod['base_unit_id']; // Carton unit
@@ -597,15 +602,16 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <table class="table table-bordered table-hover align-middle mb-0" id="billWiseItemsTable">
                                 <thead class="table-light text-center small text-uppercase">
                                     <tr>
-                                        <th style="width: 40px;">#</th>
-                                        <th class="text-start ps-3" style="width: 25%;">Product Description</th>
-                                        <th style="width: 10%;">Billed Qty</th>
-                                        <th style="width: 10%;">Sold Rate</th>
-                                        <th style="width: 8%;">Prev Ret.</th>
-                                        <th style="width: 11%;" class="bg-warning-subtle text-dark">Return Cartons</th>
-                                        <th style="width: 11%;" class="bg-warning-subtle text-dark">Return Pieces</th>
-                                        <th style="width: 12%;">Condition</th>
-                                        <th style="width: 13%;" class="text-end pe-3">Credit Total</th>
+                                        <th style="width: 35px;">#</th>
+                                        <th class="text-start ps-3" style="width: 22%;">Product Description</th>
+                                        <th style="width: 13%;">Billed Qty</th>
+                                        <th style="width: 12%;">Sold Rate</th>
+                                        <th style="width: 9%;">Prev Ret.</th>
+                                        <th style="width: 9%;" class="bg-warning-subtle text-dark">Return Cartons</th>
+                                        <th style="width: 9%;" class="bg-warning-subtle text-dark">Return Packs</th>
+                                        <th style="width: 9%;" class="bg-warning-subtle text-dark">Return Pieces</th>
+                                        <th style="width: 8%;">Condition</th>
+                                        <th style="width: 10%;" class="text-end pe-3">Credit Total</th>
                                     </tr>
                                 </thead>
                                 <tbody id="billWiseTableBody">
@@ -618,12 +624,16 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <!-- Real-Time Bill-Wise Summary Footer -->
                     <div class="card-footer bg-white p-3">
                         <div class="row g-2 align-items-center mb-3">
-                            <div class="col-md-3 text-center border-end">
-                                <div class="text-muted small">Total Return Cartons</div>
+                            <div class="col-md-2 text-center border-end">
+                                <div class="text-muted small">Return Cartons</div>
                                 <div class="fw-bold fs-5 text-dark" id="bwSummaryCartons">0 Ctns</div>
                             </div>
-                            <div class="col-md-3 text-center border-end">
-                                <div class="text-muted small">Total Return Pieces</div>
+                            <div class="col-md-2 text-center border-end">
+                                <div class="text-muted small">Return Packs</div>
+                                <div class="fw-bold fs-5 text-dark" id="bwSummaryPacks">0 Packs</div>
+                            </div>
+                            <div class="col-md-2 text-center border-end">
+                                <div class="text-muted small">Return Pieces</div>
                                 <div class="fw-bold fs-5 text-dark" id="bwSummaryPieces">0 Pcs</div>
                             </div>
                             <div class="col-md-3 text-center border-end">
@@ -1035,33 +1045,55 @@ function onBillWiseInvoiceSelected(invoiceId) {
                 const isFullyRet = it.is_fully_returned;
                 if (isFullyRet) tr.classList.add('table-secondary', 'opacity-75');
 
+                let billedParts = [];
+                if (it.billed_carton_qty > 0) billedParts.push(`${it.billed_carton_qty} Ctn`);
+                if (it.billed_pack_qty > 0) billedParts.push(`${it.billed_pack_qty} Pck`);
+                if (it.billed_pcs_qty > 0) billedParts.push(`${it.billed_pcs_qty} Pcs`);
+                if (billedParts.length === 0) billedParts.push('0');
+                const billedQtyDisplay = billedParts.join(' + ');
+
+                let prevRetParts = [];
+                if (it.returned_cartons > 0) prevRetParts.push(`${it.returned_cartons}c`);
+                if (it.returned_packs > 0) prevRetParts.push(`${it.returned_packs}pk`);
+                if (it.returned_pcs > 0) prevRetParts.push(`${it.returned_pcs}p`);
+                const prevRetDisplay = prevRetParts.length > 0 
+                    ? `<span class="badge bg-warning-subtle text-dark">${prevRetParts.join(' ')}</span>` 
+                    : '<span class="text-muted">0</span>';
+
+                const unitLabel = it.unit_code === 'pcs' ? '/ Piece' : (it.unit_code === 'pack' ? '/ Pack' : '/ Carton');
+
                 tr.innerHTML = `
                     <td class="text-center text-muted small">${idx + 1}</td>
                     <td class="ps-3">
                         <input type="hidden" name="item_product_id[]" value="${it.product_id}">
-                        <input type="hidden" name="item_unit[]" value="ctn">
-                        <input type="hidden" name="item_pack_qty[]" value="0">
+                        <input type="hidden" name="item_unit[]" value="${it.unit_code || 'ctn'}">
                         <input type="hidden" name="item_rate[]" value="${it.rate}">
                         <input type="hidden" name="item_discount_percent[]" value="${it.discount_percent}">
                         <div class="fw-bold text-dark">${escapeHtml(it.product_name)}</div>
                         <small class="text-muted">Pack: ${escapeHtml(it.packing_desc)} &bull; Code: ${escapeHtml(it.product_code)}</small>
                     </td>
                     <td class="text-center fw-semibold">
-                        ${it.billed_carton_qty} Ctn
-                        ${it.billed_pcs_qty > 0 ? `<small class="text-muted d-block">+${it.billed_pcs_qty} Pcs</small>` : ''}
+                        <span class="badge bg-light text-dark border px-2 py-1">${billedQtyDisplay}</span>
                     </td>
                     <td class="text-center fw-bold">
-                        Rs. ${parseFloat(it.rate).toFixed(0)}
+                        Rs. ${parseFloat(it.rate).toFixed(2)}
+                        <small class="text-muted d-block" style="font-size:10px;">${unitLabel}</small>
                         ${parseFloat(it.discount_percent) > 0 ? `<small class="text-danger d-block">-${it.discount_percent}%</small>` : ''}
                     </td>
                     <td class="text-center small text-muted">
-                        ${(it.returned_cartons > 0 || it.returned_pcs > 0) ? `<span class="badge bg-warning-subtle text-dark">${it.returned_cartons}c ${it.returned_pcs}p</span>` : '0'}
+                        ${prevRetDisplay}
                     </td>
                     <td class="bg-warning-subtle">
                         <input type="number" step="1" min="0" max="${it.remaining_cartons}" name="item_carton_qty[]" id="bw_ctn_${idx}" 
                                class="form-control form-control-sm text-center fw-bold ${it.remaining_cartons <= 0 ? 'bg-light' : ''}" 
                                value="0" ${it.remaining_cartons <= 0 ? 'readonly' : ''} oninput="recalcBillWiseRow(${idx})">
                         <small class="text-muted d-block text-center" style="font-size:10px;">Max: ${it.remaining_cartons}</small>
+                    </td>
+                    <td class="bg-warning-subtle">
+                        <input type="number" step="1" min="0" max="${it.remaining_packs}" name="item_pack_qty[]" id="bw_pack_${idx}" 
+                               class="form-control form-control-sm text-center fw-bold ${it.remaining_packs <= 0 ? 'bg-light' : ''}" 
+                               value="0" ${it.remaining_packs <= 0 ? 'readonly' : ''} oninput="recalcBillWiseRow(${idx})">
+                        <small class="text-muted d-block text-center" style="font-size:10px;">Max: ${it.remaining_packs}</small>
                     </td>
                     <td class="bg-warning-subtle">
                         <input type="number" step="1" min="0" max="${it.remaining_pcs}" name="item_pcs_qty[]" id="bw_pcs_${idx}" 
@@ -1099,28 +1131,54 @@ function recalcBillWiseRow(idx) {
     if (!currentBillData || !currentBillData.items || !currentBillData.items[idx]) return;
     const it = currentBillData.items[idx];
 
-    const ctnInput = document.getElementById(`bw_ctn_${idx}`);
-    const pcsInput = document.getElementById(`bw_pcs_${idx}`);
+    const ctnInput  = document.getElementById(`bw_ctn_${idx}`);
+    const packInput = document.getElementById(`bw_pack_${idx}`);
+    const pcsInput  = document.getElementById(`bw_pcs_${idx}`);
 
-    let ctn = parseFloat(ctnInput?.value || 0);
-    let pcs = parseFloat(pcsInput?.value || 0);
+    let ctn  = parseFloat(ctnInput?.value || 0);
+    let pack = parseFloat(packInput?.value || 0);
+    let pcs  = parseFloat(pcsInput?.value || 0);
 
-    if (ctn < 0) { ctn = 0; if (ctnInput) ctnInput.value = 0; }
-    if (pcs < 0) { pcs = 0; if (pcsInput) pcsInput.value = 0; }
+    if (isNaN(ctn) || ctn < 0) { ctn = 0; if (ctnInput) ctnInput.value = 0; }
+    if (isNaN(pack) || pack < 0) { pack = 0; if (packInput) packInput.value = 0; }
+    if (isNaN(pcs) || pcs < 0) { pcs = 0; if (pcsInput) pcsInput.value = 0; }
 
-    if (ctn > it.remaining_cartons) {
-        ctn = it.remaining_cartons;
-        if (ctnInput) ctnInput.value = ctn;
+    const pcsPerPack = it.pcs_per_pack > 0 ? it.pcs_per_pack : 1;
+    const packsPerCtn = it.packs_per_ctn > 0 ? it.packs_per_ctn : 1;
+    const pcsPerCtn = it.pcs_per_ctn > 0 ? it.pcs_per_ctn : (packsPerCtn * pcsPerPack);
+
+    // Limit check: cap to remaining base pieces
+    const maxPieces = it.remaining_base_pieces || ((it.remaining_cartons * pcsPerCtn) + (it.remaining_packs * pcsPerPack) + it.remaining_pcs);
+    let enteredPieces = (ctn * pcsPerCtn) + (pack * pcsPerPack) + pcs;
+
+    if (enteredPieces > maxPieces && maxPieces > 0) {
+        let availPcs = maxPieces - (ctn * pcsPerCtn) - (pack * pcsPerPack);
+        if (availPcs >= 0) {
+            pcs = availPcs;
+            if (pcsInput) pcsInput.value = pcs;
+        } else {
+            let availPacks = Math.floor((maxPieces - (ctn * pcsPerCtn)) / pcsPerPack);
+            if (availPacks >= 0) {
+                pack = availPacks;
+                if (packInput) packInput.value = pack;
+                pcs = Math.max(0, maxPieces - (ctn * pcsPerCtn) - (pack * pcsPerPack));
+                if (pcsInput) pcsInput.value = pcs;
+            } else {
+                ctn = Math.floor(maxPieces / pcsPerCtn);
+                if (ctnInput) ctnInput.value = ctn;
+                pack = Math.floor((maxPieces - (ctn * pcsPerCtn)) / pcsPerPack);
+                if (packInput) packInput.value = pack;
+                pcs = Math.max(0, maxPieces - (ctn * pcsPerCtn) - (pack * pcsPerPack));
+                if (pcsInput) pcsInput.value = pcs;
+            }
+        }
     }
-    if (pcs > it.remaining_pcs) {
-        pcs = it.remaining_pcs;
-        if (pcsInput) pcsInput.value = pcs;
-    }
 
-    const pcsPerCtn = it.pcs_per_ctn > 0 ? it.pcs_per_ctn : 1;
-    const equivCartons = ctn + (pcs / pcsPerCtn);
+    const ctnRate = it.carton_rate || (it.rate * (it.unit_code === 'pcs' ? pcsPerCtn : (it.unit_code === 'pack' ? packsPerCtn : 1)));
+    const packRate = it.pack_rate || (ctnRate / packsPerCtn);
+    const pieceRate = it.piece_rate || (pcsPerCtn > 0 ? ctnRate / pcsPerCtn : ctnRate);
 
-    const gross = equivCartons * it.rate;
+    const gross = (ctn * ctnRate) + (pack * packRate) + (pcs * pieceRate);
     const disc = (gross * it.discount_percent) / 100;
     const net = Math.max(0, gross - disc);
 
@@ -1137,24 +1195,36 @@ function recalcBillWiseSummary() {
     if (!currentBillData || !currentBillData.items) return;
 
     let totCartons = 0;
-    let totPieces = 0;
-    let totAmount = 0;
+    let totPacks   = 0;
+    let totPieces  = 0;
+    let totAmount  = 0;
 
     currentBillData.items.forEach((it, idx) => {
-        const ctn = parseFloat(document.getElementById(`bw_ctn_${idx}`)?.value || 0);
-        const pcs = parseFloat(document.getElementById(`bw_pcs_${idx}`)?.value || 0);
-        const pcsPerCtn = it.pcs_per_ctn > 0 ? it.pcs_per_ctn : 1;
-        const equivCartons = ctn + (pcs / pcsPerCtn);
-        const gross = equivCartons * it.rate;
+        const ctn  = parseFloat(document.getElementById(`bw_ctn_${idx}`)?.value || 0);
+        const pack = parseFloat(document.getElementById(`bw_pack_${idx}`)?.value || 0);
+        const pcs  = parseFloat(document.getElementById(`bw_pcs_${idx}`)?.value || 0);
+
+        const pcsPerPack = it.pcs_per_pack > 0 ? it.pcs_per_pack : 1;
+        const packsPerCtn = it.packs_per_ctn > 0 ? it.packs_per_ctn : 1;
+        const pcsPerCtn = it.pcs_per_ctn > 0 ? it.pcs_per_ctn : (packsPerCtn * pcsPerPack);
+
+        const ctnRate = it.carton_rate || (it.rate * (it.unit_code === 'pcs' ? pcsPerCtn : (it.unit_code === 'pack' ? packsPerCtn : 1)));
+        const packRate = it.pack_rate || (ctnRate / packsPerCtn);
+        const pieceRate = it.piece_rate || (pcsPerCtn > 0 ? ctnRate / pcsPerCtn : ctnRate);
+
+        const gross = (ctn * ctnRate) + (pack * packRate) + (pcs * pieceRate);
         const disc = (gross * it.discount_percent) / 100;
         const net = Math.max(0, gross - disc);
 
         totCartons += ctn;
-        totPieces += pcs;
-        totAmount += net;
+        totPacks   += pack;
+        totPieces  += pcs;
+        totAmount  += net;
     });
 
     document.getElementById('bwSummaryCartons').innerText = `${totCartons} Ctns`;
+    const bwPacksElem = document.getElementById('bwSummaryPacks');
+    if (bwPacksElem) bwPacksElem.innerText = `${totPacks} Packs`;
     document.getElementById('bwSummaryPieces').innerText = `${totPieces} Pcs`;
     document.getElementById('bwSummaryTotalAmount').innerText = `Rs. ${totAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
@@ -1167,10 +1237,13 @@ function recalcBillWiseSummary() {
 function billWiseReturnAll() {
     if (!currentBillData || !currentBillData.items) return;
     currentBillData.items.forEach((it, idx) => {
-        const ctnInput = document.getElementById(`bw_ctn_${idx}`);
-        const pcsInput = document.getElementById(`bw_pcs_${idx}`);
-        if (ctnInput) ctnInput.value = it.remaining_cartons;
-        if (pcsInput) pcsInput.value = it.remaining_pcs;
+        const ctnInput  = document.getElementById(`bw_ctn_${idx}`);
+        const packInput = document.getElementById(`bw_pack_${idx}`);
+        const pcsInput  = document.getElementById(`bw_pcs_${idx}`);
+
+        if (ctnInput) ctnInput.value = it.remaining_cartons || 0;
+        if (packInput) packInput.value = it.remaining_packs || 0;
+        if (pcsInput) pcsInput.value = (it.remaining_cartons === 0 && it.remaining_packs === 0) ? (it.remaining_pcs || 0) : 0;
         recalcBillWiseRow(idx);
     });
 }
@@ -1178,9 +1251,11 @@ function billWiseReturnAll() {
 function billWiseResetAll() {
     if (!currentBillData || !currentBillData.items) return;
     currentBillData.items.forEach((it, idx) => {
-        const ctnInput = document.getElementById(`bw_ctn_${idx}`);
-        const pcsInput = document.getElementById(`bw_pcs_${idx}`);
+        const ctnInput  = document.getElementById(`bw_ctn_${idx}`);
+        const packInput = document.getElementById(`bw_pack_${idx}`);
+        const pcsInput  = document.getElementById(`bw_pcs_${idx}`);
         if (ctnInput) ctnInput.value = 0;
+        if (packInput) packInput.value = 0;
         if (pcsInput) pcsInput.value = 0;
         recalcBillWiseRow(idx);
     });
@@ -1444,7 +1519,8 @@ function updateProductCardsWithCustomerRates() {
             const hist = customerRateMap[prodId];
             card.setAttribute('data-rate', hist.rate);
             if (rateLabel) {
-                rateLabel.innerHTML = `<strong>Last Sold: <?= DEFAULT_CURRENCY ?> ${hist.rate.toFixed(0)}</strong> <small class="text-muted d-block" style="font-size: 10px;">${hist.invoice_number}</small>`;
+                const uLabel = hist.unit === 'pcs' ? '/ Pc' : (hist.unit === 'pack' ? '/ Pack' : '/ Ctn');
+                rateLabel.innerHTML = `<strong>Last Sold: <?= DEFAULT_CURRENCY ?> ${hist.rate.toFixed(0)} <span class="fw-normal" style="font-size:10px;">${uLabel}</span></strong> <small class="text-muted d-block" style="font-size: 10px;">${hist.invoice_number}</small>`;
                 rateLabel.className = 'prod-price text-success';
             }
         } else {
@@ -1540,10 +1616,11 @@ function loadAllInvoiceItemsToCart() {
             const pcsPerPack  = parseFloat(prod?.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
             const pcsPerCtn   = packsPerCtn * pcsPerPack;
             const billedRate  = parseFloat(item.rate) || 0;
-            const isPieceUnit = (parseInt(item.unit_id, 10) === 4 || (parseFloat(item.carton_qty) === 0 && parseFloat(item.pcs_qty) > 0));
+            const unitCode    = item.unit_code || (parseInt(item.unit_id, 10) === 4 ? 'pcs' : (parseInt(item.unit_id, 10) === 3 ? 'pack' : 'ctn'));
 
-            const cartonRate  = isPieceUnit ? (billedRate * pcsPerCtn) : billedRate;
-            const pieceRate   = isPieceUnit ? billedRate : (pcsPerCtn > 0 ? billedRate / pcsPerCtn : billedRate);
+            const ctnRate  = item.carton_rate || (unitCode === 'pcs' ? (billedRate * pcsPerCtn) : (unitCode === 'pack' ? (billedRate * packsPerCtn) : billedRate));
+            const packRate = item.pack_rate || (unitCode === 'pack' ? billedRate : (packsPerCtn > 0 ? ctnRate / packsPerCtn : ctnRate));
+            const pieceRate = item.piece_rate || (unitCode === 'pcs' ? billedRate : (pcsPerCtn > 0 ? ctnRate / pcsPerCtn : ctnRate));
 
             cartItems[pid] = {
                 product_id: pid,
@@ -1552,12 +1629,13 @@ function loadAllInvoiceItemsToCart() {
                 packs_per_ctn: packsPerCtn,
                 pcs_per_pack: pcsPerPack,
                 pcs_per_ctn: pcsPerCtn,
-                unit: isPieceUnit ? 'pcs' : 'ctn',
-                carton_rate: cartonRate,
+                unit: unitCode,
+                carton_rate: ctnRate,
+                pack_rate: packRate,
                 piece_rate: pieceRate,
-                carton_qty: parseFloat(item.carton_qty) || (isPieceUnit ? 0 : 1),
-                pack_qty: parseFloat(item.pack_qty) || 0,
-                pcs_qty: parseFloat(item.pcs_qty) || (isPieceUnit ? 1 : 0),
+                carton_qty: parseFloat(item.billed_carton_qty ?? item.carton_qty) || 0,
+                pack_qty: parseFloat(item.billed_pack_qty ?? item.pack_qty) || 0,
+                pcs_qty: parseFloat(item.billed_pcs_qty ?? item.pcs_qty) || 0,
                 rate: billedRate,
                 discount_percent: parseFloat(item.discount_percent) || 0,
                 condition: document.getElementById('conditionSelect').value,
@@ -1674,23 +1752,45 @@ function addProductToCart(productId) {
         let pckRate = packRate;
         let pcRate  = pieceRate;
 
+        let initialUnit = 'ctn';
+        let initialCtnQty = 1;
+        let initialPackQty = 0;
+        let initialPcsQty = 0;
+        let initialRate = ctnRate;
+
         if (customerRateMap[productId]) {
             returnRate = customerRateMap[productId].rate;
             discPct = customerRateMap[productId].discount_percent;
             sourceInfo = `Billed #${customerRateMap[productId].invoice_number}`;
 
-            if (customerRateMap[productId].unit === 'pcs') {
+            const custUnit = customerRateMap[productId].unit;
+            if (custUnit === 'pcs') {
+                initialUnit = 'pcs';
+                initialCtnQty = 0;
+                initialPackQty = 0;
+                initialPcsQty = customerRateMap[productId].pcs_qty > 0 ? customerRateMap[productId].pcs_qty : 1;
                 pcRate = returnRate;
-                ctnRate = pcsPerCtn > 0 ? (returnRate * pcsPerCtn) : returnRate;
                 pckRate = pcsPerPack > 0 ? (returnRate * pcsPerPack) : returnRate;
-            } else if (customerRateMap[productId].unit === 'pack') {
+                ctnRate = pcsPerCtn > 0 ? (returnRate * pcsPerCtn) : returnRate;
+                initialRate = pcRate;
+            } else if (custUnit === 'pack') {
+                initialUnit = 'pack';
+                initialCtnQty = 0;
+                initialPackQty = customerRateMap[productId].pack_qty > 0 ? customerRateMap[productId].pack_qty : 1;
+                initialPcsQty = 0;
                 pckRate = returnRate;
                 ctnRate = packsPerCtn > 0 ? (returnRate * packsPerCtn) : returnRate;
                 pcRate = pcsPerPack > 0 ? (returnRate / pcsPerPack) : returnRate;
+                initialRate = pckRate;
             } else {
+                initialUnit = 'ctn';
+                initialCtnQty = customerRateMap[productId].carton_qty > 0 ? customerRateMap[productId].carton_qty : 1;
+                initialPackQty = 0;
+                initialPcsQty = 0;
                 ctnRate = returnRate;
                 pckRate = packsPerCtn > 0 ? (returnRate / packsPerCtn) : returnRate;
                 pcRate = pcsPerCtn > 0 ? (returnRate / pcsPerCtn) : returnRate;
+                initialRate = ctnRate;
             }
         }
 
@@ -1703,19 +1803,21 @@ function addProductToCart(productId) {
             packs_per_ctn: packsPerCtn,
             pcs_per_pack: pcsPerPack,
             pcs_per_ctn: pcsPerCtn,
-            unit: 'ctn',
+            unit: initialUnit,
             carton_rate: ctnRate,
             pack_rate: pckRate,
             piece_rate: pcRate,
-            carton_qty: 1,
-            pack_qty: 0,
-            pcs_qty: 0,
-            rate: ctnRate,
+            carton_qty: initialCtnQty,
+            pack_qty: initialPackQty,
+            pcs_qty: initialPcsQty,
+            rate: initialRate,
             discount_percent: discPct,
             condition: globalCond,
-            line_total: ctnRate,
+            line_total: 0,
             source_inv: sourceInfo
         };
+        const initGross = calculateReturnLineGross(cartItems[productId]);
+        cartItems[productId].line_total = Math.max(0, initGross - ((initGross * discPct) / 100));
 
         renderNewCartRow(productId);
     }
@@ -1730,7 +1832,9 @@ function addProductToCart(productId) {
         if (idx >= 0) highlightCard(idx);
     }
 
-    const rowInput = document.getElementById('input_carton_' + productId);
+    const rowInput = (cartItems[productId]?.unit === 'pcs')
+        ? document.getElementById('input_pcs_' + productId)
+        : ((cartItems[productId]?.unit === 'pack') ? document.getElementById('input_pack_' + productId) : document.getElementById('input_carton_' + productId));
     if (rowInput) {
         rowInput.focus();
         rowInput.select();
@@ -1927,17 +2031,32 @@ function onCartRowChange(productId) {
     item.pcs_qty = pcsVal;
     item.rate = rateVal;
 
-    // Keep carton_rate and piece_rate in sync if rate input was edited
+    // Keep carton_rate, pack_rate, and piece_rate in sync if rate input was edited
     if (item.unit === 'pcs') {
         item.piece_rate = rateVal;
         item.carton_rate = rateVal * item.pcs_per_ctn;
+        item.pack_rate = item.pcs_per_pack > 0 ? (rateVal * item.pcs_per_pack) : rateVal;
+    } else if (item.unit === 'pack') {
+        item.pack_rate = rateVal;
+        item.carton_rate = rateVal * item.packs_per_ctn;
+        item.piece_rate = item.pcs_per_pack > 0 ? (rateVal / item.pcs_per_pack) : rateVal;
     } else {
         item.carton_rate = rateVal;
+        item.pack_rate = item.packs_per_ctn > 0 ? (rateVal / item.packs_per_ctn) : rateVal;
         item.piece_rate = item.pcs_per_ctn > 0 ? (rateVal / item.pcs_per_ctn) : rateVal;
     }
 
-    // Auto-switch unit if user specifically entered 0 Cartons and >0 Pieces
-    if (item.unit === 'ctn' && ctnVal === 0 && pcsVal > 0) {
+    // Auto-switch unit if user specifically entered dedicated quantities:
+    if (ctnVal === 0 && packVal > 0 && pcsVal === 0 && item.unit !== 'pack') {
+        item.unit = 'pack';
+        item.rate = item.pack_rate;
+        const unitSel = document.getElementById('input_unit_' + productId);
+        if (unitSel) unitSel.value = 'pack';
+        const inputRate = document.getElementById('input_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Pack';
+    } else if (ctnVal === 0 && packVal === 0 && pcsVal > 0 && item.unit !== 'pcs') {
         item.unit = 'pcs';
         item.rate = item.piece_rate;
         const unitSel = document.getElementById('input_unit_' + productId);
@@ -1946,7 +2065,7 @@ function onCartRowChange(productId) {
         if (inputRate) inputRate.value = item.rate.toFixed(2);
         const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
         if (lblRateUnit) lblRateUnit.innerText = '/ Piece';
-    } else if (item.unit === 'pcs' && ctnVal > 0 && pcsVal === 0) {
+    } else if (ctnVal > 0 && packVal === 0 && pcsVal === 0 && item.unit !== 'ctn') {
         item.unit = 'ctn';
         item.rate = item.carton_rate;
         const unitSel = document.getElementById('input_unit_' + productId);

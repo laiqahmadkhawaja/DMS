@@ -46,13 +46,20 @@ try {
     $rawRates = db_fetch_all("
         SELECT 
             sii.product_id, 
+            sii.unit_id,
+            sii.carton_qty,
+            sii.pack_qty,
+            sii.pcs_qty,
             sii.rate, 
             sii.discount_percent, 
+            u.unit_code,
+            u.symbol as unit_symbol,
             si.id as invoice_id, 
             si.invoice_number, 
             si.invoice_date
         FROM sales_invoice_items sii
         JOIN sales_invoices si ON si.id = sii.invoice_id
+        LEFT JOIN units u ON sii.unit_id = u.id
         WHERE si.customer_id = ? AND si.status != 'cancelled'
         ORDER BY si.invoice_date DESC, si.id DESC
     ", [$customerId]);
@@ -61,8 +68,33 @@ try {
     foreach ($rawRates as $r) {
         $pid = (int)$r['product_id'];
         if (!isset($latestRates[$pid])) {
+            $unitCodeRaw = strtolower(trim((string)($r['unit_code'] ?? '')));
+            $unitId = (int)$r['unit_id'];
+            $cartonQty = (float)$r['carton_qty'];
+            $packQty   = (float)$r['pack_qty'];
+            $pcsQty    = (float)$r['pcs_qty'];
+
+            $unit = 'ctn';
+            if ($unitId === 4 || $unitCodeRaw === 'pcs') {
+                $unit = 'pcs';
+            } elseif ($unitId === 3 || $unitCodeRaw === 'pck' || $unitCodeRaw === 'pack') {
+                $unit = 'pack';
+            } elseif ($cartonQty > 0) {
+                $unit = 'ctn';
+            } elseif ($packQty > 0) {
+                $unit = 'pack';
+            } elseif ($pcsQty > 0) {
+                $unit = 'pcs';
+            }
+
             $latestRates[$pid] = [
                 'rate'             => (float)$r['rate'],
+                'unit'             => $unit,
+                'unit_id'          => $unitId,
+                'unit_symbol'      => $r['unit_symbol'] ?: ($unit === 'pack' ? 'Pck' : ($unit === 'pcs' ? 'Pcs' : 'Ctn')),
+                'carton_qty'       => $cartonQty,
+                'pack_qty'         => $packQty,
+                'pcs_qty'          => $pcsQty,
                 'discount_percent' => (float)$r['discount_percent'],
                 'invoice_id'       => (int)$r['invoice_id'],
                 'invoice_number'   => $r['invoice_number'],
