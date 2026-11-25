@@ -407,6 +407,7 @@ CREATE TABLE `orders` (
   `discount_mode` ENUM('item_rate', 'subtotal') NOT NULL DEFAULT 'item_rate',
   `subtotal_discount_percent` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
   `subtotal_discount_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `free_loose_pieces` TINYINT(1) NOT NULL DEFAULT 0,
   `salesman_id` INT UNSIGNED DEFAULT NULL,
   `gross_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `discount_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
@@ -550,6 +551,7 @@ CREATE TABLE `sales_invoices` (
   `item_discount_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `extra_discount_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `subtotal_discount_percent` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+  `free_loose_pieces` TINYINT(1) NOT NULL DEFAULT 0,
   `net_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `paid_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `credit_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
@@ -623,19 +625,23 @@ CREATE TABLE `delivery_runs` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `run_number` VARCHAR(30) NOT NULL UNIQUE,
   `run_date` DATE NOT NULL,
+  `area_id` INT UNSIGNED DEFAULT NULL,
   `salesman_id` INT UNSIGNED NOT NULL,
   `load_sheet_id` BIGINT UNSIGNED DEFAULT NULL,
   `route_notes` TEXT DEFAULT NULL,
   `total_bills` INT NOT NULL DEFAULT 0,
   `total_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `run_type` ENUM('order_delivery', 'credit_recovery') NOT NULL DEFAULT 'order_delivery',
   `status` ENUM('assigned', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'assigned',
   `created_by` BIGINT UNSIGNED DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_dr_date` (`run_date`),
+  INDEX `idx_dr_area` (`area_id`),
   INDEX `idx_dr_salesman` (`salesman_id`),
   CONSTRAINT `fk_dr_sm` FOREIGN KEY (`salesman_id`) REFERENCES `salesmen` (`id`),
+  CONSTRAINT `fk_dr_area` FOREIGN KEY (`area_id`) REFERENCES `areas` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_dr_ls` FOREIGN KEY (`load_sheet_id`) REFERENCES `load_sheets` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_dr_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -643,7 +649,12 @@ CREATE TABLE `delivery_runs` (
 CREATE TABLE `delivery_run_bills` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `delivery_run_id` BIGINT UNSIGNED NOT NULL,
-  `invoice_id` BIGINT UNSIGNED NOT NULL,
+  `invoice_id` BIGINT UNSIGNED DEFAULT NULL,
+  `customer_id` BIGINT UNSIGNED DEFAULT NULL,
+  `bill_number` VARCHAR(50) DEFAULT NULL,
+  `prev_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `bill_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `total_due` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `stop_sequence` INT NOT NULL DEFAULT 0,
   `delivery_status` ENUM('pending', 'delivered', 'partial', 'refused', 'not_delivered') NOT NULL DEFAULT 'pending',
   `cash_collected` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
@@ -653,9 +664,12 @@ CREATE TABLE `delivery_run_bills` (
   `delivered_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_drb_run_inv` (`delivery_run_id`, `invoice_id`),
+  INDEX `idx_drb_run` (`delivery_run_id`),
+  INDEX `idx_drb_inv` (`invoice_id`),
+  INDEX `idx_drb_cust` (`customer_id`),
   CONSTRAINT `fk_drb_run` FOREIGN KEY (`delivery_run_id`) REFERENCES `delivery_runs` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_drb_inv` FOREIGN KEY (`invoice_id`) REFERENCES `sales_invoices` (`id`)
+  CONSTRAINT `fk_drb_inv` FOREIGN KEY (`invoice_id`) REFERENCES `sales_invoices` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_drb_cust` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
@@ -758,6 +772,7 @@ CREATE TABLE `sales_returns` (
   `condition_type` ENUM('saleable', 'damaged', 'expired') NOT NULL DEFAULT 'saleable',
   `status` ENUM('draft', 'approved', 'processed') NOT NULL DEFAULT 'processed',
   `stock_settled` TINYINT(1) NOT NULL DEFAULT 1,
+  `free_loose_pieces` TINYINT(1) NOT NULL DEFAULT 0,
   `created_by` BIGINT UNSIGNED DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -947,6 +962,7 @@ CREATE TABLE `purchase_orders` (
   `subtotal_discount_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `total_cartons` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `total_units` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `free_loose_pieces` TINYINT(1) NOT NULL DEFAULT 0,
   `net_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `status` ENUM('draft', 'ordered', 'partially_received', 'received', 'cancelled') NOT NULL DEFAULT 'draft',
   `remarks` TEXT DEFAULT NULL,
@@ -1029,6 +1045,8 @@ CREATE TABLE `goods_receipt_items` (
 -- 11. FINANCE & ACCOUNTING TABLES
 -- ---------------------------------------------------------------------
 
+DROP TABLE IF EXISTS `partner_transactions`;
+DROP TABLE IF EXISTS `partners`;
 DROP TABLE IF EXISTS `expenses`;
 DROP TABLE IF EXISTS `expense_categories`;
 DROP TABLE IF EXISTS `supplier_payments`;
@@ -1087,7 +1105,7 @@ CREATE TABLE `journal_entries` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `entry_number` VARCHAR(30) NOT NULL UNIQUE,
   `entry_date` DATE NOT NULL,
-  `reference_type` ENUM('opening', 'sales_invoice', 'settlement', 'cash_receipt', 'supplier_payment', 'grn', 'expense', 'manual_journal') NOT NULL,
+  `reference_type` ENUM('opening', 'sales_invoice', 'settlement', 'cash_receipt', 'supplier_payment', 'grn', 'expense', 'manual_journal', 'partner_drawing', 'sales_cash_handover', 'partner_cash_received') NOT NULL DEFAULT 'manual_journal',
   `reference_id` BIGINT UNSIGNED DEFAULT NULL,
   `total_debit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `total_credit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
@@ -1108,7 +1126,7 @@ CREATE TABLE `journal_entry_lines` (
   `debit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `credit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `description` VARCHAR(255) DEFAULT NULL,
-  `party_type` ENUM('customer', 'supplier', 'salesman') DEFAULT NULL,
+  `party_type` ENUM('customer', 'supplier', 'salesman', 'partner') DEFAULT NULL,
   `party_id` BIGINT UNSIGNED DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -1181,6 +1199,10 @@ CREATE TABLE `expenses` (
   `amount` DECIMAL(15,2) NOT NULL,
   `paid_from_account_id` INT UNSIGNED NOT NULL,
   `payment_mode` ENUM('cash', 'bank') NOT NULL DEFAULT 'cash',
+  `paid_by_type` ENUM('central_cash', 'partner') NOT NULL DEFAULT 'central_cash',
+  `paid_by_partner_id` INT UNSIGNED DEFAULT NULL,
+  `split_type` ENUM('equal_50_50', 'only_moazzam', 'only_rehman', 'custom', 'none') NOT NULL DEFAULT 'equal_50_50',
+  `split_details` TEXT DEFAULT NULL,
   `payee_name` VARCHAR(100) DEFAULT NULL,
   `description` TEXT DEFAULT NULL,
   `reference_voucher` VARCHAR(50) DEFAULT NULL,
@@ -1189,9 +1211,57 @@ CREATE TABLE `expenses` (
   PRIMARY KEY (`id`),
   INDEX `idx_exp_date` (`expense_date`),
   INDEX `idx_exp_cat` (`expense_category_id`),
+  INDEX `idx_exp_partner` (`paid_by_partner_id`),
   CONSTRAINT `fk_exp_cat` FOREIGN KEY (`expense_category_id`) REFERENCES `expense_categories` (`id`),
   CONSTRAINT `fk_exp_acc` FOREIGN KEY (`paid_from_account_id`) REFERENCES `accounts` (`id`),
   CONSTRAINT `fk_exp_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- 12. PARTNER MANAGEMENT & PROFIT SHARING TABLES
+-- ---------------------------------------------------------------------
+
+DROP TABLE IF EXISTS `partner_transactions`;
+DROP TABLE IF EXISTS `partners`;
+
+CREATE TABLE `partners` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `partner_code` VARCHAR(30) NOT NULL UNIQUE,
+  `partner_name` VARCHAR(100) NOT NULL,
+  `urdu_name` VARCHAR(100) DEFAULT NULL,
+  `role` ENUM('partner', 'managing_partner') NOT NULL DEFAULT 'partner',
+  `supplier_id` INT UNSIGNED DEFAULT NULL,
+  `phone` VARCHAR(30) DEFAULT NULL,
+  `current_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00 COMMENT 'Positive = Payable to partner, Negative = Partner owes',
+  `notes` TEXT DEFAULT NULL,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_partner_supplier` (`supplier_id`),
+  CONSTRAINT `fk_partner_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `partner_transactions` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `transaction_number` VARCHAR(40) NOT NULL UNIQUE,
+  `transaction_date` DATE NOT NULL,
+  `partner_id` INT UNSIGNED NOT NULL,
+  `transaction_type` ENUM('expense_paid', 'expense_share', 'cash_drawn', 'cash_returned', 'sales_cash_handover', 'sales_profit', 'capital_added', 'inter_settlement', 'adjustment') NOT NULL,
+  `reference_type` VARCHAR(40) NOT NULL DEFAULT 'manual',
+  `reference_id` BIGINT UNSIGNED DEFAULT NULL,
+  `debit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `credit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `running_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `description` TEXT DEFAULT NULL,
+  `created_by` BIGINT UNSIGNED DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_ptr_partner` (`partner_id`),
+  INDEX `idx_ptr_date` (`transaction_date`),
+  INDEX `idx_ptr_ref` (`reference_type`, `reference_id`),
+  CONSTRAINT `fk_ptr_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_ptr_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
