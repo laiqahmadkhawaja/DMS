@@ -565,6 +565,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <div class="prod-price" style="font-size: 13px; line-height: 1.2;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['carton_rate'], 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
                                             </div>
+                                            <div class="text-dark fw-semibold" style="font-size: 10.5px; line-height: 1.1;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format($packsPerCtn > 0 ? ((float)$p['carton_rate'] / $packsPerCtn) : (float)$p['carton_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>
+                                            </div>
                                             <div class="text-secondary fw-semibold" style="font-size: 11px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['piece_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Pc</span>
                                             </div>
@@ -933,6 +936,8 @@ function addProductToInvoice(productId) {
     if (invoiceItems[productId]) {
         if (invoiceItems[productId].unit === 'pcs') {
             invoiceItems[productId].pcs_qty += invoiceItems[productId].pcs_per_ctn > 0 ? invoiceItems[productId].pcs_per_ctn : 1;
+        } else if (invoiceItems[productId].unit === 'pack') {
+            invoiceItems[productId].pack_qty += 1;
         } else {
             invoiceItems[productId].carton_qty += 1;
         }
@@ -942,6 +947,7 @@ function addProductToInvoice(productId) {
         const pcsPerPack  = parseFloat(prod.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
         const pcsPerCtn   = packsPerCtn * pcsPerPack;
         const cartonRate  = parseFloat(prod.carton_rate) || parseFloat(prod.wholesale_rate) || 0;
+        const packRate    = packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate;
         const pieceRate   = parseFloat(prod.piece_rate) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate);
         const rate        = cartonRate;
         itemIdxCounter++;
@@ -956,6 +962,7 @@ function addProductToInvoice(productId) {
             pcs_per_ctn: pcsPerCtn,
             unit: 'ctn',
             carton_rate: cartonRate,
+            pack_rate: packRate,
             piece_rate: pieceRate,
             carton_qty: 1,
             pack_qty: 0,
@@ -986,9 +993,14 @@ function onInvoiceUnitChange(productId) {
     const unit = unitSel ? unitSel.value : 'ctn';
     item.unit = unit;
 
+    const packsPerCtn = item.packs_per_ctn > 0 ? item.packs_per_ctn : 1;
+    const pcsPerPack  = item.pcs_per_pack > 0 ? item.pcs_per_pack : 1;
+    const pcsPerCtn   = item.pcs_per_ctn > 0 ? item.pcs_per_ctn : (packsPerCtn * pcsPerPack);
+
     if (unit === 'pcs') {
-        item.rate = item.piece_rate;
-        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
+        item.rate = item.piece_rate || (pcsPerCtn > 0 ? item.carton_rate / pcsPerCtn : item.carton_rate);
+        if ((item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) ||
+            (item.carton_qty === 0 && item.pack_qty === 1 && item.pcs_qty === 0)) {
             item.carton_qty = 0;
             item.pack_qty = 0;
             item.pcs_qty = 1;
@@ -1000,8 +1012,9 @@ function onInvoiceUnitChange(productId) {
             if (inputPcs) inputPcs.value = 1;
         }
     } else if (unit === 'pack') {
-        item.rate = item.pack_rate;
-        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
+        item.rate = item.pack_rate || (packsPerCtn > 0 ? item.carton_rate / packsPerCtn : item.carton_rate);
+        if ((item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) ||
+            (item.carton_qty === 0 && item.pack_qty === 0 && item.pcs_qty === 1)) {
             item.carton_qty = 0;
             item.pack_qty = 1;
             item.pcs_qty = 0;
@@ -1029,7 +1042,7 @@ function onInvoiceUnitChange(productId) {
     }
 
     const inputRate = document.getElementById('inv_rate_' + productId);
-    if (inputRate) inputRate.value = item.rate.toFixed(2);
+    if (inputRate) inputRate.value = Number(item.rate || 0).toFixed(2);
 
     const lblRateUnit = document.getElementById('inv_lbl_rate_unit_' + productId);
     if (lblRateUnit) lblRateUnit.innerText = '/ ' + (unit === 'pcs' ? 'Piece' : (unit === 'pack' ? 'Pack' : 'Carton'));
@@ -1137,7 +1150,7 @@ function updateInvoiceRow(productId) {
     if (inputUnit) inputUnit.value = item.unit || 'ctn';
     if (inputRate) inputRate.value = item.rate.toFixed(2);
     if (inputDisc) inputDisc.value = item.discount_percent;
-    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : 'Carton');
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : (item.unit === 'pack' ? 'Pack' : 'Carton'));
 
     const lineGross = calculateInvoiceLineGross(item);
     const mode = getDiscountMode();
@@ -1165,17 +1178,32 @@ function onInvoiceRowChange(productId) {
     item.rate = rateVal;
     item.discount_percent = discVal;
 
-    // Keep carton_rate and piece_rate in sync if rate input was edited
+    // Keep carton_rate, pack_rate, and piece_rate in sync if rate input was edited
     if (item.unit === 'pcs') {
         item.piece_rate = rateVal;
         item.carton_rate = rateVal * item.pcs_per_ctn;
+        item.pack_rate = item.pcs_per_pack > 0 ? (rateVal * item.pcs_per_pack) : rateVal;
+    } else if (item.unit === 'pack') {
+        item.pack_rate = rateVal;
+        item.carton_rate = rateVal * item.packs_per_ctn;
+        item.piece_rate = item.pcs_per_pack > 0 ? (rateVal / item.pcs_per_pack) : rateVal;
     } else {
         item.carton_rate = rateVal;
         item.piece_rate = item.pcs_per_ctn > 0 ? (rateVal / item.pcs_per_ctn) : rateVal;
+        item.pack_rate = item.packs_per_ctn > 0 ? (rateVal / item.packs_per_ctn) : rateVal;
     }
 
-    // Auto-switch unit if user specifically entered 0 Cartons and >0 Pieces
-    if (item.unit === 'ctn' && ctnVal === 0 && pcsVal > 0) {
+    // Auto-switch unit if user specifically entered 0 Cartons, 1+ Packs, 0 Pieces
+    if (item.unit === 'ctn' && ctnVal === 0 && packVal > 0 && pcsVal === 0) {
+        item.unit = 'pack';
+        item.rate = item.pack_rate;
+        const unitSel = document.getElementById('inv_unit_' + productId);
+        if (unitSel) unitSel.value = 'pack';
+        const inputRate = document.getElementById('inv_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('inv_lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Pack';
+    } else if (item.unit === 'ctn' && ctnVal === 0 && packVal === 0 && pcsVal > 0) {
         item.unit = 'pcs';
         item.rate = item.piece_rate;
         const unitSel = document.getElementById('inv_unit_' + productId);
@@ -1184,7 +1212,7 @@ function onInvoiceRowChange(productId) {
         if (inputRate) inputRate.value = item.rate.toFixed(2);
         const lblRateUnit = document.getElementById('inv_lbl_rate_unit_' + productId);
         if (lblRateUnit) lblRateUnit.innerText = '/ Piece';
-    } else if (item.unit === 'pcs' && ctnVal > 0 && pcsVal === 0) {
+    } else if ((item.unit === 'pcs' || item.unit === 'pack') && ctnVal > 0 && packVal === 0 && pcsVal === 0) {
         item.unit = 'ctn';
         item.rate = item.carton_rate;
         const unitSel = document.getElementById('inv_unit_' + productId);

@@ -426,6 +426,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <div class="prod-price" style="font-size: 13px; line-height: 1.2;">
                                                 Cost: <?= DEFAULT_CURRENCY ?> <?= number_format($purchaseCartonRate, 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
                                             </div>
+                                            <div class="text-dark fw-semibold" style="font-size: 10.5px; line-height: 1.1;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format($packsPerCtn > 0 ? ($purCtnRate / $packsPerCtn) : $purCtnRate, 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>
+                                            </div>
                                             <div class="text-secondary fw-semibold" style="font-size: 11px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format($purchasePieceRate, 2) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Pc</span>
                                             </div>
@@ -938,6 +941,8 @@ function addProductToCart(productId) {
     if (cartItems[productId]) {
         if (cartItems[productId].unit === 'pcs') {
             cartItems[productId].pcs_qty += cartItems[productId].pcs_per_ctn > 0 ? cartItems[productId].pcs_per_ctn : 1;
+        } else if (cartItems[productId].unit === 'pack') {
+            cartItems[productId].pack_qty += 1;
         } else {
             cartItems[productId].carton_qty += 1;
         }
@@ -947,6 +952,7 @@ function addProductToCart(productId) {
         const pcsPerPack  = parseFloat(prod.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
         const pcsPerCtn   = packsPerCtn * pcsPerPack;
         const cartonRate  = parseFloat(prod.purchase_carton_rate) || parseFloat(prod.carton_rate) || parseFloat(prod.cost_price > 0 ? prod.cost_price : prod.wholesale_rate) || 0;
+        const packRate    = packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate;
         const pieceRate   = parseFloat(prod.purchase_piece_rate) || (pcsPerCtn > 0 ? cartonRate / pcsPerCtn : cartonRate);
         const costRate    = cartonRate;
 
@@ -959,6 +965,7 @@ function addProductToCart(productId) {
             pcs_per_ctn: pcsPerCtn,
             unit: 'ctn',
             carton_rate: cartonRate,
+            pack_rate: packRate,
             piece_rate: pieceRate,
             carton_qty: 1,
             pack_qty: 0,
@@ -981,7 +988,6 @@ function addProductToCart(productId) {
         if (idx >= 0) highlightCard(idx);
     }
 
-    // Auto-focus carton quantity input of newly added item
     const rowInput = document.getElementById('input_carton_' + productId);
     if (rowInput) {
         rowInput.focus();
@@ -997,9 +1003,14 @@ function onPurchaseUnitChange(productId) {
     const unit = unitSel ? unitSel.value : 'ctn';
     item.unit = unit;
 
+    const packsPerCtn = item.packs_per_ctn > 0 ? item.packs_per_ctn : 1;
+    const pcsPerPack  = item.pcs_per_pack > 0 ? item.pcs_per_pack : 1;
+    const pcsPerCtn   = item.pcs_per_ctn > 0 ? item.pcs_per_ctn : (packsPerCtn * pcsPerPack);
+
     if (unit === 'pcs') {
-        item.rate = item.piece_rate;
-        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
+        item.rate = item.piece_rate || (pcsPerCtn > 0 ? item.carton_rate / pcsPerCtn : item.carton_rate);
+        if ((item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) ||
+            (item.carton_qty === 0 && item.pack_qty === 1 && item.pcs_qty === 0)) {
             item.carton_qty = 0;
             item.pack_qty = 0;
             item.pcs_qty = 1;
@@ -1011,8 +1022,9 @@ function onPurchaseUnitChange(productId) {
             if (inputPcs) inputPcs.value = 1;
         }
     } else if (unit === 'pack') {
-        item.rate = item.pack_rate;
-        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
+        item.rate = item.pack_rate || (packsPerCtn > 0 ? item.carton_rate / packsPerCtn : item.carton_rate);
+        if ((item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) ||
+            (item.carton_qty === 0 && item.pack_qty === 0 && item.pcs_qty === 1)) {
             item.carton_qty = 0;
             item.pack_qty = 1;
             item.pcs_qty = 0;
@@ -1040,7 +1052,7 @@ function onPurchaseUnitChange(productId) {
     }
 
     const inputRate = document.getElementById('input_rate_' + productId);
-    if (inputRate) inputRate.value = item.rate.toFixed(2);
+    if (inputRate) inputRate.value = Number(item.rate || 0).toFixed(2);
 
     const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
     if (lblRateUnit) lblRateUnit.innerText = '/ ' + (unit === 'pcs' ? 'Piece' : (unit === 'pack' ? 'Pack' : 'Carton'));
@@ -1152,7 +1164,7 @@ function updateCartRow(productId) {
     if (inputUnit) inputUnit.value = item.unit || 'ctn';
     if (inputRate) inputRate.value = item.rate.toFixed(2);
     if (inputDisc) inputDisc.value = item.discount_percent;
-    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : 'Carton');
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : (item.unit === 'pack' ? 'Pack' : 'Carton'));
 
     const lineGross = calculatePurchaseLineGross(item);
     const mode = getDiscountMode();

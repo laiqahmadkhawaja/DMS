@@ -46,7 +46,8 @@ if (!defined('DMS_RUNNING')) {
                             </div>
                             <div class="small text-muted" style="font-size:0.75rem;">(خرید قیمت)</div>
                             <div class="fs-4 fw-bold text-dark mt-1" id="ppm_purchase_rate"><?= DEFAULT_CURRENCY ?> 0.00</div>
-                            <small class="text-muted" style="font-size:0.7rem;">Supplier Invoice Cost</small>
+                            <div class="small text-muted fw-semibold" id="ppm_purchase_sub" style="font-size:0.75rem;">-</div>
+                            <small class="text-muted d-block mt-1" style="font-size:0.68rem;">Supplier Invoice Cost</small>
                         </div>
                     </div>
 
@@ -58,7 +59,8 @@ if (!defined('DMS_RUNNING')) {
                             </div>
                             <div class="small text-muted" style="font-size:0.75rem;">(ڈیفالٹ قیمت)</div>
                             <div class="fs-4 fw-bold text-primary mt-1" id="ppm_default_sale_rate"><?= DEFAULT_CURRENCY ?> 0.00</div>
-                            <small class="text-muted" style="font-size:0.7rem;">Standard Book Rate</small>
+                            <div class="small text-muted fw-semibold" id="ppm_default_sub" style="font-size:0.75rem;">-</div>
+                            <small class="text-muted d-block mt-1" style="font-size:0.68rem;">Standard Book Rate</small>
                         </div>
                     </div>
 
@@ -70,7 +72,8 @@ if (!defined('DMS_RUNNING')) {
                             </div>
                             <div class="small text-muted" style="font-size:0.75rem;">(ہول سیل قیمت)</div>
                             <div class="fs-4 fw-bold text-success mt-1" id="ppm_wholesale_rate"><?= DEFAULT_CURRENCY ?> 0.00</div>
-                            <small class="text-muted" style="font-size:0.7rem;">Order Booker Rate</small>
+                            <div class="small text-muted fw-semibold" id="ppm_wholesale_sub" style="font-size:0.75rem;">-</div>
+                            <small class="text-muted d-block mt-1" style="font-size:0.68rem;">Order Booker Rate</small>
                         </div>
                     </div>
 
@@ -82,7 +85,8 @@ if (!defined('DMS_RUNNING')) {
                             </div>
                             <div class="small text-muted" style="font-size:0.75rem;">(پرچون / منیمم ریٹ)</div>
                             <div class="fs-4 fw-bold text-dark mt-1" id="ppm_retail_rate"><?= DEFAULT_CURRENCY ?> 0.00</div>
-                            <small class="text-muted" style="font-size:0.7rem;">Consumer End Price</small>
+                            <div class="small text-muted fw-semibold" id="ppm_retail_sub" style="font-size:0.75rem;">-</div>
+                            <small class="text-muted d-block mt-1" style="font-size:0.68rem;">Consumer End Price</small>
                         </div>
                     </div>
                 </div>
@@ -98,9 +102,9 @@ if (!defined('DMS_RUNNING')) {
                             <thead class="table-light small">
                                 <tr>
                                     <th>Tier / Level</th>
-                                    <th>Unit Rate</th>
                                     <th>Carton Rate</th>
-                                    <th>Unit Margin</th>
+                                    <th>Pack Rate</th>
+                                    <th>Piece Rate</th>
                                     <th>Carton Margin</th>
                                     <th>Margin %</th>
                                 </tr>
@@ -110,19 +114,19 @@ if (!defined('DMS_RUNNING')) {
                                     <td class="text-start fw-bold text-warning-emphasis font-sans-serif">
                                         <i class="bi bi-cart me-1"></i> Purchase Cost
                                     </td>
-                                    <td id="ppm_tbl_cost_unit">-</td>
                                     <td id="ppm_tbl_cost_ctn" class="fw-bold">-</td>
-                                    <td class="text-muted">-</td>
-                                    <td class="text-muted">-</td>
+                                    <td id="ppm_tbl_cost_pack" class="text-dark">-</td>
+                                    <td id="ppm_tbl_cost_unit" class="text-muted">-</td>
+                                    <td class="text-muted">Base Cost</td>
                                     <td class="text-muted">Base</td>
                                 </tr>
                                 <tr>
                                     <td class="text-start fw-bold text-success font-sans-serif">
                                         <i class="bi bi-shop me-1"></i> Wholesale Sale
                                     </td>
-                                    <td id="ppm_tbl_ws_unit">-</td>
                                     <td id="ppm_tbl_ws_ctn" class="fw-bold text-success">-</td>
-                                    <td id="ppm_tbl_ws_margin" class="text-success">-</td>
+                                    <td id="ppm_tbl_ws_pack" class="fw-bold text-success">-</td>
+                                    <td id="ppm_tbl_ws_unit">-</td>
                                     <td id="ppm_tbl_ws_ctn_margin" class="fw-bold text-success">-</td>
                                     <td><span class="badge bg-success-subtle text-success border" id="ppm_tbl_ws_pct">0%</span></td>
                                 </tr>
@@ -130,9 +134,9 @@ if (!defined('DMS_RUNNING')) {
                                     <td class="text-start fw-bold text-info font-sans-serif">
                                         <i class="bi bi-bag-check me-1"></i> Retail / MRP
                                     </td>
-                                    <td id="ppm_tbl_ret_unit">-</td>
                                     <td id="ppm_tbl_ret_ctn" class="fw-bold text-primary">-</td>
-                                    <td id="ppm_tbl_ret_margin" class="text-primary">-</td>
+                                    <td id="ppm_tbl_ret_pack" class="fw-bold text-primary">-</td>
+                                    <td id="ppm_tbl_ret_unit">-</td>
                                     <td id="ppm_tbl_ret_ctn_margin" class="fw-bold text-primary">-</td>
                                     <td><span class="badge bg-primary-subtle text-primary border" id="ppm_tbl_ret_pct">0%</span></td>
                                 </tr>
@@ -158,7 +162,7 @@ if (!defined('DMS_RUNNING')) {
 <script>
 /**
  * Global Product Price Modal Handler
- * Inspects all product pricing (purchase rate, default rate, wholesale rate, retail rate, margins)
+ * Inspects all product pricing (carton rate, pack rate, piece rate, margins)
  */
 let currentModalProductId = null;
 
@@ -185,11 +189,12 @@ function showProductPriceModal(event, productId) {
     document.getElementById('ppm_brand_name').textContent = p.brand_name || 'Brand: -';
     
     // Ratios & packing
-    const cartonQty = parseFloat(p.carton_qty) || 1;
-    const packQty   = parseFloat(p.pack_qty) || 1;
-    const packingDesc = p.packing_description || `1 Ctn = ${cartonQty} Units`;
+    const packsPerCtn = parseFloat(p.carton_qty) > 0 ? parseFloat(p.carton_qty) : 1;
+    const pcsPerPack  = parseFloat(p.pack_qty) > 0 ? parseFloat(p.pack_qty) : 1;
+    const pcsPerCtn   = packsPerCtn * pcsPerPack;
+    const packingDesc = p.packing_description || `1 Ctn = ${packsPerCtn} Packs × ${pcsPerPack} Pcs (${pcsPerCtn} Pcs)`;
     document.getElementById('ppm_packing_text').textContent = packingDesc;
-    document.getElementById('ppm_ctn_ratio_badge').textContent = `1 Ctn = ${cartonQty} units`;
+    document.getElementById('ppm_ctn_ratio_badge').textContent = `1 Ctn = ${packsPerCtn} Packs × ${pcsPerPack} Pcs (${pcsPerCtn} Pcs Total)`;
 
     // Stock Badge
     const availStock = parseFloat(p.saleable_qty) || 0;
@@ -204,42 +209,61 @@ function showProductPriceModal(event, productId) {
         }
     }
 
-    // Rates
-    const purchaseRate    = parseFloat(p.purchase_rate) || parseFloat(p.cost_price) || 0;
-    const defaultSaleRate = parseFloat(p.default_sale_rate) || parseFloat(p.wholesale_rate) || 0;
-    const wholesaleRate   = parseFloat(p.wholesale_rate) || 0;
-    const retailRate      = parseFloat(p.retail_rate) || 0;
+    // Rates Calculation: Carton is the base price in DMS
+    const costCtn = parseFloat(p.purchase_carton_rate) || parseFloat(p.purchase_rate) || parseFloat(p.cost_price) || 0;
+    const costPack = packsPerCtn > 0 ? (costCtn / packsPerCtn) : costCtn;
+    const costPc   = parseFloat(p.purchase_piece_rate) || (pcsPerCtn > 0 ? (costCtn / pcsPerCtn) : costCtn);
+
+    const wsCtn  = parseFloat(p.carton_rate) || parseFloat(p.wholesale_rate) || 0;
+    const wsPack = packsPerCtn > 0 ? (wsCtn / packsPerCtn) : wsCtn;
+    const wsPc   = parseFloat(p.piece_rate) || (pcsPerCtn > 0 ? (wsCtn / pcsPerCtn) : wsCtn);
+
+    const defCtn  = parseFloat(p.default_sale_rate) || wsCtn;
+    const defPack = packsPerCtn > 0 ? (defCtn / packsPerCtn) : defCtn;
+    const defPc   = pcsPerCtn > 0 ? (defCtn / pcsPerCtn) : wsPc;
+
+    const retCtn  = parseFloat(p.retail_carton_rate) || parseFloat(p.retail_rate) || wsCtn;
+    const retPack = packsPerCtn > 0 ? (retCtn / packsPerCtn) : retCtn;
+    const retPc   = parseFloat(p.retail_piece_rate) || (pcsPerCtn > 0 ? (retCtn / pcsPerCtn) : wsPc);
 
     // Format Number Helper
-    const fmt = (num) => `${currency} ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fmt = (num) => `${currency} ${Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     // 4 Price Cards
-    document.getElementById('ppm_purchase_rate').textContent    = fmt(purchaseRate);
-    document.getElementById('ppm_default_sale_rate').textContent= fmt(defaultSaleRate);
-    document.getElementById('ppm_wholesale_rate').textContent   = fmt(wholesaleRate);
-    document.getElementById('ppm_retail_rate').textContent      = fmt(retailRate);
+    document.getElementById('ppm_purchase_rate').textContent     = fmt(costCtn);
+    document.getElementById('ppm_purchase_sub').textContent      = `${fmt(costPack)} / Pack  •  ${fmt(costPc)} / Pc`;
+
+    document.getElementById('ppm_default_sale_rate').textContent = fmt(defCtn);
+    document.getElementById('ppm_default_sub').textContent       = `${fmt(defPack)} / Pack  •  ${fmt(defPc)} / Pc`;
+
+    document.getElementById('ppm_wholesale_rate').textContent    = fmt(wsCtn);
+    document.getElementById('ppm_wholesale_sub').textContent      = `${fmt(wsPack)} / Pack  •  ${fmt(wsPc)} / Pc`;
+
+    document.getElementById('ppm_retail_rate').textContent       = fmt(retCtn);
+    document.getElementById('ppm_retail_sub').textContent        = `${fmt(retPack)} / Pack  •  ${fmt(retPc)} / Pc`;
 
     // Table values
     // Cost
-    document.getElementById('ppm_tbl_cost_unit').textContent = fmt(purchaseRate);
-    document.getElementById('ppm_tbl_cost_ctn').textContent  = fmt(purchaseRate * cartonQty);
+    document.getElementById('ppm_tbl_cost_ctn').textContent  = fmt(costCtn);
+    document.getElementById('ppm_tbl_cost_pack').textContent = fmt(costPack);
+    document.getElementById('ppm_tbl_cost_unit').textContent = fmt(costPc);
 
     // Wholesale
-    document.getElementById('ppm_tbl_ws_unit').textContent = fmt(wholesaleRate);
-    document.getElementById('ppm_tbl_ws_ctn').textContent  = fmt(wholesaleRate * cartonQty);
-    const wsMargin = wholesaleRate - purchaseRate;
-    document.getElementById('ppm_tbl_ws_margin').textContent     = fmt(wsMargin);
-    document.getElementById('ppm_tbl_ws_ctn_margin').textContent = fmt(wsMargin * cartonQty);
-    const wsPct = purchaseRate > 0 ? ((wsMargin / purchaseRate) * 100).toFixed(1) : '0';
+    document.getElementById('ppm_tbl_ws_ctn').textContent    = fmt(wsCtn);
+    document.getElementById('ppm_tbl_ws_pack').textContent   = fmt(wsPack);
+    document.getElementById('ppm_tbl_ws_unit').textContent   = fmt(wsPc);
+    const wsCtnMargin = wsCtn - costCtn;
+    document.getElementById('ppm_tbl_ws_ctn_margin').textContent = fmt(wsCtnMargin);
+    const wsPct = costCtn > 0 ? ((wsCtnMargin / costCtn) * 100).toFixed(1) : '0';
     document.getElementById('ppm_tbl_ws_pct').textContent = `${wsPct}%`;
 
     // Retail
-    document.getElementById('ppm_tbl_ret_unit').textContent = fmt(retailRate);
-    document.getElementById('ppm_tbl_ret_ctn').textContent  = fmt(retailRate * cartonQty);
-    const retMargin = retailRate - purchaseRate;
-    document.getElementById('ppm_tbl_ret_margin').textContent     = fmt(retMargin);
-    document.getElementById('ppm_tbl_ret_ctn_margin').textContent = fmt(retMargin * cartonQty);
-    const retPct = purchaseRate > 0 ? ((retMargin / purchaseRate) * 100).toFixed(1) : '0';
+    document.getElementById('ppm_tbl_ret_ctn').textContent    = fmt(retCtn);
+    document.getElementById('ppm_tbl_ret_pack').textContent   = fmt(retPack);
+    document.getElementById('ppm_tbl_ret_unit').textContent   = fmt(retPc);
+    const retCtnMargin = retCtn - costCtn;
+    document.getElementById('ppm_tbl_ret_ctn_margin').textContent = fmt(retCtnMargin);
+    const retPct = costCtn > 0 ? ((retCtnMargin / costCtn) * 100).toFixed(1) : '0';
     document.getElementById('ppm_tbl_ret_pct').textContent = `${retPct}%`;
 
     // Show Modal

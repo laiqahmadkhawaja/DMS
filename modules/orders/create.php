@@ -458,6 +458,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                             <div class="prod-price" style="font-size: 13px; line-height: 1.2;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['carton_rate'], 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
                                             </div>
+                                            <div class="text-dark fw-semibold" style="font-size: 10.5px; line-height: 1.1;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format($packsPerCtn > 0 ? ((float)$p['carton_rate'] / $packsPerCtn) : (float)$p['carton_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>
+                                            </div>
                                             <div class="text-secondary fw-semibold" style="font-size: 11px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['piece_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Pc</span>
                                             </div>
@@ -1121,9 +1124,14 @@ function onCartUnitChange(productId, unit) {
     if (!item) return;
 
     item.unit = unit;
+    const packsPerCtn = item.packs_per_ctn > 0 ? item.packs_per_ctn : 1;
+    const pcsPerPack  = item.pcs_per_pack > 0 ? item.pcs_per_pack : 1;
+    const pcsPerCtn   = item.pcs_per_ctn > 0 ? item.pcs_per_ctn : (packsPerCtn * pcsPerPack);
+
     if (unit === 'pcs') {
-        item.rate = item.piece_rate;
-        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
+        item.rate = item.piece_rate || (pcsPerCtn > 0 ? item.carton_rate / pcsPerCtn : item.carton_rate);
+        if ((item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) ||
+            (item.carton_qty === 0 && item.pack_qty === 1 && item.pcs_qty === 0)) {
             item.carton_qty = 0;
             item.pack_qty = 0;
             item.pcs_qty = 1;
@@ -1131,19 +1139,13 @@ function onCartUnitChange(productId, unit) {
             const inputPack = document.getElementById('input_pack_' + productId);
             const inputPcs = document.getElementById('input_pcs_' + productId);
             if (inputCtn) inputCtn.value = 0;
-            if (inputPack) inputPack.value = 0;
-            if (inputPcs) inputPcs.value = 1;
-        } else if (item.carton_qty === 0 && item.pack_qty === 1 && item.pcs_qty === 0) {
-            item.pack_qty = 0;
-            item.pcs_qty = 1;
-            const inputPack = document.getElementById('input_pack_' + productId);
-            const inputPcs = document.getElementById('input_pcs_' + productId);
             if (inputPack) inputPack.value = 0;
             if (inputPcs) inputPcs.value = 1;
         }
     } else if (unit === 'pack') {
-        item.rate = item.pack_rate;
-        if (item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) {
+        item.rate = item.pack_rate || (packsPerCtn > 0 ? item.carton_rate / packsPerCtn : item.carton_rate);
+        if ((item.carton_qty === 1 && item.pack_qty === 0 && item.pcs_qty === 0) ||
+            (item.carton_qty === 0 && item.pack_qty === 0 && item.pcs_qty === 1)) {
             item.carton_qty = 0;
             item.pack_qty = 1;
             item.pcs_qty = 0;
@@ -1151,13 +1153,6 @@ function onCartUnitChange(productId, unit) {
             const inputPack = document.getElementById('input_pack_' + productId);
             const inputPcs = document.getElementById('input_pcs_' + productId);
             if (inputCtn) inputCtn.value = 0;
-            if (inputPack) inputPack.value = 1;
-            if (inputPcs) inputPcs.value = 0;
-        } else if (item.carton_qty === 0 && item.pack_qty === 0 && item.pcs_qty === 1) {
-            item.pack_qty = 1;
-            item.pcs_qty = 0;
-            const inputPack = document.getElementById('input_pack_' + productId);
-            const inputPcs = document.getElementById('input_pcs_' + productId);
             if (inputPack) inputPack.value = 1;
             if (inputPcs) inputPcs.value = 0;
         }
@@ -1178,7 +1173,7 @@ function onCartUnitChange(productId, unit) {
     }
 
     const inputRate = document.getElementById('input_rate_' + productId);
-    if (inputRate) inputRate.value = item.rate.toFixed(2);
+    if (inputRate) inputRate.value = Number(item.rate || 0).toFixed(2);
 
     const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
     if (lblRateUnit) lblRateUnit.innerText = '/ ' + (unit === 'pcs' ? 'Piece' : (unit === 'pack' ? 'Pack' : 'Carton'));
@@ -1206,7 +1201,7 @@ function updateCartRow(productId) {
     if (inputUnit) inputUnit.value = item.unit || 'ctn';
     if (inputRate) inputRate.value = item.rate.toFixed(2);
     if (inputDisc) inputDisc.value = item.discount_percent;
-    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : 'Carton');
+    if (lblRateUnit) lblRateUnit.innerText = '/ ' + (item.unit === 'pcs' ? 'Piece' : (item.unit === 'pack' ? 'Pack' : 'Carton'));
 
     const lineGross = calculateLineGross(item);
     const mode = getDiscountMode();
