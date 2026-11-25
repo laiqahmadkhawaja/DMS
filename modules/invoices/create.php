@@ -562,14 +562,14 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                                     <div class="prod-price-stock">
                                         <div>
-                                            <div class="prod-price" style="font-size: 13px; line-height: 1.2;">
+                                            <div class="prod-price" style="font-size: 12.5px; line-height: 1.25; margin-bottom: 2px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['carton_rate'], 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
                                             </div>
-                                            <div class="text-dark fw-semibold" style="font-size: 10.5px; line-height: 1.1;">
+                                            <div class="text-primary fw-semibold" style="font-size: 11px; line-height: 1.25; margin-bottom: 2px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format($packsPerCtn > 0 ? ((float)$p['carton_rate'] / $packsPerCtn) : (float)$p['carton_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>
                                             </div>
-                                            <div class="text-secondary fw-semibold" style="font-size: 11px;">
-                                                <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['piece_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Pc</span>
+                                            <div class="text-secondary fw-semibold" style="font-size: 11px; line-height: 1.25;">
+                                                <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['piece_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pc</span>
                                             </div>
                                         </div>
                                         <div class="prod-stock text-end">

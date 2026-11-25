@@ -733,24 +733,24 @@ input[type=number] {
 
 .pos-product-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     gap: 10px;
     padding: 12px;
     overflow-y: auto;
-    max-height: 520px;
+    max-height: 600px;
 }
 
 .pos-product-card {
     background: #ffffff;
     border: 1.5px solid #e2e8f0;
     border-radius: 8px;
-    padding: 10px;
+    padding: 10px 10px 8px 10px;
     cursor: pointer;
     transition: all 0.15s ease;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: 110px;
+    min-height: 162px;
     user-select: none;
     position: relative;
 }
@@ -845,22 +845,27 @@ input[type=number] {
 .pos-product-card .prod-price-stock {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: flex-end;
     margin-top: auto;
-    padding-top: 4px;
+    padding-top: 5px;
     border-top: 1px dashed #e2e8f0;
+    gap: 4px;
 }
 
 .pos-product-card .prod-price {
     font-weight: 700;
     font-size: 13px;
     color: var(--dms-navy-dark);
+    line-height: 1.25;
 }
 
 .pos-product-card .prod-stock {
     font-size: 10.5px;
     font-weight: 600;
     color: #059669;
+    text-align: right;
+    line-height: 1.2;
+    align-self: flex-end;
 }
 
 .pos-product-card.out-of-stock .prod-stock {
