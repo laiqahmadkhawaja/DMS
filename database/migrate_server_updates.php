@@ -60,10 +60,29 @@ try {
     $db->exec("ALTER TABLE orders MODIFY delivery_date DATE NULL DEFAULT NULL;");
     add_log('success', "Ensured `orders`.`delivery_date` is nullable.");
 
+    // Ensure standard distribution units exist
+    $db->exec("
+        INSERT INTO `units` (`id`, `unit_code`, `unit_name`, `symbol`, `is_active`, `is_deleted`)
+        VALUES 
+            (1, 'CTN', 'Carton', 'Ctn', 1, 0),
+            (2, 'BOX', 'Box', 'Box', 1, 0),
+            (3, 'PCK', 'Packet', 'Pck', 1, 0),
+            (4, 'PCS', 'Piece', 'Pcs', 1, 0)
+        ON DUPLICATE KEY UPDATE 
+            `unit_code` = VALUES(`unit_code`),
+            `unit_name` = VALUES(`unit_name`),
+            `symbol`    = VALUES(`symbol`),
+            `is_active` = 1,
+            `is_deleted` = 0;
+    ");
+    add_log('success', 'Verified standard packaging units (Carton, Box, Packet/Pack, Piece) in `units`.');
+
     // Fix legacy records where carton items were saved with piece unit_id (4 instead of 1)
     $db->exec("UPDATE order_items SET unit_id = 1 WHERE carton_qty > 0 AND pack_qty = 0 AND pcs_qty = 0 AND unit_id = 4;");
     $db->exec("UPDATE sales_invoice_items SET unit_id = 1 WHERE carton_qty > 0 AND pack_qty = 0 AND pcs_qty = 0 AND unit_id = 4;");
-    add_log('success', "Corrected legacy carton order_items & invoice_items unit_id from 4 to 1.");
+    $db->exec("UPDATE purchase_order_items SET unit_id = 1 WHERE carton_qty > 0 AND pack_qty = 0 AND pcs_qty = 0 AND unit_id = 4;");
+    $db->exec("UPDATE sales_return_items SET unit_id = 1 WHERE carton_qty > 0 AND pack_qty = 0 AND pcs_qty = 0 AND unit_id = 4;");
+    add_log('success', "Corrected legacy carton unit_id from 4 to 1 across orders, invoices, purchases, and returns.");
 
     // --------------------------------------------------------------------------
     // 2. SALES INVOICES TABLE

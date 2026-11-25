@@ -44,6 +44,42 @@ CALL `dms_add_column_if_not_exists`('orders', 'discount_mode', "ENUM('item_rate'
 CALL `dms_add_column_if_not_exists`('orders', 'subtotal_discount_percent', "DECIMAL(5,2) NOT NULL DEFAULT 0.00");
 CALL `dms_add_column_if_not_exists`('orders', 'subtotal_discount_amount', "DECIMAL(15,2) NOT NULL DEFAULT 0.00");
 CALL `dms_add_column_if_not_exists`('orders', 'free_loose_pieces', "TINYINT(1) NOT NULL DEFAULT 0");
+ALTER TABLE `orders` MODIFY COLUMN `delivery_date` DATE NULL DEFAULT NULL;
+
+-- ------------------------------------------------------------------------------
+-- 2b. Standard Packaging Units in units table (Carton, Box, Packet/Pack, Piece)
+-- ------------------------------------------------------------------------------
+INSERT INTO `units` (`id`, `unit_code`, `unit_name`, `symbol`, `is_active`, `is_deleted`)
+VALUES 
+    (1, 'CTN', 'Carton', 'Ctn', 1, 0),
+    (2, 'BOX', 'Box', 'Box', 1, 0),
+    (3, 'PCK', 'Packet', 'Pck', 1, 0),
+    (4, 'PCS', 'Piece', 'Pcs', 1, 0)
+ON DUPLICATE KEY UPDATE 
+    `unit_code` = VALUES(`unit_code`),
+    `unit_name` = VALUES(`unit_name`),
+    `symbol`    = VALUES(`symbol`),
+    `is_active` = 1,
+    `is_deleted` = 0;
+
+-- ------------------------------------------------------------------------------
+-- 2c. Correct Legacy Carton Items Saved With Piece Unit ID (4 -> 1)
+-- ------------------------------------------------------------------------------
+UPDATE `order_items` 
+SET `unit_id` = 1 
+WHERE `carton_qty` > 0 AND `pack_qty` = 0 AND `pcs_qty` = 0 AND `unit_id` = 4;
+
+UPDATE `sales_invoice_items` 
+SET `unit_id` = 1 
+WHERE `carton_qty` > 0 AND `pack_qty` = 0 AND `pcs_qty` = 0 AND `unit_id` = 4;
+
+UPDATE `purchase_order_items` 
+SET `unit_id` = 1 
+WHERE `carton_qty` > 0 AND `pack_qty` = 0 AND `pcs_qty` = 0 AND `unit_id` = 4;
+
+UPDATE `sales_return_items` 
+SET `unit_id` = 1 
+WHERE `carton_qty` > 0 AND `pack_qty` = 0 AND `pcs_qty` = 0 AND `unit_id` = 4;
 
 -- ------------------------------------------------------------------------------
 -- 3. Update sales_invoices table (Dual Discount & Free Loose Pieces Scheme)
@@ -219,6 +255,21 @@ VALUES
 
 INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
 SELECT 1, p.`id` FROM `permissions` p WHERE p.`module` = 'partners';
+
+-- ------------------------------------------------------------------------------
+-- 12. Update delivery_runs & delivery_run_bills (Route Delivery & Recovery Sheets)
+-- ------------------------------------------------------------------------------
+CALL `dms_add_column_if_not_exists`('delivery_runs', 'area_id', "INT(10) UNSIGNED DEFAULT NULL AFTER `salesman_id`");
+CALL `dms_add_column_if_not_exists`('delivery_runs', 'run_type', "VARCHAR(20) NOT NULL DEFAULT 'load_sheet' AFTER `load_sheet_id`");
+
+-- Allow null invoice_id in delivery_run_bills for manual customer balance recovery sheets
+ALTER TABLE `delivery_run_bills` MODIFY COLUMN `invoice_id` BIGINT(20) UNSIGNED DEFAULT NULL;
+
+CALL `dms_add_column_if_not_exists`('delivery_run_bills', 'customer_id', "INT(10) UNSIGNED DEFAULT NULL AFTER `invoice_id`");
+CALL `dms_add_column_if_not_exists`('delivery_run_bills', 'bill_number', "VARCHAR(50) DEFAULT NULL AFTER `customer_id`");
+CALL `dms_add_column_if_not_exists`('delivery_run_bills', 'prev_balance', "DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `bill_number`");
+CALL `dms_add_column_if_not_exists`('delivery_run_bills', 'bill_amount', "DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `prev_balance`");
+CALL `dms_add_column_if_not_exists`('delivery_run_bills', 'total_due', "DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `bill_amount`");
 
 -- ------------------------------------------------------------------------------
 -- Clean up helper procedure
