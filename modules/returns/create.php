@@ -521,27 +521,33 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <div class="card border-0 shadow-sm mb-3 border-start border-4 border-primary">
                     <div class="card-body p-3">
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-5">
-                                <label class="form-label small fw-bold mb-1 text-primary">
-                                    <i class="bi bi-receipt me-1"></i> Select Invoice / Bill (بل منتخب کریں) <span class="text-danger">*</span>
+                            <div class="col-md-7 position-relative">
+                                <label class="form-label small fw-bold mb-1 text-primary d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-receipt me-1"></i> Select Invoice / Bill (بل منتخب یا تلاش کریں) <span class="text-danger">*</span></span>
+                                    <span class="text-muted fw-normal" style="font-size: 11px;"><i class="bi bi-keyboard me-1"></i>Live Search by Bill #, Shop, or Load Sheet</span>
                                 </label>
-                                <select name="invoice_id" id="billWiseInvoiceSelect" class="form-select form-select-sm" onchange="onBillWiseInvoiceSelected(this.value)">
-                                    <option value="">-- Choose Sales Bill / Invoice --</option>
-                                    <?php foreach ($recentInvoices as $rInv): ?>
-                                        <option value="<?= $rInv['id'] ?>" <?= ($preInvoiceId === (int)$rInv['id']) ? 'selected' : '' ?>>
-                                            #<?= htmlspecialchars($rInv['invoice_number']) ?> (<?= date('d-M', strtotime($rInv['invoice_date'])) ?>) - <?= htmlspecialchars($rInv['shop_name']) ?> - Rs. <?= number_format((float)$rInv['net_amount'], 0) ?> <?= !empty($rInv['load_number']) ? '[' . htmlspecialchars($rInv['load_number']) . ']' : '' ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold mb-1 text-secondary">Quick Search Bill # / Shop</label>
+                                <input type="hidden" name="invoice_id" id="billWiseInvoiceSelect" value="<?= (int)$preInvoiceId ?>">
+                                
                                 <div class="input-group input-group-sm">
-                                    <input type="text" id="quickBillSearchInput" class="form-control" placeholder="Type Bill #, Shop...">
-                                    <button type="button" class="btn btn-outline-primary" onclick="performQuickBillSearch()"><i class="bi bi-search"></i></button>
+                                    <span class="input-group-text bg-white border-end-0 text-primary"><i class="bi bi-search"></i></span>
+                                    <input type="text" id="invoiceSearchInput" class="form-control border-start-0 ps-0 fw-semibold" 
+                                           placeholder="Click or type to search Bill #, Shop Name, or Load Sheet..." 
+                                           autocomplete="off"
+                                           value="<?= $preInvoice ? '#' . htmlspecialchars($preInvoice['invoice_number']) . ' (' . date('d-M', strtotime($preInvoice['invoice_date'])) . ') - ' . htmlspecialchars($preInvoice['shop_name']) . ' - Rs. ' . number_format((float)$preInvoice['net_amount'], 0) : '' ?>">
+                                    <button type="button" class="btn btn-outline-secondary" id="btnToggleInvoiceDropdown" title="Toggle bill list">
+                                        <i class="bi bi-chevron-down"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger <?= empty($preInvoiceId) ? 'd-none' : '' ?>" id="btnClearInvoiceSelection" onclick="clearInvoiceSelection()" title="Clear selection">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Live Searchable Floating Dropdown Menu -->
+                                <div id="invoiceDropdownList" class="dropdown-menu shadow-lg border w-100 p-0 mt-1 d-none" 
+                                     style="max-height: 330px; overflow-y: auto; z-index: 1060;">
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-5">
                                 <label class="form-label small fw-bold mb-1 text-secondary">Return Reason / Remarks</label>
                                 <input type="text" name="reason" id="billWiseReason" class="form-control form-control-sm" placeholder="e.g. Route Return, Damaged, Customer Rejected">
                             </div>
@@ -939,6 +945,7 @@ require_once INCLUDES_PATH . '/topbar.php';
 <!-- Embedded Product Cache -->
 <script>
     const DMS_PRODUCTS = <?= json_encode($products) ?>;
+    const RECENT_INVOICES = <?= json_encode($recentInvoices) ?>;
     const productMap = {};
     DMS_PRODUCTS.forEach(p => { productMap[p.id] = p; });
     const TARGET_SETTLEMENT_AMOUNT = <?= (float)$targetAmount ?>;
@@ -1261,40 +1268,168 @@ function billWiseResetAll() {
     });
 }
 
-function performQuickBillSearch() {
-    const q = document.getElementById('quickBillSearchInput').value.trim();
-    if (!q) return;
+let invoiceDropdownActiveIndex = -1;
+let currentDropdownInvoices = [];
+let invoiceSearchDebounceTimer = null;
 
-    fetch(`../../ajax/returns/search_invoices.php?q=${encodeURIComponent(q)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.data && data.data.length > 0) {
-                const select = document.getElementById('billWiseInvoiceSelect');
-                let found = false;
-                for (let i = 0; i < select.options.length; i++) {
-                    if (parseInt(select.options[i].value, 10) === parseInt(data.data[0].id, 10)) {
-                        select.selectedIndex = i;
-                        found = true;
-                        break;
+function formatDate(dStr) {
+    if (!dStr) return '';
+    try {
+        const parts = dStr.split('-');
+        if (parts.length === 3) {
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const m = parseInt(parts[1], 10) - 1;
+            return `${parts[2]}-${months[m] || parts[1]}`;
+        }
+        return dStr;
+    } catch {
+        return dStr;
+    }
+}
+
+function renderInvoiceDropdown(invoices, filterText = '') {
+    const listElem = document.getElementById('invoiceDropdownList');
+    if (!listElem) return;
+    currentDropdownInvoices = invoices || [];
+    invoiceDropdownActiveIndex = -1;
+
+    if (!invoices || invoices.length === 0) {
+        listElem.innerHTML = `
+            <div class="p-3 text-center text-muted small">
+                <i class="bi bi-exclamation-circle text-warning me-1"></i>
+                No bills found matching "${escapeHtml(filterText)}"
+            </div>
+        `;
+        listElem.classList.remove('d-none');
+        return;
+    }
+
+    const currentSelectedId = parseInt(document.getElementById('billWiseInvoiceSelect')?.value || 0, 10);
+
+    let html = `<div class="py-1">`;
+    invoices.forEach((inv, index) => {
+        const isSelected = (parseInt(inv.id, 10) === currentSelectedId);
+        const dateStr = inv.invoice_date ? formatDate(inv.invoice_date) : '';
+        const amtStr = parseFloat(inv.net_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+        const loadBadge = inv.load_number ? `<span class="badge ${isSelected ? 'bg-white text-primary' : 'bg-primary-subtle text-primary border'} ms-1">#${escapeHtml(inv.load_number)}</span>` : '';
+
+        html += `
+            <div class="dropdown-item py-2 px-3 border-bottom cursor-pointer invoice-dropdown-item ${isSelected ? 'active bg-primary text-white' : ''}" 
+                 id="inv_opt_${index}" 
+                 data-index="${index}" 
+                 onclick="selectInvoiceOption(${index})">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-bold ${isSelected ? 'text-white' : 'text-navy'}">
+                        <i class="bi bi-receipt me-1 ${isSelected ? 'text-white' : 'text-primary'}"></i>#${escapeHtml(inv.invoice_number)}
+                        <small class="${isSelected ? 'text-white-50' : 'text-muted'} ms-1 fw-normal">(${dateStr})</small>
+                    </span>
+                    <span class="badge ${isSelected ? 'bg-light text-dark' : 'bg-danger-subtle text-danger border border-danger-subtle'} fw-bold">
+                        Rs. ${amtStr}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center ${isSelected ? 'text-white-50' : 'text-muted'} small" style="font-size: 11.5px;">
+                    <span class="text-truncate me-2">
+                        <i class="bi bi-shop me-1"></i><strong>${escapeHtml(inv.shop_name)}</strong> &bull; ${escapeHtml(inv.area_name || 'N/A')}
+                    </span>
+                    <span>${loadBadge}</span>
+                </div>
+            </div>
+        `;
+    });
+    html += `</div>`;
+
+    listElem.innerHTML = html;
+    listElem.classList.remove('d-none');
+}
+
+function selectInvoiceOption(index) {
+    if (!currentDropdownInvoices || !currentDropdownInvoices[index]) return;
+    const inv = currentDropdownInvoices[index];
+    
+    const hiddenInput = document.getElementById('billWiseInvoiceSelect');
+    const searchInput = document.getElementById('invoiceSearchInput');
+    const clearBtn    = document.getElementById('btnClearInvoiceSelection');
+    const listElem    = document.getElementById('invoiceDropdownList');
+
+    if (hiddenInput) hiddenInput.value = inv.id;
+    if (searchInput) {
+        const dateStr = inv.invoice_date ? formatDate(inv.invoice_date) : '';
+        const amtStr = parseFloat(inv.net_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+        searchInput.value = `#${inv.invoice_number} (${dateStr}) - ${inv.shop_name} - Rs. ${amtStr}`;
+    }
+    if (clearBtn) clearBtn.classList.remove('d-none');
+    if (listElem) listElem.classList.add('d-none');
+
+    onBillWiseInvoiceSelected(inv.id);
+}
+
+function clearInvoiceSelection() {
+    const hiddenInput = document.getElementById('billWiseInvoiceSelect');
+    const searchInput = document.getElementById('invoiceSearchInput');
+    const clearBtn    = document.getElementById('btnClearInvoiceSelection');
+    const listElem    = document.getElementById('invoiceDropdownList');
+
+    if (hiddenInput) hiddenInput.value = '';
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+    if (clearBtn) clearBtn.classList.add('d-none');
+    if (listElem) listElem.classList.add('d-none');
+
+    onBillWiseInvoiceSelected('');
+}
+
+function filterInvoiceDropdown(term) {
+    const q = (term || '').trim().toLowerCase();
+    
+    // 1. Filter local RECENT_INVOICES immediately
+    const localMatches = (typeof RECENT_INVOICES !== 'undefined' ? RECENT_INVOICES : []).filter(inv => {
+        if (!q) return true;
+        const no = (inv.invoice_number || '').toLowerCase();
+        const shop = (inv.shop_name || '').toLowerCase();
+        const code = (inv.customer_code || '').toLowerCase();
+        const area = (inv.area_name || '').toLowerCase();
+        const load = (inv.load_number || '').toLowerCase();
+        return no.includes(q) || shop.includes(q) || code.includes(q) || area.includes(q) || load.includes(q);
+    });
+
+    renderInvoiceDropdown(localMatches, q);
+
+    // 2. Query backend live for full-database search
+    if (q.length >= 2) {
+        clearTimeout(invoiceSearchDebounceTimer);
+        invoiceSearchDebounceTimer = setTimeout(() => {
+            fetch(`../../ajax/returns/search_invoices.php?q=${encodeURIComponent(q)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        const seenIds = new Set(localMatches.map(m => parseInt(m.id, 10)));
+                        const combined = [...localMatches];
+                        data.data.forEach(item => {
+                            const iid = parseInt(item.id, 10);
+                            if (!seenIds.has(iid)) {
+                                seenIds.add(iid);
+                                combined.push(item);
+                            }
+                        });
+                        renderInvoiceDropdown(combined, q);
                     }
-                }
-                if (!found) {
-                    const inv = data.data[0];
-                    const opt = document.createElement('option');
-                    opt.value = inv.id;
-                    opt.text = `#${inv.invoice_number} (${inv.invoice_date}) - ${inv.shop_name} - Rs. ${parseFloat(inv.net_amount).toFixed(0)}`;
-                    select.appendChild(opt);
-                    select.value = inv.id;
-                }
-                onBillWiseInvoiceSelected(data.data[0].id);
-            } else {
-                alert(`No bills found matching "${q}"`);
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Error searching bills.');
-        });
+                })
+                .catch(() => {});
+        }, 200);
+    }
+}
+
+function highlightActiveDropdownItem() {
+    document.querySelectorAll('.invoice-dropdown-item').forEach((elem, idx) => {
+        if (idx === invoiceDropdownActiveIndex) {
+            elem.classList.add('bg-primary-subtle', 'text-primary');
+            elem.scrollIntoView({ block: 'nearest' });
+        } else {
+            elem.classList.remove('bg-primary-subtle', 'text-primary');
+        }
+    });
 }
 
 function escapeHtml(text) {
@@ -1322,15 +1457,70 @@ document.addEventListener('DOMContentLoaded', function () {
         switchReturnMode('bill_wise');
     }
 
-    const quickInput = document.getElementById('quickBillSearchInput');
-    if (quickInput) {
-        quickInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
+    const invoiceSearch = document.getElementById('invoiceSearchInput');
+    const invoiceDropdown = document.getElementById('invoiceDropdownList');
+    const btnToggleDropdown = document.getElementById('btnToggleInvoiceDropdown');
+
+    if (invoiceSearch) {
+        invoiceSearch.addEventListener('focus', function() {
+            this.select();
+            filterInvoiceDropdown(this.value);
+        });
+
+        invoiceSearch.addEventListener('input', function() {
+            filterInvoiceDropdown(this.value);
+        });
+
+        invoiceSearch.addEventListener('keydown', function(e) {
+            const isOpen = invoiceDropdown && !invoiceDropdown.classList.contains('d-none');
+
+            if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                performQuickBillSearch();
+                if (!isOpen) {
+                    filterInvoiceDropdown(this.value);
+                    return;
+                }
+                if (currentDropdownInvoices.length > 0) {
+                    invoiceDropdownActiveIndex = Math.min(invoiceDropdownActiveIndex + 1, currentDropdownInvoices.length - 1);
+                    highlightActiveDropdownItem();
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (isOpen && currentDropdownInvoices.length > 0) {
+                    invoiceDropdownActiveIndex = Math.max(invoiceDropdownActiveIndex - 1, 0);
+                    highlightActiveDropdownItem();
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (isOpen && invoiceDropdownActiveIndex >= 0 && currentDropdownInvoices[invoiceDropdownActiveIndex]) {
+                    selectInvoiceOption(invoiceDropdownActiveIndex);
+                } else if (isOpen && currentDropdownInvoices.length === 1) {
+                    selectInvoiceOption(0);
+                }
+            } else if (e.key === 'Escape') {
+                if (invoiceDropdown) invoiceDropdown.classList.add('d-none');
             }
         });
     }
+
+    if (btnToggleDropdown) {
+        btnToggleDropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (invoiceDropdown.classList.contains('d-none')) {
+                invoiceSearch.focus();
+                filterInvoiceDropdown(invoiceSearch.value);
+            } else {
+                invoiceDropdown.classList.add('d-none');
+            }
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!invoiceDropdown) return;
+        if (!invoiceDropdown.contains(e.target) && e.target !== invoiceSearch && (!btnToggleDropdown || !btnToggleDropdown.contains(e.target))) {
+            invoiceDropdown.classList.add('d-none');
+        }
+    });
 
     // Customer change loads billing history & exact rates
     customerSelect.addEventListener('change', function () {
