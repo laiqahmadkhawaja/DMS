@@ -518,10 +518,29 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <input type="hidden" name="customer_id" id="bwCustomerId" value="<?= (int)$preCustomerId ?>">
 
                 <!-- Invoice Search & Picker Bar -->
-                <div class="card border-0 shadow-sm mb-3 border-start border-4 border-primary">
-                    <div class="card-body p-3">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-md-7 position-relative">
+                <style>
+                .invoice-dropdown-item {
+                    cursor: pointer;
+                    transition: background-color 0.1s ease-in-out;
+                }
+                .invoice-dropdown-item:not(.active):hover {
+                    background-color: #f0f7ff !important;
+                }
+                .invoice-dropdown-item.active {
+                    background-color: #0d6efd !important;
+                    color: #ffffff !important;
+                }
+                .invoice-dropdown-item.active * {
+                    color: #ffffff !important;
+                }
+                .invoice-dropdown-item.highlighted:not(.active) {
+                    background-color: #e2eeff !important;
+                }
+                </style>
+                <div class="card border-0 shadow-sm mb-3 border-start border-4 border-primary" style="position: relative; overflow: visible;">
+                    <div class="card-body p-3" style="overflow: visible;">
+                        <div class="row g-2 align-items-center" style="overflow: visible;">
+                            <div class="col-md-7 position-relative" style="z-index: 1050;">
                                 <label class="form-label small fw-bold mb-1 text-primary d-flex justify-content-between align-items-center">
                                     <span><i class="bi bi-receipt me-1"></i> Select Invoice / Bill (بل منتخب یا تلاش کریں) <span class="text-danger">*</span></span>
                                     <span class="text-muted fw-normal" style="font-size: 11px;"><i class="bi bi-keyboard me-1"></i>Live Search by Bill #, Shop, or Load Sheet</span>
@@ -543,8 +562,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 </div>
 
                                 <!-- Live Searchable Floating Dropdown Menu -->
-                                <div id="invoiceDropdownList" class="dropdown-menu shadow-lg border w-100 p-0 mt-1 d-none" 
-                                     style="max-height: 330px; overflow-y: auto; z-index: 1060;">
+                                <div id="invoiceDropdownList" 
+                                     class="shadow-lg border rounded-2 p-0 mt-1" 
+                                     style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 340px; overflow-y: auto; z-index: 9999; background: #ffffff; box-shadow: 0 10px 25px rgba(0,0,0,0.18) !important;">
                                 </div>
                             </div>
                             <div class="col-md-5">
@@ -1300,7 +1320,7 @@ function renderInvoiceDropdown(invoices, filterText = '') {
                 No bills found matching "${escapeHtml(filterText)}"
             </div>
         `;
-        listElem.classList.remove('d-none');
+        listElem.style.display = 'block';
         return;
     }
 
@@ -1314,9 +1334,10 @@ function renderInvoiceDropdown(invoices, filterText = '') {
         const loadBadge = inv.load_number ? `<span class="badge ${isSelected ? 'bg-white text-primary' : 'bg-primary-subtle text-primary border'} ms-1">#${escapeHtml(inv.load_number)}</span>` : '';
 
         html += `
-            <div class="dropdown-item py-2 px-3 border-bottom cursor-pointer invoice-dropdown-item ${isSelected ? 'active bg-primary text-white' : ''}" 
+            <div class="py-2 px-3 border-bottom invoice-dropdown-item ${isSelected ? 'active' : ''}" 
                  id="inv_opt_${index}" 
                  data-index="${index}" 
+                 onmousedown="selectInvoiceOption(${index}); event.preventDefault();"
                  onclick="selectInvoiceOption(${index})">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold ${isSelected ? 'text-white' : 'text-navy'}">
@@ -1339,7 +1360,19 @@ function renderInvoiceDropdown(invoices, filterText = '') {
     html += `</div>`;
 
     listElem.innerHTML = html;
-    listElem.classList.remove('d-none');
+    listElem.style.display = 'block';
+
+    // Auto-highlight selected bill or top result
+    if (currentSelectedId > 0) {
+        const selectedIdx = invoices.findIndex(i => parseInt(i.id, 10) === currentSelectedId);
+        if (selectedIdx >= 0) {
+            invoiceDropdownActiveIndex = selectedIdx;
+            const optElem = document.getElementById(`inv_opt_${selectedIdx}`);
+            if (optElem) {
+                setTimeout(() => optElem.scrollIntoView({ block: 'nearest' }), 10);
+            }
+        }
+    }
 }
 
 function selectInvoiceOption(index) {
@@ -1355,10 +1388,12 @@ function selectInvoiceOption(index) {
     if (searchInput) {
         const dateStr = inv.invoice_date ? formatDate(inv.invoice_date) : '';
         const amtStr = parseFloat(inv.net_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
-        searchInput.value = `#${inv.invoice_number} (${dateStr}) - ${inv.shop_name} - Rs. ${amtStr}`;
+        const label = `#${inv.invoice_number} (${dateStr}) - ${inv.shop_name} - Rs. ${amtStr}`;
+        searchInput.value = label;
+        searchInput.setAttribute('data-selected-label', label);
     }
     if (clearBtn) clearBtn.classList.remove('d-none');
-    if (listElem) listElem.classList.add('d-none');
+    if (listElem) listElem.style.display = 'none';
 
     onBillWiseInvoiceSelected(inv.id);
 }
@@ -1372,35 +1407,42 @@ function clearInvoiceSelection() {
     if (hiddenInput) hiddenInput.value = '';
     if (searchInput) {
         searchInput.value = '';
+        searchInput.removeAttribute('data-selected-label');
         searchInput.focus();
     }
     if (clearBtn) clearBtn.classList.add('d-none');
-    if (listElem) listElem.classList.add('d-none');
+    if (listElem) listElem.style.display = 'none';
 
     onBillWiseInvoiceSelected('');
 }
 
 function filterInvoiceDropdown(term) {
-    const q = (term || '').trim().toLowerCase();
+    const searchInput = document.getElementById('invoiceSearchInput');
+    const selectedLabel = (searchInput ? searchInput.getAttribute('data-selected-label') : '') || '';
+    
+    let rawTerm = (term || '').trim();
+    // If the input text is exactly what was previously selected, show all invoices
+    if (rawTerm && selectedLabel && rawTerm === selectedLabel) {
+        rawTerm = '';
+    }
+
+    const q = rawTerm.toLowerCase();
+    const tokens = q.split(/\s+/).filter(t => t.length > 0);
     
     // 1. Filter local RECENT_INVOICES immediately
     const localMatches = (typeof RECENT_INVOICES !== 'undefined' ? RECENT_INVOICES : []).filter(inv => {
-        if (!q) return true;
-        const no = (inv.invoice_number || '').toLowerCase();
-        const shop = (inv.shop_name || '').toLowerCase();
-        const code = (inv.customer_code || '').toLowerCase();
-        const area = (inv.area_name || '').toLowerCase();
-        const load = (inv.load_number || '').toLowerCase();
-        return no.includes(q) || shop.includes(q) || code.includes(q) || area.includes(q) || load.includes(q);
+        if (tokens.length === 0) return true;
+        const hay = `${inv.invoice_number || ''} ${inv.shop_name || ''} ${inv.customer_code || ''} ${inv.area_name || ''} ${inv.load_number || ''} ${inv.salesman_name || ''} ${inv.net_amount || ''}`.toLowerCase();
+        return tokens.every(t => hay.includes(t));
     });
 
     renderInvoiceDropdown(localMatches, q);
 
     // 2. Query backend live for full-database search
-    if (q.length >= 2) {
+    if (tokens.length > 0 && q.length >= 2) {
         clearTimeout(invoiceSearchDebounceTimer);
         invoiceSearchDebounceTimer = setTimeout(() => {
-            fetch(`../../ajax/returns/search_invoices.php?q=${encodeURIComponent(q)}`)
+            fetch(`../../ajax/returns/search_invoices.php?q=${encodeURIComponent(rawTerm)}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success && data.data) {
@@ -1417,17 +1459,17 @@ function filterInvoiceDropdown(term) {
                     }
                 })
                 .catch(() => {});
-        }, 200);
+        }, 150);
     }
 }
 
 function highlightActiveDropdownItem() {
     document.querySelectorAll('.invoice-dropdown-item').forEach((elem, idx) => {
         if (idx === invoiceDropdownActiveIndex) {
-            elem.classList.add('bg-primary-subtle', 'text-primary');
+            elem.classList.add('highlighted');
             elem.scrollIntoView({ block: 'nearest' });
         } else {
-            elem.classList.remove('bg-primary-subtle', 'text-primary');
+            elem.classList.remove('highlighted');
         }
     });
 }
@@ -1462,8 +1504,16 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnToggleDropdown = document.getElementById('btnToggleInvoiceDropdown');
 
     if (invoiceSearch) {
+        if (invoiceSearch.value.trim().length > 0) {
+            invoiceSearch.setAttribute('data-selected-label', invoiceSearch.value.trim());
+        }
+
         invoiceSearch.addEventListener('focus', function() {
             this.select();
+            filterInvoiceDropdown(this.value);
+        });
+
+        invoiceSearch.addEventListener('click', function() {
             filterInvoiceDropdown(this.value);
         });
 
@@ -1472,7 +1522,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         invoiceSearch.addEventListener('keydown', function(e) {
-            const isOpen = invoiceDropdown && !invoiceDropdown.classList.contains('d-none');
+            const isOpen = invoiceDropdown && invoiceDropdown.style.display === 'block';
 
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -1498,7 +1548,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     selectInvoiceOption(0);
                 }
             } else if (e.key === 'Escape') {
-                if (invoiceDropdown) invoiceDropdown.classList.add('d-none');
+                if (invoiceDropdown) invoiceDropdown.style.display = 'none';
             }
         });
     }
@@ -1506,11 +1556,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnToggleDropdown) {
         btnToggleDropdown.addEventListener('click', function(e) {
             e.stopPropagation();
-            if (invoiceDropdown.classList.contains('d-none')) {
+            if (!invoiceDropdown || invoiceDropdown.style.display !== 'block') {
                 invoiceSearch.focus();
-                filterInvoiceDropdown(invoiceSearch.value);
+                filterInvoiceDropdown('');
             } else {
-                invoiceDropdown.classList.add('d-none');
+                invoiceDropdown.style.display = 'none';
             }
         });
     }
@@ -1518,24 +1568,29 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('click', function(e) {
         if (!invoiceDropdown) return;
         if (!invoiceDropdown.contains(e.target) && e.target !== invoiceSearch && (!btnToggleDropdown || !btnToggleDropdown.contains(e.target))) {
-            invoiceDropdown.classList.add('d-none');
+            invoiceDropdown.style.display = 'none';
         }
     });
 
     // Customer change loads billing history & exact rates
-    customerSelect.addEventListener('change', function () {
-        onCustomerChanged(this.value);
-    });
+    if (customerSelect) {
+        customerSelect.addEventListener('change', function () {
+            onCustomerChanged(this.value);
+        });
 
-    // If pre-selected customer
-    if (customerSelect.value) {
-        onCustomerChanged(customerSelect.value, PRE_INVOICE_ID);
+        // If pre-selected customer
+        if (customerSelect.value) {
+            onCustomerChanged(customerSelect.value, PRE_INVOICE_ID);
+        }
     }
 
     // Invoice selection change
-    invoiceSelect.addEventListener('change', function () {
-        onInvoiceChanged(this.value);
-    });
+    const invSelect = document.getElementById('invoiceSelect');
+    if (invSelect) {
+        invSelect.addEventListener('change', function () {
+            onInvoiceChanged(this.value);
+        });
+    }
 
     // Global condition change updates summary label
     conditionSelect.addEventListener('change', function () {
