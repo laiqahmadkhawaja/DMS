@@ -344,8 +344,11 @@ function whatsapp_send_text(string $phone, string $message, ?array $configOverri
     ];
 
     // 1. Try Modern Open-WA: /api/sessions/{sessionId}/messages/send-text
-    $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-text", 'POST', $payload, 12, $configOverride);
+    $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-text", 'POST', $payload, 16, $configOverride);
     if ($res['success']) {
+        return $res;
+    }
+    if ($res['status'] !== 404 && $res['status'] !== 0) {
         return $res;
     }
 
@@ -386,60 +389,97 @@ function whatsapp_send_file(string $phone, string $base64OrDataUri, string $file
         $configOverride['api_key'] ?? null,
         $configOverride['session_id'] ?? null
     );
+    if (empty($cfg['base_url'])) {
+        return ['success' => false, 'error' => 'Open-WA server URL is not configured.'];
+    }
     $sId = $cfg['session_id'];
 
-    // Ensure data URI prefix if raw base64
-    if (!str_starts_with($base64OrDataUri, 'data:')) {
-        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        $mime = match ($ext) {
-            'pdf' => 'application/pdf',
-            'png' => 'image/png',
-            'jpg', 'jpeg' => 'image/jpeg',
-            'webp' => 'image/webp',
-            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            default => 'application/octet-stream'
-        };
-        $base64OrDataUri = "data:{$mime};base64," . $base64OrDataUri;
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $mime = match ($ext) {
+        'pdf' => 'application/pdf',
+        'png' => 'image/png',
+        'jpg', 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'xls' => 'application/vnd.ms-excel',
+        'csv' => 'text/csv',
+        default => 'application/octet-stream'
+    };
+
+    $isImage = in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif'], true);
+
+    // Extract raw base64 and data URI prefix
+    if (str_starts_with($base64OrDataUri, 'data:')) {
+        $dataUri = $base64OrDataUri;
+        $parts = explode(',', $base64OrDataUri, 2);
+        $rawBase64 = $parts[1] ?? $base64OrDataUri;
+    } else {
+        $rawBase64 = $base64OrDataUri;
+        $dataUri = "data:{$mime};base64," . $base64OrDataUri;
     }
 
+    // Build payload matching Open-WA Gateway SendMediaMessageDto and legacy schemas
     $payload = [
         'chatId'    => $jid,
         'to'        => $jid,
-        'file'      => $base64OrDataUri,
+        'phone'     => $jid,
+        'base64'    => $rawBase64,
+        'mimetype'  => $mime,
+        'mime'      => $mime,
         'filename'  => $filename,
+        'file'      => $dataUri,
         'caption'   => $caption,
         'text'      => $caption,
         'session'   => $sId,
         'sessionId' => $sId
     ];
 
-    // 1. Try Modern Open-WA: /api/sessions/{sessionId}/messages/send-file
-    $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-file", 'POST', $payload, 16, $configOverride);
-    if ($res['success']) {
-        return $res;
-    }
+    // Priority 1: Modern Open-WA Gateway endpoints
+    $modernEndpoints = $isImage
+        ? [
+            "/api/sessions/" . urlencode($sId) . "/messages/send-image",
+            "/api/sessions/" . urlencode($sId) . "/messages/send-document",
+            "/api/sessions/" . urlencode($sId) . "/messages/send-file"
+          ]
+        : [
+            "/api/sessions/" . urlencode($sId) . "/messages/send-document",
+            "/api/sessions/" . urlencode($sId) . "/messages/send-file",
+            "/api/sessions/" . urlencode($sId) . "/messages/send-image"
+          ];
 
-    // 2. Try Modern Open-WA send-file-from-base64
-    if ($res['status'] === 404) {
-        $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-file-from-base64", 'POST', $payload, 16, $configOverride);
+    foreach ($modernEndpoints as $ep) {
+        $res = whatsapp_api_request($ep, 'POST', $payload, 20, $configOverride);
         if ($res['success']) {
+            return $res;
+        }
+        // If not a 404 route error, return the actual failure response from server
+        if ($res['status'] !== 404 && $res['status'] !== 0) {
             return $res;
         }
     }
 
-    // 3. Try Classic Open-WA with session prefix: /{sessionId}/sendFileFromBase64
-    if ($res['status'] === 404) {
-        $res = whatsapp_api_request("/" . urlencode($sId) . "/sendFileFromBase64", 'POST', $payload, 16, $configOverride);
+    // Priority 2: Classic / Legacy Open-WA endpoints fallback
+    $legacyEndpoints = $isImage
+        ? [
+            "/" . urlencode($sId) . "/sendImage",
+            "/" . urlencode($sId) . "/sendFile",
+            "/" . urlencode($sId) . "/sendFileFromBase64",
+            "/sendImage",
+            "/sendFile",
+            "/sendFileFromBase64"
+          ]
+        : [
+            "/" . urlencode($sId) . "/sendFile",
+            "/" . urlencode($sId) . "/sendFileFromBase64",
+            "/sendFile",
+            "/sendFileFromBase64"
+          ];
+
+    foreach ($legacyEndpoints as $ep) {
+        $res = whatsapp_api_request($ep, 'POST', $payload, 20, $configOverride);
         if ($res['success']) {
             return $res;
-        }
-    }
-
-    // 4. Try Classic Open-WA root: /sendFileFromBase64 then /sendFile
-    if ($res['status'] === 404) {
-        $res = whatsapp_api_request('/sendFileFromBase64', 'POST', $payload, 16, $configOverride);
-        if (!$res['success']) {
-            $res = whatsapp_api_request('/sendFile', 'POST', $payload, 16, $configOverride);
         }
     }
 
