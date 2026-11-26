@@ -18,10 +18,28 @@ if (!is_logged_in()) {
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+// Support live configuration overrides passed from frontend form (before settings are saved)
+$rawApiUrl = $_POST['api_url'] ?? $_GET['api_url'] ?? null;
+$rawApiKey = $_POST['api_key'] ?? $_GET['api_key'] ?? null;
+$rawSessionId = $_POST['session_id'] ?? $_GET['session_id'] ?? null;
+
+$apiUrl = ($rawApiUrl !== null && trim($rawApiUrl) !== '') ? trim($rawApiUrl) : null;
+$apiKey = ($rawApiKey !== null && trim($rawApiKey) !== '') ? trim($rawApiKey) : null;
+$sessionId = ($rawSessionId !== null && trim($rawSessionId) !== '') ? trim($rawSessionId) : null;
+
+$liveConfigOverride = null;
+if ($apiUrl !== null || $apiKey !== null || $sessionId !== null) {
+    $liveConfigOverride = [
+        'base_url'   => $apiUrl,
+        'api_key'    => $apiKey,
+        'session_id' => $sessionId
+    ];
+}
+
 try {
     switch ($action) {
         case 'test_connection':
-            $status = whatsapp_check_connection();
+            $status = whatsapp_check_connection($apiUrl, $apiKey, $sessionId);
             if ($status['connected']) {
                 echo json_encode([
                     'success' => true,
@@ -66,7 +84,7 @@ try {
                 exit;
             }
 
-            $res = whatsapp_send_text($phone, $message);
+            $res = whatsapp_send_text($phone, $message, $liveConfigOverride);
             if ($res['success']) {
                 echo json_encode([
                     'success' => true,
@@ -96,9 +114,9 @@ try {
                 $uploaded = $_FILES['file'];
                 $data = file_get_contents($uploaded['tmp_name']);
                 $b64 = base64_encode($data);
-                $res = whatsapp_send_file($phone, $b64, $uploaded['name'], $caption);
+                $res = whatsapp_send_file($phone, $b64, $uploaded['name'], $caption, $liveConfigOverride);
             } elseif (!empty($_POST['file_base64']) && !empty($_POST['filename'])) {
-                $res = whatsapp_send_file($phone, $_POST['file_base64'], $_POST['filename'], $caption);
+                $res = whatsapp_send_file($phone, $_POST['file_base64'], $_POST['filename'], $caption, $liveConfigOverride);
             } else {
                 echo json_encode(['success' => false, 'message' => 'No file (PDF or picture) was uploaded.']);
                 exit;

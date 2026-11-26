@@ -312,22 +312,37 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label small fw-semibold">Open-WA Server Base URL</label>
+                                <label class="form-label small fw-semibold">Open-WA Server Base URL (HTTP or HTTPS)</label>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text bg-light"><i class="bi bi-hdd-network"></i></span>
                                     <input type="text" name="settings[whatsapp_api_url]" id="waApiUrl" class="form-control" 
-                                           value="<?= htmlspecialchars(get_setting('whatsapp_api_url', 'http://localhost:8080')) ?>" placeholder="http://localhost:8080">
+                                           value="<?= htmlspecialchars(get_setting('whatsapp_api_url', 'http://localhost:8080')) ?>" placeholder="https://wa.darwarqamgrw.in or http://localhost:8080">
                                     <button type="button" class="btn btn-outline-success" id="btnTestOpenWa">
                                         <i class="bi bi-plug-fill me-1"></i> Test Connection
                                     </button>
                                 </div>
-                                <small class="text-muted" style="font-size:0.75rem;">Your hosted Open-WA API address (e.g. <code>http://localhost:8080</code> or <code>http://192.168.1.50:8080</code>)</small>
+                                <small class="text-muted" style="font-size:0.75rem;">Your hosted Open-WA API address (e.g. <code>https://wa.darwarqamgrw.in</code> or <code>http://localhost:8080</code>. Supports both HTTP and HTTPS).</small>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label small fw-semibold">API Secret Key (Optional)</label>
-                                <input type="password" name="settings[whatsapp_api_key]" class="form-control form-control-sm" 
-                                       value="<?= htmlspecialchars(get_setting('whatsapp_api_key', '')) ?>" placeholder="Leave blank if no key is configured on server">
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">Session ID / Name</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-person-badge"></i></span>
+                                        <input type="text" name="settings[whatsapp_session_id]" id="waSessionId" class="form-control" 
+                                               value="<?= htmlspecialchars(get_setting('whatsapp_session_id', 'default')) ?>" placeholder="default">
+                                    </div>
+                                    <small class="text-muted" style="font-size:0.75rem;">Open-WA session identifier (default: <code>default</code>)</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold">API Secret Key (Optional)</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-key"></i></span>
+                                        <input type="password" name="settings[whatsapp_api_key]" id="waApiKey" class="form-control" 
+                                               value="<?= htmlspecialchars(get_setting('whatsapp_api_key', '')) ?>" placeholder="Leave blank if no key required">
+                                    </div>
+                                    <small class="text-muted" style="font-size:0.75rem;">Optional auth key configured on your server</small>
+                                </div>
                             </div>
 
                             <div class="form-check mb-3">
@@ -460,6 +475,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const badge = document.getElementById('openwaLiveBadge');
     if (btnTest) {
         btnTest.addEventListener('click', async function() {
+            const apiUrl = document.getElementById('waApiUrl')?.value?.trim() || '';
+            const apiKey = document.getElementById('waApiKey')?.value?.trim() || '';
+            const sessionId = document.getElementById('waSessionId')?.value?.trim() || '';
+
             btnTest.disabled = true;
             const originalHtml = btnTest.innerHTML;
             btnTest.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking...';
@@ -467,7 +486,18 @@ document.addEventListener('DOMContentLoaded', function() {
             badge.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i> Checking server...';
 
             try {
-                const res = await dmsFetch('<?= APP_URL ?>/ajax/whatsapp/send.php?action=test_connection');
+                const fd = new FormData();
+                fd.append('action', 'test_connection');
+                fd.append('api_url', apiUrl);
+                fd.append('api_key', apiKey);
+                fd.append('session_id', sessionId);
+
+                const res = await fetch('<?= APP_URL ?>/ajax/whatsapp/send.php', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                }).then(r => r.json());
+
                 if (res && res.success) {
                     badge.className = 'badge bg-success bg-opacity-10 text-success border border-success';
                     badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> ' + (res.data?.host_number ? 'Online (' + res.data.host_number + ')' : 'Online');
@@ -475,10 +505,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     badge.className = 'badge bg-danger bg-opacity-10 text-danger border border-danger';
                     badge.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i> ' + ((res && res.message) ? res.message : 'Offline / Error');
+                    showToast(res && res.message ? res.message : 'Connection failed', 'danger');
                 }
             } catch (e) {
                 badge.className = 'badge bg-danger bg-opacity-10 text-danger border border-danger';
                 badge.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i> Unreachable';
+                showToast('Unable to connect to WhatsApp server: ' + e.message, 'danger');
             } finally {
                 btnTest.disabled = false;
                 btnTest.innerHTML = originalHtml;
@@ -499,6 +531,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            const apiUrl = document.getElementById('waApiUrl')?.value?.trim() || '';
+            const apiKey = document.getElementById('waApiKey')?.value?.trim() || '';
+            const sessionId = document.getElementById('waSessionId')?.value?.trim() || '';
+
             btnSendTest.disabled = true;
             const origHtml = btnSendTest.innerHTML;
             btnSendTest.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
@@ -510,6 +546,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const fd = new FormData();
                 fd.append('action', 'send_test_message');
                 fd.append('phone', phone);
+                fd.append('api_url', apiUrl);
+                fd.append('api_key', apiKey);
+                fd.append('session_id', sessionId);
 
                 const res = await fetch('<?= APP_URL ?>/ajax/whatsapp/send.php', {
                     method: 'POST',
@@ -553,6 +592,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            const apiUrl = document.getElementById('waApiUrl')?.value?.trim() || '';
+            const apiKey = document.getElementById('waApiKey')?.value?.trim() || '';
+            const sessionId = document.getElementById('waSessionId')?.value?.trim() || '';
+
             const file = testFileInput.files[0];
             btnSendTestFile.disabled = true;
             const origHtml = btnSendTestFile.innerHTML;
@@ -567,6 +610,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 fd.append('phone', phone);
                 fd.append('caption', 'Test file transmission from DMS (' + file.name + ')');
                 fd.append('file', file);
+                fd.append('api_url', apiUrl);
+                fd.append('api_key', apiKey);
+                fd.append('session_id', sessionId);
 
                 const res = await fetch('<?= APP_URL ?>/ajax/whatsapp/send.php', {
                     method: 'POST',

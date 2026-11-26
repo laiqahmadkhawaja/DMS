@@ -53,6 +53,58 @@ function whatsapp_format_number(string $phone, ?string $defaultCountryCode = nul
 }
 
 /**
+ * Normalize Open-WA API Base URL to guarantee proper http:// or https:// protocol
+ *
+ * @param string $url
+ * @return string
+ */
+function whatsapp_normalize_url(string $url): string {
+    $url = trim($url);
+    if (empty($url)) {
+        return '';
+    }
+
+    // Check if protocol is already specified (http:// or https://)
+    if (!preg_match('#^https?://#i', $url)) {
+        // If domain has extension or subdomain and is not a local private IP, default to https://
+        if (str_contains($url, '.') && !str_starts_with($url, '192.168.') && !str_starts_with($url, '10.') && !str_starts_with($url, '127.0.0.1') && !str_starts_with($url, 'localhost')) {
+            $url = 'https://' . $url;
+        } else {
+            $url = 'http://' . $url;
+        }
+    }
+
+    return rtrim($url, '/');
+}
+
+/**
+ * Get active Open-WA configuration with optional runtime overrides
+ *
+ * @param string|null $baseUrl
+ * @param string|null $apiKey
+ * @param string|null $sessionId
+ * @return array ['base_url' => string, 'api_key' => string, 'session_id' => string, 'is_https' => bool]
+ */
+function whatsapp_get_config(?string $baseUrl = null, ?string $apiKey = null, ?string $sessionId = null): array {
+    $rawUrl = $baseUrl !== null ? $baseUrl : (string)get_setting('whatsapp_api_url', 'http://localhost:8080');
+    $normalizedUrl = whatsapp_normalize_url($rawUrl);
+
+    $resolvedApiKey = $apiKey !== null ? trim($apiKey) : trim((string)get_setting('whatsapp_api_key', ''));
+    $resolvedSession = $sessionId !== null ? trim($sessionId) : trim((string)get_setting('whatsapp_session_id', 'default'));
+
+    if (empty($resolvedSession)) {
+        $resolvedSession = 'default';
+    }
+
+    return [
+        'base_url'   => $normalizedUrl,
+        'api_key'    => $resolvedApiKey,
+        'session_id' => $resolvedSession,
+        'is_https'   => str_starts_with(strtolower($normalizedUrl), 'https://')
+    ];
+}
+
+/**
  * Check if WhatsApp service is enabled in DMS settings
  *
  * @return bool
@@ -62,41 +114,64 @@ function whatsapp_is_enabled(): bool {
 }
 
 /**
- * Execute HTTP REST API Request to self-hosted Open-WA server
+ * Execute HTTP REST API Request to self-hosted Open-WA server (supports HTTP and HTTPS)
  *
- * @param string $endpoint e.g. '/sendText', '/sendFile', '/getHostNumber'
+ * @param string $endpoint e.g. '/sendText', '/sendFile', '/api/sessions/{sessionId}/messages/send-text'
  * @param string $method 'POST' or 'GET'
  * @param array $payload
  * @param int $timeoutSeconds
+ * @param array|null $configOverride ['base_url' => ..., 'api_key' => ..., 'session_id' => ...]
  * @return array ['success' => bool, 'status' => int, 'response' => mixed, 'error' => ?string]
  */
-function whatsapp_api_request(string $endpoint, string $method = 'POST', array $payload = [], int $timeoutSeconds = 12): array {
-    $baseUrl = rtrim((string)get_setting('whatsapp_api_url', 'http://localhost:8080'), '/');
+function whatsapp_api_request(string $endpoint, string $method = 'POST', array $payload = [], int $timeoutSeconds = 12, ?array $configOverride = null): array {
+    $cfg = whatsapp_get_config(
+        $configOverride['base_url'] ?? null,
+        $configOverride['api_key'] ?? null,
+        $configOverride['session_id'] ?? null
+    );
+
+    $baseUrl = $cfg['base_url'];
     if (empty($baseUrl)) {
         return ['success' => false, 'status' => 0, 'response' => null, 'error' => 'Open-WA server URL is not configured.'];
     }
 
+    $apiKey    = $cfg['api_key'];
+    $sessionId = $cfg['session_id'];
+
     $url = $baseUrl . '/' . ltrim($endpoint, '/');
-    $apiKey = trim((string)get_setting('whatsapp_api_key', ''));
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeoutSeconds);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 6);
+    
+    // Support both HTTP and HTTPS (including self-signed or custom domain certs)
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 4);
 
     $headers = [
         'Content-Type: application/json',
         'Accept: application/json'
     ];
     if (!empty($apiKey)) {
+        $headers[] = 'X-API-Key: ' . $apiKey;
         $headers[] = 'api_key: ' . $apiKey;
         $headers[] = 'Authorization: Bearer ' . $apiKey;
     }
+    if (!empty($sessionId)) {
+        $headers[] = 'session: ' . $sessionId;
+        $headers[] = 'sessionId: ' . $sessionId;
+        $headers[] = 'X-Session-Id: ' . $sessionId;
+    }
 
     if (strtoupper($method) === 'POST') {
+        if (!empty($sessionId)) {
+            if (!isset($payload['session'])) $payload['session'] = $sessionId;
+            if (!isset($payload['sessionId'])) $payload['sessionId'] = $sessionId;
+        }
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE));
     } else {
@@ -131,34 +206,68 @@ function whatsapp_api_request(string $endpoint, string $method = 'POST', array $
 }
 
 /**
- * Check connection status with self-hosted Open-WA server
+ * Check connection status with self-hosted Open-WA server (supports both HTTP and HTTPS, with Session ID)
  *
+ * @param string|null $baseUrl Optional live URL from form
+ * @param string|null $apiKey Optional live API key from form
+ * @param string|null $sessionId Optional live Session ID from form
  * @return array
  */
-function whatsapp_check_connection(): array {
-    // 1. Try getHostNumber or getMe endpoint
-    $res = whatsapp_api_request('/getHostNumber', 'GET', [], 5);
-    if ($res['success']) {
-        return [
-            'connected'   => true,
-            'host_number' => $res['response']['response'] ?? $res['response'] ?? 'Connected',
-            'details'     => 'Open-WA server online and authenticated.'
-        ];
-    }
+function whatsapp_check_connection(?string $baseUrl = null, ?string $apiKey = null, ?string $sessionId = null): array {
+    $cfg = whatsapp_get_config($baseUrl, $apiKey, $sessionId);
+    $sId = $cfg['session_id'];
+    $override = ['base_url' => $cfg['base_url'], 'api_key' => $cfg['api_key'], 'session_id' => $sId];
 
-    // 2. Try pinging root or battery
-    $resPing = whatsapp_api_request('/getBatteryLevel', 'GET', [], 4);
-    if ($resPing['success']) {
-        return [
-            'connected'   => true,
-            'host_number' => 'Online',
-            'details'     => 'Open-WA server online.'
-        ];
+    // Try multiple standard endpoints in order across both modern and legacy Open-WA deployments
+    $testEndpoints = [
+        "/api/sessions/" . urlencode($sId) . "/status",
+        "/api/sessions/" . urlencode($sId),
+        "/api/sessions",
+        "/" . urlencode($sId) . "/getHostNumber",
+        "/getHostNumber",
+        "/" . urlencode($sId) . "/getBatteryLevel",
+        "/getBatteryLevel",
+        "/api/" . urlencode($sId) . "/status-session",
+        "/status",
+        "/health",
+        "/"
+    ];
+
+    $lastError = 'Could not connect to Open-WA server.';
+    $lastStatus = 0;
+
+    foreach ($testEndpoints as $ep) {
+        $res = whatsapp_api_request($ep, 'GET', [], 4, $override);
+        if ($res['success']) {
+            $hostNo = 'Online';
+            if (is_array($res['response'])) {
+                $hostNo = $res['response']['response'] ?? $res['response']['status'] ?? $res['response']['host'] ?? 'Connected';
+            } elseif (is_string($res['response']) && strlen($res['response']) < 50) {
+                $hostNo = $res['response'];
+            }
+            return [
+                'connected'   => true,
+                'host_number' => $hostNo,
+                'details'     => "Open-WA server online ({$cfg['base_url']}) with Session: {$sId}"
+            ];
+        }
+
+        $lastStatus = $res['status'];
+        if ($res['status'] === 401 || $res['status'] === 403) {
+            return [
+                'connected' => false,
+                'error'     => "Server reached at {$cfg['base_url']}, but Authentication failed (HTTP {$res['status']}). Check your API Secret Key."
+            ];
+        }
+
+        if (!empty($res['error'])) {
+            $lastError = $res['error'];
+        }
     }
 
     return [
         'connected' => false,
-        'error'     => $res['error'] ?: 'Could not connect to Open-WA session.'
+        'error'     => $lastError
     ];
 }
 
@@ -167,23 +276,54 @@ function whatsapp_check_connection(): array {
  *
  * @param string $phone Customer/User mobile number
  * @param string $message Text content with standard WhatsApp markdown (*bold*, _italic_, etc.)
+ * @param array|null $configOverride Optional live config
  * @return array
  */
-function whatsapp_send_text(string $phone, string $message): array {
+function whatsapp_send_text(string $phone, string $message, ?array $configOverride = null): array {
     $jid = whatsapp_format_number($phone);
     if (!$jid) {
         return ['success' => false, 'error' => 'Invalid mobile phone number provided.'];
     }
 
-    // Open-WA supports both {to, content} and {chatId, body} formats
+    $cfg = whatsapp_get_config(
+        $configOverride['base_url'] ?? null,
+        $configOverride['api_key'] ?? null,
+        $configOverride['session_id'] ?? null
+    );
+    $sId = $cfg['session_id'];
+
+    // Universal payload covering Modern OpenWA, Classic OpenWA, and WPPConnect
     $payload = [
-        'to'      => $jid,
-        'chatId'  => $jid,
-        'content' => $message,
-        'body'    => $message
+        'chatId'    => $jid,
+        'to'        => $jid,
+        'text'      => $message,
+        'content'   => $message,
+        'body'      => $message,
+        'message'   => $message,
+        'session'   => $sId,
+        'sessionId' => $sId
     ];
 
-    return whatsapp_api_request('/sendText', 'POST', $payload);
+    // 1. Try Modern Open-WA: /api/sessions/{sessionId}/messages/send-text
+    $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-text", 'POST', $payload, 12, $configOverride);
+    if ($res['success']) {
+        return $res;
+    }
+
+    // 2. Try Classic Open-WA with session prefix: /{sessionId}/sendText
+    if ($res['status'] === 404) {
+        $res = whatsapp_api_request("/" . urlencode($sId) . "/sendText", 'POST', $payload, 12, $configOverride);
+        if ($res['success']) {
+            return $res;
+        }
+    }
+
+    // 3. Try Classic Open-WA root: /sendText
+    if ($res['status'] === 404) {
+        $res = whatsapp_api_request('/sendText', 'POST', $payload, 12, $configOverride);
+    }
+
+    return $res;
 }
 
 /**
@@ -193,13 +333,21 @@ function whatsapp_send_text(string $phone, string $message): array {
  * @param string $base64OrDataUri Raw base64 string or data:application/pdf;base64,...
  * @param string $filename Name of attachment (e.g. "Invoice_1001.pdf")
  * @param string $caption Optional message caption
+ * @param array|null $configOverride Optional live config
  * @return array
  */
-function whatsapp_send_file(string $phone, string $base64OrDataUri, string $filename, string $caption = ''): array {
+function whatsapp_send_file(string $phone, string $base64OrDataUri, string $filename, string $caption = '', ?array $configOverride = null): array {
     $jid = whatsapp_format_number($phone);
     if (!$jid) {
         return ['success' => false, 'error' => 'Invalid mobile phone number provided.'];
     }
+
+    $cfg = whatsapp_get_config(
+        $configOverride['base_url'] ?? null,
+        $configOverride['api_key'] ?? null,
+        $configOverride['session_id'] ?? null
+    );
+    $sId = $cfg['session_id'];
 
     // Ensure data URI prefix if raw base64
     if (!str_starts_with($base64OrDataUri, 'data:')) {
@@ -208,6 +356,7 @@ function whatsapp_send_file(string $phone, string $base64OrDataUri, string $file
             'pdf' => 'application/pdf',
             'png' => 'image/png',
             'jpg', 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
             'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             default => 'application/octet-stream'
         };
@@ -215,17 +364,44 @@ function whatsapp_send_file(string $phone, string $base64OrDataUri, string $file
     }
 
     $payload = [
-        'to'       => $jid,
-        'chatId'   => $jid,
-        'file'     => $base64OrDataUri,
-        'filename' => $filename,
-        'caption'  => $caption
+        'chatId'    => $jid,
+        'to'        => $jid,
+        'file'      => $base64OrDataUri,
+        'filename'  => $filename,
+        'caption'   => $caption,
+        'text'      => $caption,
+        'session'   => $sId,
+        'sessionId' => $sId
     ];
 
-    // Try /sendFileFromBase64 first, fallback to /sendFile
-    $res = whatsapp_api_request('/sendFileFromBase64', 'POST', $payload);
-    if (!$res['success']) {
-        $res = whatsapp_api_request('/sendFile', 'POST', $payload);
+    // 1. Try Modern Open-WA: /api/sessions/{sessionId}/messages/send-file
+    $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-file", 'POST', $payload, 16, $configOverride);
+    if ($res['success']) {
+        return $res;
+    }
+
+    // 2. Try Modern Open-WA send-file-from-base64
+    if ($res['status'] === 404) {
+        $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-file-from-base64", 'POST', $payload, 16, $configOverride);
+        if ($res['success']) {
+            return $res;
+        }
+    }
+
+    // 3. Try Classic Open-WA with session prefix: /{sessionId}/sendFileFromBase64
+    if ($res['status'] === 404) {
+        $res = whatsapp_api_request("/" . urlencode($sId) . "/sendFileFromBase64", 'POST', $payload, 16, $configOverride);
+        if ($res['success']) {
+            return $res;
+        }
+    }
+
+    // 4. Try Classic Open-WA root: /sendFileFromBase64 then /sendFile
+    if ($res['status'] === 404) {
+        $res = whatsapp_api_request('/sendFileFromBase64', 'POST', $payload, 16, $configOverride);
+        if (!$res['success']) {
+            $res = whatsapp_api_request('/sendFile', 'POST', $payload, 16, $configOverride);
+        }
     }
 
     return $res;

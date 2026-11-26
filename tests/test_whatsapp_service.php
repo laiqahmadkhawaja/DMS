@@ -70,6 +70,40 @@ $testB64 = base64_encode($testData);
 assert(!empty($testB64), "Base64 encoding should work");
 echo "  [PASS] Base64 encode verified\n";
 
+echo "\nTesting URL Normalization & Protocol Handling...\n";
+$u1 = whatsapp_normalize_url('wa.darwarqamgrw.in');
+assert($u1 === 'https://wa.darwarqamgrw.in', "Expected https://wa.darwarqamgrw.in, got: {$u1}");
+echo "  [PASS] Domain auto-https: wa.darwarqamgrw.in -> {$u1}\n";
+
+$u2 = whatsapp_normalize_url('http://wa.darwarqamgrw.in/');
+assert($u2 === 'http://wa.darwarqamgrw.in', "Expected http://wa.darwarqamgrw.in, got: {$u2}");
+echo "  [PASS] Explicit http preserved and trailing slash trimmed -> {$u2}\n";
+
+$u3 = whatsapp_normalize_url('https://wa.darwarqamgrw.in:8443/');
+assert($u3 === 'https://wa.darwarqamgrw.in:8443', "Expected https port preserved, got: {$u3}");
+echo "  [PASS] Custom HTTPS port preserved -> {$u3}\n";
+
+$u4 = whatsapp_normalize_url('localhost:8080');
+assert($u4 === 'http://localhost:8080', "Expected http://localhost:8080, got: {$u4}");
+echo "  [PASS] Localhost auto-http: localhost:8080 -> {$u4}\n";
+
+$u5 = whatsapp_normalize_url('192.168.1.10:8080/');
+assert($u5 === 'http://192.168.1.10:8080', "Expected http://192.168.1.10:8080, got: {$u5}");
+echo "  [PASS] LAN IP auto-http -> {$u5}\n";
+
+echo "\nTesting Configuration & Session ID Resolution...\n";
+$cfg1 = whatsapp_get_config('https://wa.darwarqamgrw.in', 'token123', 'mysession');
+assert($cfg1['base_url'] === 'https://wa.darwarqamgrw.in', "Config base_url mismatch");
+assert($cfg1['api_key'] === 'token123', "Config api_key mismatch");
+assert($cfg1['session_id'] === 'mysession', "Config session_id mismatch");
+assert($cfg1['is_https'] === true, "Config is_https should be true");
+echo "  [PASS] Custom config with session_id resolved correctly\n";
+
+$cfg2 = whatsapp_get_config('http://localhost:8080', '', '');
+assert($cfg2['session_id'] === 'default', "Empty session_id should default to 'default'");
+assert($cfg2['is_https'] === false, "Config is_https should be false for HTTP");
+echo "  [PASS] Default session_id fallback verified\n";
+
 echo "\n==================================================\n";
 echo "ALL WHATSAPP SERVICE TESTS PASSED CLEANLY!\n";
 echo "==================================================\n";

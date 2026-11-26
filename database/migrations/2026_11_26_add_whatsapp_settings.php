@@ -11,7 +11,8 @@ try {
 
     $settings = [
         ['whatsapp', 'whatsapp_enabled', '1', 'boolean', 'Enable or disable WhatsApp messaging via Open-WA'],
-        ['whatsapp', 'whatsapp_api_url', 'http://localhost:8080', 'string', 'Open-WA REST API Base URL (e.g., http://localhost:8080)'],
+        ['whatsapp', 'whatsapp_api_url', 'http://localhost:8080', 'string', 'Open-WA REST API Base URL (e.g., http://localhost:8080 or https://wa.domain.com)'],
+        ['whatsapp', 'whatsapp_session_id', 'default', 'string', 'Open-WA WhatsApp Session ID or Name'],
         ['whatsapp', 'whatsapp_api_key', '', 'string', 'Open-WA API Secret Key (if configured on your server)'],
         ['whatsapp', 'whatsapp_auto_send_invoice', '0', 'boolean', 'Automatically send WhatsApp bill to customer on invoice finalization'],
         ['whatsapp', 'whatsapp_owner_phones', '', 'string', 'Comma-separated mobile numbers of owners/partners to receive daily closing reports'],
