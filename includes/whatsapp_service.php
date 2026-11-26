@@ -168,9 +168,9 @@ function whatsapp_api_request(string $endpoint, string $method = 'POST', array $
     }
 
     if (strtoupper($method) === 'POST') {
-        if (!empty($sessionId)) {
+        // Only inject session in payload for classic/legacy endpoints (Modern Gateway has session in URL)
+        if (!empty($sessionId) && !str_contains($endpoint, '/sessions/')) {
             if (!isset($payload['session'])) $payload['session'] = $sessionId;
-            if (!isset($payload['sessionId'])) $payload['sessionId'] = $sessionId;
         }
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE));
@@ -207,11 +207,24 @@ function whatsapp_api_request(string $endpoint, string $method = 'POST', array $
     $json = json_decode($raw, true);
     $isSuccess = ($httpCode >= 200 && $httpCode < 300);
 
+    $errMsg = null;
+    if (!$isSuccess) {
+        if (isset($json['message'])) {
+            $errMsg = is_array($json['message']) ? implode('; ', $json['message']) : (string)$json['message'];
+        } elseif (isset($json['error'])) {
+            $errMsg = is_array($json['error']) ? implode('; ', $json['error']) : (string)$json['error'];
+        } elseif (is_string($raw) && strlen($raw) < 200) {
+            $errMsg = trim($raw);
+        } else {
+            $errMsg = "HTTP error {$httpCode}";
+        }
+    }
+
     return [
         'success'  => $isSuccess,
         'status'   => $httpCode,
         'response' => $json !== null ? $json : $raw,
-        'error'    => $isSuccess ? null : ($json['message'] ?? $json['error'] ?? "HTTP error {$httpCode}")
+        'error'    => $errMsg
     ];
 }
 
@@ -331,20 +344,14 @@ function whatsapp_send_text(string $phone, string $message, ?array $configOverri
     );
     $sId = $cfg['session_id'];
 
-    // Universal payload covering Modern OpenWA, Classic OpenWA, and WPPConnect
-    $payload = [
-        'chatId'    => $jid,
-        'to'        => $jid,
-        'text'      => $message,
-        'content'   => $message,
-        'body'      => $message,
-        'message'   => $message,
-        'session'   => $sId,
-        'sessionId' => $sId
+    // Strict payload for Modern Open-WA Gateway SendTextMessageDto
+    $modernPayload = [
+        'chatId' => $jid,
+        'text'   => $message
     ];
 
     // 1. Try Modern Open-WA: /api/sessions/{sessionId}/messages/send-text
-    $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-text", 'POST', $payload, 16, $configOverride);
+    $res = whatsapp_api_request("/api/sessions/" . urlencode($sId) . "/messages/send-text", 'POST', $modernPayload, 16, $configOverride);
     if ($res['success']) {
         return $res;
     }
@@ -353,8 +360,17 @@ function whatsapp_send_text(string $phone, string $message, ?array $configOverri
     }
 
     // 2. Try Classic Open-WA with session prefix: /{sessionId}/sendText
+    $classicPayload = [
+        'chatId'    => $jid,
+        'to'        => $jid,
+        'content'   => $message,
+        'text'      => $message,
+        'body'      => $message,
+        'session'   => $sId
+    ];
+
     if ($res['status'] === 404) {
-        $res = whatsapp_api_request("/" . urlencode($sId) . "/sendText", 'POST', $payload, 12, $configOverride);
+        $res = whatsapp_api_request("/" . urlencode($sId) . "/sendText", 'POST', $classicPayload, 12, $configOverride);
         if ($res['success']) {
             return $res;
         }
@@ -362,7 +378,7 @@ function whatsapp_send_text(string $phone, string $message, ?array $configOverri
 
     // 3. Try Classic Open-WA root: /sendText
     if ($res['status'] === 404) {
-        $res = whatsapp_api_request('/sendText', 'POST', $payload, 12, $configOverride);
+        $res = whatsapp_api_request('/sendText', 'POST', $classicPayload, 12, $configOverride);
     }
 
     return $res;
@@ -419,37 +435,31 @@ function whatsapp_send_file(string $phone, string $base64OrDataUri, string $file
         $dataUri = "data:{$mime};base64," . $base64OrDataUri;
     }
 
-    // Build payload matching Open-WA Gateway SendMediaMessageDto and legacy schemas
-    $payload = [
-        'chatId'    => $jid,
-        'to'        => $jid,
-        'phone'     => $jid,
-        'base64'    => $rawBase64,
-        'mimetype'  => $mime,
-        'mime'      => $mime,
-        'filename'  => $filename,
-        'file'      => $dataUri,
-        'caption'   => $caption,
-        'text'      => $caption,
-        'session'   => $sId,
-        'sessionId' => $sId
+    // 1. Strict payload for Modern Open-WA Gateway SendMediaMessageDto
+    $modernPayload = [
+        'chatId'   => $jid,
+        'base64'   => $rawBase64,
+        'mimetype' => $mime
     ];
+    if (!empty($caption)) {
+        $modernPayload['caption'] = $caption;
+    }
+    if (!$isImage && !empty($filename)) {
+        $modernPayload['filename'] = $filename;
+    }
 
     // Priority 1: Modern Open-WA Gateway endpoints
     $modernEndpoints = $isImage
         ? [
             "/api/sessions/" . urlencode($sId) . "/messages/send-image",
-            "/api/sessions/" . urlencode($sId) . "/messages/send-document",
-            "/api/sessions/" . urlencode($sId) . "/messages/send-file"
+            "/api/sessions/" . urlencode($sId) . "/messages/send-document"
           ]
         : [
-            "/api/sessions/" . urlencode($sId) . "/messages/send-document",
-            "/api/sessions/" . urlencode($sId) . "/messages/send-file",
-            "/api/sessions/" . urlencode($sId) . "/messages/send-image"
+            "/api/sessions/" . urlencode($sId) . "/messages/send-document"
           ];
 
     foreach ($modernEndpoints as $ep) {
-        $res = whatsapp_api_request($ep, 'POST', $payload, 20, $configOverride);
+        $res = whatsapp_api_request($ep, 'POST', $modernPayload, 20, $configOverride);
         if ($res['success']) {
             return $res;
         }
@@ -459,25 +469,30 @@ function whatsapp_send_file(string $phone, string $base64OrDataUri, string $file
         }
     }
 
-    // Priority 2: Classic / Legacy Open-WA endpoints fallback
+    // 2. Fallback payload for Classic / Legacy Open-WA endpoints
+    $classicPayload = [
+        'chatId'    => $jid,
+        'to'        => $jid,
+        'file'      => $dataUri,
+        'filename'  => $filename,
+        'caption'   => $caption,
+        'session'   => $sId
+    ];
+
     $legacyEndpoints = $isImage
         ? [
             "/" . urlencode($sId) . "/sendImage",
             "/" . urlencode($sId) . "/sendFile",
-            "/" . urlencode($sId) . "/sendFileFromBase64",
             "/sendImage",
-            "/sendFile",
-            "/sendFileFromBase64"
+            "/sendFile"
           ]
         : [
             "/" . urlencode($sId) . "/sendFile",
-            "/" . urlencode($sId) . "/sendFileFromBase64",
-            "/sendFile",
-            "/sendFileFromBase64"
+            "/sendFile"
           ];
 
     foreach ($legacyEndpoints as $ep) {
-        $res = whatsapp_api_request($ep, 'POST', $payload, 20, $configOverride);
+        $res = whatsapp_api_request($ep, 'POST', $classicPayload, 20, $configOverride);
         if ($res['success']) {
             return $res;
         }
