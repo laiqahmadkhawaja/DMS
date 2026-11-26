@@ -377,17 +377,22 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 Khata Division / Split (خرچہ کس کے کھاتے میں جائے گا؟) <span class="text-danger">*</span>
                                             </label>
                                             <select name="split_type" id="splitType" class="form-select form-select-sm" onchange="onSplitChange()">
-                                                <option value="equal_50_50" <?= (!isset($_POST['split_type']) || $_POST['split_type'] === 'equal_50_50') ? 'selected' : '' ?>>
-                                                    ⚖️ Shared Equal Split (برابر تقسیم)
+                                                <option value="equal_50_50" <?= (!isset($_POST['split_type']) || $_POST['split_type'] === 'equal_50_50' || $_POST['split_type'] === 'equal') ? 'selected' : '' ?>>
+                                                    ⚖️ Shared Equal Split (تمام پارٹنرز میں برابر تقسیم)
+                                                </option>
+                                                <option value="by_percentage" <?= (isset($_POST['split_type']) && $_POST['split_type'] === 'by_percentage') ? 'selected' : '' ?>>
+                                                    📊 By Configured Share % (طے شدہ فیصد کے مطابق)
                                                 </option>
                                                 <?php foreach ($activePartners as $p): 
+                                                    $optVal = ($p['partner_code'] === 'PTR-MOAZZAM') ? 'only_moazzam' : (($p['partner_code'] === 'PTR-REHMAN') ? 'only_rehman' : 'only_' . $p['id']);
                                                     $isOnlySelected = (isset($_POST['split_type']) && (
+                                                        $_POST['split_type'] === $optVal ||
                                                         $_POST['split_type'] === 'only_' . $p['id'] ||
                                                         ($p['partner_code'] === 'PTR-MOAZZAM' && $_POST['split_type'] === 'only_moazzam') ||
                                                         ($p['partner_code'] === 'PTR-REHMAN' && $_POST['split_type'] === 'only_rehman')
                                                     ));
                                                 ?>
-                                                    <option value="<?= ($p['partner_code'] === 'PTR-MOAZZAM') ? 'only_moazzam' : (($p['partner_code'] === 'PTR-REHMAN') ? 'only_rehman' : 'only_' . $p['id']) ?>" <?= $isOnlySelected ? 'selected' : '' ?>>
+                                                    <option value="<?= $optVal ?>" <?= $isOnlySelected ? 'selected' : '' ?>>
                                                         👤 100% <?= htmlspecialchars($p['partner_name']) ?> (صرف اس کے کھاتے میں)
                                                     </option>
                                                 <?php endforeach; ?>

@@ -238,9 +238,20 @@ foreach ($itemRows as $row) {
 
 $grandMargin = $grandTotals['net_amount'] > 0 ? ($grandTotals['gross_profit'] / $grandTotals['net_amount']) * 100 : 0.0;
 
-// Fetch Comparative Partner Stats (Moazzam vs Abdur Rehman)
-$moazzamStats = get_partner_sales_profit_summary(1, $fromDate, $toDate);
-$rehmanStats  = get_partner_sales_profit_summary(2, $fromDate, $toDate);
+// Fetch Comparative Partner Stats for all active agency partners
+$agencyPartners = db_fetch_all("
+    SELECT id, partner_name, urdu_name, partner_code, supplier_id 
+    FROM partners 
+    WHERE is_active = 1 AND supplier_id IS NOT NULL 
+    ORDER BY id ASC
+");
+$partnerSummaries = [];
+foreach ($agencyPartners as $ap) {
+    $partnerSummaries[$ap['id']] = get_partner_sales_profit_summary($ap['id'], $fromDate, $toDate);
+}
+// Backward compatibility variables for existing tests:
+$moazzamStats = $partnerSummaries[1] ?? get_partner_sales_profit_summary(1, $fromDate, $toDate);
+$rehmanStats  = $partnerSummaries[2] ?? get_partner_sales_profit_summary(2, $fromDate, $toDate);
 
 require_once INCLUDES_PATH . '/header.php';
 require_once INCLUDES_PATH . '/sidebar.php';
@@ -355,82 +366,61 @@ require_once INCLUDES_PATH . '/topbar.php';
             </div>
         </div>
 
-        <!-- Comparative Partner Performance (معظم بمقابلہ عبدالرحمن - پارٹنرز سیلز و منافع) -->
+        <?php if (!empty($partnerSummaries)): ?>
+        <!-- Comparative Partner Performance -->
         <div class="row g-3 mb-4 no-print">
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm border-start border-4 border-info bg-white h-100">
+            <?php 
+            $borderColors = ['border-info', 'border-success', 'border-primary', 'border-warning'];
+            $ci = 0;
+            foreach ($partnerSummaries as $pid => $pStats): 
+                $bColor = $borderColors[$ci % count($borderColors)];
+                $ci++;
+                $pInfo = $pStats['partner'] ?? [];
+            ?>
+            <div class="col-md-6 col-lg-<?= count($partnerSummaries) >= 3 ? '4' : '6' ?>">
+                <div class="card border-0 shadow-sm border-start border-4 <?= $bColor ?> bg-white h-100">
                     <div class="card-header bg-white py-2 border-bottom d-flex justify-content-between align-items-center">
                         <div>
                             <span class="badge bg-info-subtle text-info border border-info-subtle me-1">Agency Partner</span>
-                            <strong class="text-navy fs-6">Moazzam (معظم)</strong>
+                            <strong class="text-navy fs-6"><?= htmlspecialchars($pInfo['partner_name'] ?? 'Partner') ?></strong>
+                            <?php if (!empty($pInfo['urdu_name'])): ?>
+                                <small class="text-muted ms-1">(<?= htmlspecialchars($pInfo['urdu_name']) ?>)</small>
+                            <?php endif; ?>
                         </div>
-                        <span class="badge bg-light text-dark border"><i class="bi bi-building me-1"></i> SMS Agency</span>
+                        <?php if (!empty($pInfo['supplier_name'])): ?>
+                            <span class="badge bg-light text-dark border"><i class="bi bi-building me-1"></i> <?= htmlspecialchars($pInfo['supplier_name']) ?></span>
+                        <?php endif; ?>
                     </div>
                     <div class="card-body">
                         <div class="row g-2 text-center mb-3">
                             <div class="col-4 border-end">
                                 <div class="text-muted small">Net Sales</div>
-                                <div class="fw-bold fs-6 text-dark"><?= format_currency($moazzamStats['net_sales']) ?></div>
-                                <div class="text-muted" style="font-size: 11px;">Gross: <?= format_currency($moazzamStats['gross_sales']) ?></div>
+                                <div class="fw-bold fs-6 text-dark"><?= format_currency($pStats['net_sales']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Gross: <?= format_currency($pStats['gross_sales']) ?></div>
                             </div>
                             <div class="col-4 border-end">
                                 <div class="text-muted small">Gross Profit</div>
-                                <div class="fw-bold fs-6 <?= $moazzamStats['gross_profit'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($moazzamStats['gross_profit']) ?></div>
-                                <div class="text-muted" style="font-size: 11px;">Margin: <?= $moazzamStats['profit_margin'] ?>%</div>
+                                <div class="fw-bold fs-6 <?= $pStats['gross_profit'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($pStats['gross_profit']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Margin: <?= $pStats['profit_margin'] ?>%</div>
                             </div>
                             <div class="col-4">
                                 <div class="text-muted small">Market Udhaar</div>
-                                <div class="fw-bold fs-6 text-warning-emphasis"><?= format_currency($moazzamStats['market_receivables']) ?></div>
-                                <div class="text-muted" style="font-size: 11px;">Returns: <?= format_currency($moazzamStats['return_amount']) ?></div>
+                                <div class="fw-bold fs-6 text-warning-emphasis"><?= format_currency($pStats['market_receivables']) ?></div>
+                                <div class="text-muted" style="font-size: 11px;">Returns: <?= format_currency($pStats['return_amount']) ?></div>
                             </div>
                         </div>
                         <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded small">
-                            <span>Khata Balance: <strong class="<?= (float)($moazzamStats['partner']['current_balance'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($moazzamStats['partner']['current_balance'] ?? 0) ?></strong></span>
-                            <a href="<?= APP_URL ?>/modules/partners/ledger.php?partner_id=1&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-sm btn-outline-primary py-0">
-                                <i class="bi bi-journal-text me-1"></i> View Moazzam Khata
+                            <span>Khata Balance: <strong class="<?= (float)($pInfo['current_balance'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($pInfo['current_balance'] ?? 0) ?></strong></span>
+                            <a href="<?= APP_URL ?>/modules/partners/ledger.php?partner_id=<?= $pid ?>&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-sm btn-outline-primary py-0">
+                                <i class="bi bi-journal-text me-1"></i> View Khata
                             </a>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm border-start border-4 border-success bg-white h-100">
-                    <div class="card-header bg-white py-2 border-bottom d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="badge bg-success-subtle text-success border border-success-subtle me-1">Agency Partner</span>
-                            <strong class="text-navy fs-6">Abdur Rehman (عبدالرحمن)</strong>
-                        </div>
-                        <span class="badge bg-light text-dark border"><i class="bi bi-building me-1"></i> Ujab Enterprises</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="row g-2 text-center mb-3">
-                            <div class="col-4 border-end">
-                                <div class="text-muted small">Net Sales</div>
-                                <div class="fw-bold fs-6 text-dark"><?= format_currency($rehmanStats['net_sales']) ?></div>
-                                <div class="text-muted" style="font-size: 11px;">Gross: <?= format_currency($rehmanStats['gross_sales']) ?></div>
-                            </div>
-                            <div class="col-4 border-end">
-                                <div class="text-muted small">Gross Profit</div>
-                                <div class="fw-bold fs-6 <?= $rehmanStats['gross_profit'] >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($rehmanStats['gross_profit']) ?></div>
-                                <div class="text-muted" style="font-size: 11px;">Margin: <?= $rehmanStats['profit_margin'] ?>%</div>
-                            </div>
-                            <div class="col-4">
-                                <div class="text-muted small">Market Udhaar</div>
-                                <div class="fw-bold fs-6 text-warning-emphasis"><?= format_currency($rehmanStats['market_receivables']) ?></div>
-                                <div class="text-muted" style="font-size: 11px;">Returns: <?= format_currency($rehmanStats['return_amount']) ?></div>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded small">
-                            <span>Khata Balance: <strong class="<?= (float)($rehmanStats['partner']['current_balance'] ?? 0) >= 0 ? 'text-success' : 'text-danger' ?>"><?= format_currency($rehmanStats['partner']['current_balance'] ?? 0) ?></strong></span>
-                            <a href="<?= APP_URL ?>/modules/partners/ledger.php?partner_id=2&from_date=<?= $fromDate ?>&to_date=<?= $toDate ?>" class="btn btn-sm btn-outline-primary py-0">
-                                <i class="bi bi-journal-text me-1"></i> View Rehman Khata
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <?php endforeach; ?>
         </div>
+        <?php endif; ?>
 
         <!-- 4 Executive KPI Cards -->
         <div class="row g-3 mb-4">

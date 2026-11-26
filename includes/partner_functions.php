@@ -151,46 +151,100 @@ function calculate_expense_split(float $amount, string $splitType, ?array $custo
     $amount = round($amount, 2);
     if ($amount <= 0) return [];
 
-    $moazzam = db_fetch_one("SELECT id FROM partners WHERE partner_code = 'PTR-MOAZZAM' OR partner_name LIKE '%Moazzam%' LIMIT 1");
-    $rehman  = db_fetch_one("SELECT id FROM partners WHERE partner_code = 'PTR-REHMAN' OR partner_name LIKE '%Rehman%' LIMIT 1");
-
-    $mId = $moazzam ? (int)$moazzam['id'] : 1;
-    $rId = $rehman ? (int)$rehman['id'] : 2;
-
     $shares = [];
 
-    switch ($splitType) {
-        case 'equal_50_50':
-            $half = round($amount / 2, 2);
-            $rem = round($amount - $half, 2);
-            $shares[$mId] = $half;
-            $shares[$rId] = $rem;
-            break;
+    // 1. Direct Partner Assignments (Preserves backward compatibility & supports any only_{id})
+    if ($splitType === 'only_moazzam') {
+        $moazzam = db_fetch_one("SELECT id FROM partners WHERE partner_code = 'PTR-MOAZZAM' OR partner_name LIKE '%Moazzam%' LIMIT 1");
+        $mId = $moazzam ? (int)$moazzam['id'] : 1;
+        return [$mId => $amount];
+    }
+    if ($splitType === 'only_rehman') {
+        $rehman = db_fetch_one("SELECT id FROM partners WHERE partner_code = 'PTR-REHMAN' OR partner_name LIKE '%Rehman%' LIMIT 1");
+        $rId = $rehman ? (int)$rehman['id'] : 2;
+        return [$rId => $amount];
+    }
+    if (str_starts_with($splitType, 'only_')) {
+        $pId = (int)substr($splitType, 5);
+        if ($pId > 0) {
+            return [$pId => $amount];
+        }
+    }
 
-        case 'only_moazzam':
-            $shares[$mId] = $amount;
-            break;
+    if ($splitType === 'none') {
+        return [];
+    }
 
-        case 'only_rehman':
-            $shares[$rId] = $amount;
-            break;
-
-        case 'custom':
-            if (!empty($customShares)) {
-                foreach ($customShares as $pId => $shareAmt) {
-                    $shares[(int)$pId] = round((float)$shareAmt, 2);
+    if ($splitType === 'custom') {
+        if (!empty($customShares)) {
+            foreach ($customShares as $pId => $shareAmt) {
+                $val = round((float)$shareAmt, 2);
+                if ($val > 0) {
+                    $shares[(int)$pId] = $val;
                 }
-            } else {
-                $half = round($amount / 2, 2);
-                $shares[$mId] = $half;
-                $shares[$rId] = round($amount - $half, 2);
             }
-            break;
+            return $shares;
+        }
+    }
 
-        case 'none':
-        default:
-            // Charged to central pool
-            break;
+    // 2. Fetch all active equity partners
+    $equityPartners = db_fetch_all("
+        SELECT id, partner_code, partner_name, expense_share_type, expense_share_value 
+        FROM partners 
+        WHERE is_active = 1 AND role = 'partner'
+        ORDER BY id ASC
+    ");
+    if (empty($equityPartners)) {
+        $equityPartners = db_fetch_all("
+            SELECT id, partner_code, partner_name, expense_share_type, expense_share_value 
+            FROM partners 
+            WHERE is_active = 1 
+            ORDER BY id ASC
+        ");
+    }
+
+    $numPartners = count($equityPartners);
+    if ($numPartners === 0) {
+        return [];
+    }
+
+    // 3. Percentage Split (if splitType is by_percentage or partners have specific percentages configured)
+    $hasPercentages = false;
+    $totalConfiguredPercent = 0.0;
+    foreach ($equityPartners as $ep) {
+        if (($ep['expense_share_type'] ?? '') === 'percentage' && (float)($ep['expense_share_value'] ?? 0) > 0) {
+            $hasPercentages = true;
+            $totalConfiguredPercent += (float)$ep['expense_share_value'];
+        }
+    }
+
+    if ($splitType === 'by_percentage' && $hasPercentages && $totalConfiguredPercent > 0) {
+        $runningSum = 0.0;
+        $lastPid = null;
+        foreach ($equityPartners as $ep) {
+            $pId = (int)$ep['id'];
+            $pct = (float)($ep['expense_share_value'] ?? 0);
+            $share = round(($amount * $pct) / $totalConfiguredPercent, 2);
+            $shares[$pId] = $share;
+            $runningSum += $share;
+            $lastPid = $pId;
+        }
+        $diff = round($amount - $runningSum, 2);
+        if ($diff != 0 && $lastPid !== null) {
+            $shares[$lastPid] = round($shares[$lastPid] + $diff, 2);
+        }
+        return $shares;
+    }
+
+    // 4. Equal Split across all active equity partners (supports 2, 3, 4, 5+ partners with exact penny balancing)
+    $totalCents = (int)round($amount * 100);
+    $baseCents = intdiv($totalCents, $numPartners);
+    $remainderCents = $totalCents % $numPartners;
+
+    for ($i = 0; $i < $numPartners; $i++) {
+        $pId = (int)$equityPartners[$i]['id'];
+        $cents = $baseCents + ($i < $remainderCents ? 1 : 0);
+        $shares[$pId] = round($cents / 100, 2);
     }
 
     return $shares;
@@ -757,4 +811,145 @@ function get_partner_sales_profit_summary(int $partnerId, string $fromDate, stri
         'cartons_sold'       => (float)($sales['cartons_sold'] ?? 0),
         'pieces_sold'        => (float)($sales['pcs_sold'] ?? 0)
     ];
+}
+
+/**
+ * Create a new Partner
+ *
+ * @param array $data
+ * @return int New Partner ID
+ */
+function create_partner(array $data): int {
+    $name = trim($data['partner_name'] ?? '');
+    if (empty($name)) {
+        throw new InvalidArgumentException("Partner name is required.");
+    }
+
+    $urduName = trim($data['urdu_name'] ?? '');
+    $role = in_array($data['role'] ?? '', ['partner', 'managing_partner']) ? $data['role'] : 'partner';
+    $supplierId = !empty($data['supplier_id']) ? (int)$data['supplier_id'] : null;
+    $phone = trim($data['phone'] ?? '');
+    $shareType = in_array($data['expense_share_type'] ?? '', ['equal', 'percentage', 'fixed']) ? $data['expense_share_type'] : 'equal';
+    $shareVal = round((float)($data['expense_share_value'] ?? 0), 2);
+    $profitShare = round((float)($data['profit_share_percentage'] ?? 0), 2);
+    $openingBal = round((float)($data['opening_balance'] ?? 0), 2);
+    $notes = trim($data['notes'] ?? '');
+    $isActive = isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1;
+
+    // Generate unique code (e.g. PTR-XYZ or sequential PTR-0004)
+    $cleanCodeSlug = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', substr($name, 0, 10)));
+    $codeCandidate = 'PTR-' . ($cleanCodeSlug ?: 'NEW');
+    $existing = (int)db_fetch_val("SELECT COUNT(*) FROM partners WHERE partner_code = ?", [$codeCandidate]);
+    if ($existing > 0) {
+        $codeCandidate = generate_document_number('PTR', 'partners', 'partner_code');
+    }
+
+    $stmt = db()->prepare("
+        INSERT INTO partners (
+            partner_code, partner_name, urdu_name, role, supplier_id,
+            phone, current_balance, expense_share_type, expense_share_value,
+            profit_share_percentage, opening_balance, notes, is_active,
+            created_at, updated_at
+        ) VALUES (
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            NOW(), NOW()
+        )
+    ");
+    $stmt->execute([
+        $codeCandidate, $name, $urduName, $role, $supplierId,
+        $phone, 0.00, $shareType, $shareVal,
+        $profitShare, $openingBal, $notes, $isActive
+    ]);
+    $partnerId = (int)db()->lastInsertId();
+
+    // If opening balance was specified, record in partner_transactions for audit trail & balance history
+    if ($openingBal != 0) {
+        $isCredit = ($openingBal > 0);
+        record_partner_transaction([
+            'partner_id'       => $partnerId,
+            'transaction_date' => date('Y-m-d'),
+            'transaction_type' => $isCredit ? 'capital_added' : 'cash_drawn',
+            'reference_type'   => 'opening_balance',
+            'reference_id'     => $partnerId,
+            'credit'           => $isCredit ? $openingBal : 0.00,
+            'debit'            => !$isCredit ? abs($openingBal) : 0.00,
+            'description'      => "ابتدائی کھاتہ بیلنس (Opening Balance Record)"
+        ]);
+    }
+
+    return $partnerId;
+}
+
+/**
+ * Update an existing Partner
+ *
+ * @param int $id
+ * @param array $data
+ * @return bool
+ */
+function update_partner(int $id, array $data): bool {
+    $existing = get_partner_by_id($id);
+    if (!$existing) {
+        throw new InvalidArgumentException("Partner not found.");
+    }
+
+    $name = trim($data['partner_name'] ?? $existing['partner_name']);
+    if (empty($name)) {
+        throw new InvalidArgumentException("Partner name cannot be empty.");
+    }
+
+    $urduName = array_key_exists('urdu_name', $data) ? trim($data['urdu_name']) : $existing['urdu_name'];
+    $role = in_array($data['role'] ?? '', ['partner', 'managing_partner']) ? $data['role'] : $existing['role'];
+    $supplierId = array_key_exists('supplier_id', $data) ? (!empty($data['supplier_id']) ? (int)$data['supplier_id'] : null) : $existing['supplier_id'];
+    $phone = array_key_exists('phone', $data) ? trim($data['phone']) : $existing['phone'];
+    $shareType = in_array($data['expense_share_type'] ?? '', ['equal', 'percentage', 'fixed']) ? $data['expense_share_type'] : $existing['expense_share_type'];
+    $shareVal = array_key_exists('expense_share_value', $data) ? round((float)$data['expense_share_value'], 2) : (float)$existing['expense_share_value'];
+    $profitShare = array_key_exists('profit_share_percentage', $data) ? round((float)$data['profit_share_percentage'], 2) : (float)$existing['profit_share_percentage'];
+    $notes = array_key_exists('notes', $data) ? trim($data['notes']) : $existing['notes'];
+    $isActive = array_key_exists('is_active', $data) ? (int)(bool)$data['is_active'] : (int)$existing['is_active'];
+
+    $stmt = db()->prepare("
+        UPDATE partners SET
+            partner_name = ?,
+            urdu_name = ?,
+            role = ?,
+            supplier_id = ?,
+            phone = ?,
+            expense_share_type = ?,
+            expense_share_value = ?,
+            profit_share_percentage = ?,
+            notes = ?,
+            is_active = ?,
+            updated_at = NOW()
+        WHERE id = ?
+    ");
+    return $stmt->execute([
+        $name, $urduName, $role, $supplierId, $phone,
+        $shareType, $shareVal, $profitShare, $notes, $isActive,
+        $id
+    ]);
+}
+
+/**
+ * Recalculate and audit a partner's exact ledger balance
+ *
+ * @param int $partnerId
+ * @return float Audited net balance
+ */
+function recalculate_partner_balance(int $partnerId): float {
+    $row = db_fetch_one("
+        SELECT 
+            COALESCE(SUM(credit), 0) as total_credit,
+            COALESCE(SUM(debit), 0) as total_debit
+        FROM partner_transactions 
+        WHERE partner_id = ?
+    ", [$partnerId]);
+
+    $auditedBal = round((float)($row['total_credit'] - $row['total_debit']), 2);
+    db()->prepare("UPDATE partners SET current_balance = ?, updated_at = NOW() WHERE id = ?")
+        ->execute([$auditedBal, $partnerId]);
+
+    return $auditedBal;
 }

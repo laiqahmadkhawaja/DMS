@@ -16,6 +16,7 @@ $pageTitle = "Partners & Khatas Dashboard (پارٹنرز کھاتہ)";
 $activeMenu = "partners";
 
 $partners = get_partners(false);
+$suppliers = db_fetch_all("SELECT id, supplier_name, company_name FROM suppliers WHERE is_active = 1 ORDER BY supplier_name ASC");
 
 // Calculate monthly partner statistics
 $firstDayOfMonth = date('Y-m-01');
@@ -68,6 +69,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <p class="text-muted small mb-0">Multi-Partner accounts, expense sharing, cash advances, and inter-settlement ledgers.</p>
             </div>
             <div class="d-flex gap-2">
+                <button type="button" class="btn btn-success btn-sm shadow-sm" onclick="openAddPartnerModal()">
+                    <i class="bi bi-person-plus-fill me-1"></i> Add Partner (نیا پارٹنر)
+                </button>
                 <a href="drawings.php" class="btn btn-danger btn-sm">
                     <i class="bi bi-cash-stack me-1"></i> Cash Advance / Drawing (کیش ایڈوانس)
                 </a>
@@ -139,26 +143,47 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <?php endif; ?>
                             </h5>
                         </div>
-                        <div class="text-end">
-                            <?php if ($partner['role'] === 'managing_partner'): ?>
-                                <span class="badge bg-info-subtle text-info border border-info-subtle">Admin / Cash Custodian</span>
-                            <?php else: ?>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">Agency Partner</span>
-                            <?php endif; ?>
+                        <div class="text-end d-flex flex-column align-items-end gap-1">
+                            <div class="d-flex align-items-center gap-1">
+                                <?php if ($partner['role'] === 'managing_partner'): ?>
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">Admin / Cash Custodian</span>
+                                <?php else: ?>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Agency Partner</span>
+                                <?php endif; ?>
+                                <?php if (!$partner['is_active']): ?>
+                                    <span class="badge bg-secondary">Inactive</span>
+                                <?php endif; ?>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" onclick='openEditPartnerModal(<?= htmlspecialchars(json_encode($partner), ENT_QUOTES, "UTF-8") ?>)' title="Edit Partner Details (ترمیم)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">
                         <?php if ($isSupplierPartner): ?>
-                            <div class="p-2 bg-light rounded mb-3 small">
+                            <div class="p-2 bg-light rounded mb-2 small">
                                 <span class="text-muted">Associated Agency / Company:</span><br>
                                 <strong class="text-dark"><i class="bi bi-building me-1"></i> <?= e($partner['supplier_name']) ?></strong>
                             </div>
                         <?php else: ?>
-                            <div class="p-2 bg-light rounded mb-3 small">
+                            <div class="p-2 bg-light rounded mb-2 small">
                                 <span class="text-muted">Central Operations:</span><br>
                                 <strong class="text-dark"><i class="bi bi-safe me-1"></i> Central Cash Pool & Field Sales</strong>
                             </div>
                         <?php endif; ?>
+
+                        <div class="d-flex justify-content-between align-items-center p-2 mb-3 bg-white rounded border small">
+                            <span class="text-muted"><i class="bi bi-pie-chart me-1"></i> Expense Share (خرچے میں حصہ):</span>
+                            <span class="fw-bold">
+                                <?php if ($partner['role'] === 'managing_partner'): ?>
+                                    <span class="badge bg-light text-muted border">Central Pool</span>
+                                <?php elseif (($partner['expense_share_type'] ?? '') === 'percentage'): ?>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><?= number_format((float)$partner['expense_share_value'], 1) ?>% Share</span>
+                                <?php else: ?>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Equal Share (برابر)</span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
 
                         <div class="mb-3 text-center py-2 bg-light rounded border">
                             <div class="text-muted small text-uppercase">Current Khata Balance (موجودہ کھاتہ بیلنس)</div>
@@ -293,5 +318,197 @@ require_once INCLUDES_PATH . '/topbar.php';
 
     </div>
 </div>
+
+<!-- Add / Edit Partner Modal -->
+<div class="modal fade" id="partnerFormModal" tabindex="-1" aria-labelledby="partnerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <form action="<?= APP_URL ?>/modules/partners/action.php" method="POST">
+                <input type="hidden" name="action" id="partnerFormAction" value="add">
+                <input type="hidden" name="partner_id" id="partnerFormId" value="">
+
+                <div class="modal-header bg-navy text-white py-2">
+                    <h6 class="modal-title fw-bold" id="partnerModalLabel">
+                        <i class="bi bi-person-plus-fill text-warning me-2"></i>Add Partner
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-3">
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-7">
+                            <label class="form-label small fw-bold text-navy mb-1">
+                                Partner Name (نام) <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="partner_name" id="partnerNameInput" class="form-control form-control-sm" placeholder="e.g. Haji Muhammad Tariq" required>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-navy mb-1">
+                                Urdu Name / Title (اردو نام)
+                            </label>
+                            <input type="text" name="urdu_name" id="partnerUrduInput" class="form-control form-control-sm" placeholder="مثلاً: طارق صاحب">
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-navy mb-1">
+                                Role / Responsibility <span class="text-danger">*</span>
+                            </label>
+                            <select name="role" id="partnerRoleSelect" class="form-select form-select-sm" onchange="togglePartnerRoleFields()">
+                                <option value="partner" selected>Agency / Equity Partner (کھاتہ دار پارٹنر)</option>
+                                <option value="managing_partner">Managing Partner (سیلز و کیش کسٹوڈین)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-navy mb-1">Phone Number (فون نمبر)</label>
+                            <input type="text" name="phone" id="partnerPhoneInput" class="form-control form-control-sm" placeholder="03001234567">
+                        </div>
+                    </div>
+
+                    <div class="mb-2" id="partnerSupplierGroup">
+                        <label class="form-label small fw-bold text-navy mb-1">Associated Agency / Company (منسلک ایجنسی)</label>
+                        <select name="supplier_id" id="partnerSupplierSelect" class="form-select form-select-sm">
+                            <option value="">-- General Equity / No Specific Supplier (مشترکہ) --</option>
+                            <?php foreach ($suppliers as $s): ?>
+                                <option value="<?= $s['id'] ?>">
+                                    <?= htmlspecialchars($s['supplier_name']) ?> <?= !empty($s['company_name']) ? '(' . htmlspecialchars($s['company_name']) . ')' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text small" style="font-size:0.75rem;">If this partner manages products for an exclusive agency, select it here.</div>
+                    </div>
+
+                    <div class="card p-2 bg-light border-0 mb-2" id="partnerExpenseShareGroup">
+                        <label class="form-label small fw-bold text-navy mb-1">Expense & Bill Sharing (خرچوں میں شراکت داری)</label>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-6">
+                                <select name="expense_share_type" id="partnerShareTypeSelect" class="form-select form-select-sm" onchange="toggleShareValueInput()">
+                                    <option value="equal">⚖️ Equal Share (تمام پارٹنرز میں برابر)</option>
+                                    <option value="percentage">📊 Custom % (طے شدہ فیصد کے مطابق)</option>
+                                    <option value="fixed">🏢 Central / Fixed (سنٹرل پول)</option>
+                                </select>
+                            </div>
+                            <div class="col-6" id="partnerShareValCol" style="display:none;">
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.01" min="0" max="100" name="expense_share_value" id="partnerShareValInput" class="form-control" placeholder="50.00">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-2" id="partnerOpeningBalGroup">
+                        <label class="form-label small fw-bold text-navy mb-1">Opening Khata Balance (ابتدائی بیلنس)</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">Rs.</span>
+                            <input type="number" step="0.01" name="opening_balance" id="partnerOpeningBalInput" class="form-control" placeholder="0.00">
+                        </div>
+                        <div class="form-text small" style="font-size:0.75rem;">Positive = Payable to partner (سرمایہ / کریڈٹ), Negative = Receivable from partner (واجب الادا)</div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-navy mb-1">Notes / Description (تفصیل / ریمارکس)</label>
+                        <textarea name="notes" id="partnerNotesInput" class="form-control form-control-sm" rows="2" placeholder="e.g. Partner equity details, responsibilities..."></textarea>
+                    </div>
+
+                    <div class="form-check form-switch mb-0" id="partnerActiveGroup">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="partnerActiveInput" value="1" checked>
+                        <label class="form-check-label small fw-semibold" for="partnerActiveInput">Active Partner (فعال پارٹنر)</label>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-navy btn-sm fw-bold px-3" id="partnerSubmitBtn">
+                        <i class="bi bi-check-circle me-1"></i> Save Partner
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openAddPartnerModal() {
+    document.getElementById('partnerFormAction').value = 'add';
+    document.getElementById('partnerFormId').value = '';
+    document.getElementById('partnerModalLabel').innerHTML = '<i class="bi bi-person-plus-fill text-warning me-2"></i>Add New Partner (نیا پارٹنر شامل کریں)';
+    document.getElementById('partnerSubmitBtn').innerHTML = '<i class="bi bi-check-circle me-1"></i> Save Partner';
+
+    document.getElementById('partnerNameInput').value = '';
+    document.getElementById('partnerUrduInput').value = '';
+    document.getElementById('partnerRoleSelect').value = 'partner';
+    document.getElementById('partnerPhoneInput').value = '';
+    document.getElementById('partnerSupplierSelect').value = '';
+    document.getElementById('partnerShareTypeSelect').value = 'equal';
+    document.getElementById('partnerShareValInput').value = '0.00';
+    document.getElementById('partnerOpeningBalInput').value = '0.00';
+    document.getElementById('partnerNotesInput').value = '';
+    document.getElementById('partnerActiveInput').checked = true;
+
+    document.getElementById('partnerOpeningBalGroup').style.display = 'block';
+    togglePartnerRoleFields();
+    toggleShareValueInput();
+
+    const modal = new bootstrap.Modal(document.getElementById('partnerFormModal'));
+    modal.show();
+}
+
+function openEditPartnerModal(partner) {
+    document.getElementById('partnerFormAction').value = 'edit';
+    document.getElementById('partnerFormId').value = partner.id;
+    document.getElementById('partnerModalLabel').innerHTML = '<i class="bi bi-pencil-square text-warning me-2"></i>Edit Partner: ' + escapeHtml(partner.partner_name);
+    document.getElementById('partnerSubmitBtn').innerHTML = '<i class="bi bi-check-circle me-1"></i> Update Partner';
+
+    document.getElementById('partnerNameInput').value = partner.partner_name || '';
+    document.getElementById('partnerUrduInput').value = partner.urdu_name || '';
+    document.getElementById('partnerRoleSelect').value = partner.role || 'partner';
+    document.getElementById('partnerPhoneInput').value = partner.phone || '';
+    document.getElementById('partnerSupplierSelect').value = partner.supplier_id || '';
+    document.getElementById('partnerShareTypeSelect').value = partner.expense_share_type || 'equal';
+    document.getElementById('partnerShareValInput').value = partner.expense_share_value || '0.00';
+    document.getElementById('partnerNotesInput').value = partner.notes || '';
+    document.getElementById('partnerActiveInput').checked = (partner.is_active == 1);
+
+    // In edit mode, hide opening balance since balance is maintained by ledger
+    document.getElementById('partnerOpeningBalGroup').style.display = 'none';
+
+    togglePartnerRoleFields();
+    toggleShareValueInput();
+
+    const modal = new bootstrap.Modal(document.getElementById('partnerFormModal'));
+    modal.show();
+}
+
+function togglePartnerRoleFields() {
+    const role = document.getElementById('partnerRoleSelect').value;
+    const shareGroup = document.getElementById('partnerExpenseShareGroup');
+    if (role === 'managing_partner') {
+        document.getElementById('partnerShareTypeSelect').value = 'fixed';
+        document.getElementById('partnerShareValInput').value = '0.00';
+        shareGroup.style.display = 'none';
+    } else {
+        shareGroup.style.display = 'block';
+    }
+}
+
+function toggleShareValueInput() {
+    const shareType = document.getElementById('partnerShareTypeSelect').value;
+    const valCol = document.getElementById('partnerShareValCol');
+    if (shareType === 'percentage') {
+        valCol.style.display = 'block';
+    } else {
+        valCol.style.display = 'none';
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/[&<>"']/g, function(m) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m];
+    });
+}
+</script>
 
 <?php require_once INCLUDES_PATH . '/footer.php'; ?>
