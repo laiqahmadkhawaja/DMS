@@ -29,7 +29,7 @@ if ($viewMode === 'parties_credit') {
 
     $sqlParties = "
         SELECT 
-            c.id, c.customer_code, c.shop_name, c.owner_name, c.address, c.current_balance,
+            c.id, c.customer_code, c.shop_name, c.owner_name, c.phone, c.address, c.current_balance,
             a.area_name, 
             b.booker_name
         FROM customers c
@@ -189,6 +189,15 @@ if ($viewMode === 'parties_credit') {
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end no-print">
+                                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 me-1" title="Send WhatsApp Statement via Open-WA" onclick="openWhatsAppDrawer({
+                                        customerId: <?= $party['id'] ?>,
+                                        phone: '<?= addslashes(htmlspecialchars($party['phone'] ?? '')) ?>',
+                                        recipientName: '<?= addslashes(htmlspecialchars($party['shop_name'] ?? '')) ?>',
+                                        title: 'WhatsApp Statement: <?= addslashes(htmlspecialchars($party['shop_name'])) ?>',
+                                        contextNote: 'Balance: <?= format_currency($bal) ?>'
+                                    })">
+                                        <i class="bi bi-whatsapp"></i>
+                                    </button>
                                     <a href="<?= APP_URL ?>/modules/customers/statement.php?view=single&id=<?= $party['id'] ?>" class="btn btn-xs btn-outline-primary py-0 px-2">
                                         View Ledger
                                     </a>
@@ -295,6 +304,17 @@ require_once INCLUDES_PATH . '/topbar.php';
         <a href="<?= APP_URL ?>/modules/customers/statement.php?view=parties_credit" class="btn btn-sm btn-outline-primary">
             &larr; Parties Credit Summary
         </a>
+        <?php if ($selectedCust): ?>
+            <button type="button" class="btn btn-sm btn-success" title="Send WhatsApp Statement via Open-WA" onclick="openWhatsAppDrawer({
+                customerId: <?= $selectedCust['id'] ?>,
+                phone: '<?= addslashes(htmlspecialchars($selectedCust['phone'] ?? '')) ?>',
+                recipientName: '<?= addslashes(htmlspecialchars($selectedCust['shop_name'] ?? '')) ?>',
+                title: 'WhatsApp Statement: <?= addslashes(htmlspecialchars($selectedCust['shop_name'])) ?>',
+                contextNote: 'Balance: <?= format_currency((float)$selectedCust['current_balance']) ?>'
+            })">
+                <i class="bi bi-whatsapp me-1"></i> WhatsApp Statement
+            </button>
+        <?php endif; ?>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
             <i class="bi bi-printer me-1"></i> Print Statement (F10)
         </button>

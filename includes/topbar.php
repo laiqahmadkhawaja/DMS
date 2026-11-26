@@ -23,31 +23,31 @@ $user = current_user();
 <div class="dms-main">
     <header class="dms-topbar">
         <div class="dms-topbar-left d-flex align-items-center">
-            <button type="button" class="btn btn-sm btn-light border py-1 px-2 me-2 dms-sidebar-toggle-btn shadow-none" id="dmsSidebarToggle" title="Toggle Sidebar (Ctrl+B)">
+            <button type="button" class="btn btn-sm btn-light border py-1 px-2 me-1 me-sm-2 dms-sidebar-toggle-btn shadow-none" id="dmsSidebarToggle" aria-label="Toggle Navigation Sidebar" title="Toggle Sidebar (Ctrl+B)">
                 <i class="bi bi-list fs-5 lh-1"></i>
             </button>
             <span class="fw-semibold text-secondary d-none d-sm-inline">
                 <i class="bi bi-calendar3 me-1"></i> <?= date('D, d M Y') ?>
             </span>
-            <span class="badge bg-light text-dark border ms-2">
+            <span class="badge bg-light text-dark border ms-1 ms-sm-2 d-none d-sm-inline-flex align-items-center">
                 <i class="bi bi-geo-alt-fill text-danger me-1"></i> <?= e(get_setting('city', 'Gujranwala')) ?>
             </span>
         </div>
         
-        <div class="dms-topbar-right">
+        <div class="dms-topbar-right d-flex align-items-center">
             <!-- Quick Actions -->
             <a href="<?= APP_URL ?>/modules/orders/create.php" class="btn btn-sm btn-outline-primary py-1 px-2" title="New Booking Order (F6)">
-                <i class="bi bi-plus-circle me-1"></i> Order (F6)
+                <i class="bi bi-plus-circle me-md-1"></i><span class="d-none d-md-inline"> Order (F6)</span>
             </a>
             <a href="<?= APP_URL ?>/modules/invoices/create.php" class="btn btn-sm btn-outline-success py-1 px-2" title="New Sales Invoice (F7)">
-                <i class="bi bi-receipt me-1"></i> Bill (F7)
+                <i class="bi bi-receipt me-md-1"></i><span class="d-none d-md-inline"> Bill (F7)</span>
             </a>
             <a href="<?= APP_URL ?>/modules/settlements/create.php" class="btn btn-sm btn-outline-warning text-dark py-1 px-2" title="Daily Route Settlement (F8)">
-                <i class="bi bi-cash-stack me-1"></i> Settlement (F8)
+                <i class="bi bi-cash-stack me-md-1"></i><span class="d-none d-md-inline"> Settlement (F8)</span>
             </a>
 
             <!-- Keyboard Help Button -->
-            <button type="button" class="btn btn-sm btn-light border py-1 px-2 text-secondary" onclick="openDrawer('drawer-shortcuts-help')" title="Keyboard Shortcuts (F1)">
+            <button type="button" class="btn btn-sm btn-light border py-1 px-2 text-secondary d-none d-md-inline-block" onclick="openDrawer('drawer-shortcuts-help')" title="Keyboard Shortcuts (F1)">
                 <i class="bi bi-keyboard"></i> F1
             </button>
 

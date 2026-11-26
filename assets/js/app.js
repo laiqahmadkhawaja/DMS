@@ -290,6 +290,19 @@
     function initSidebarCollapse() {
         const html = document.documentElement;
 
+        // Ensure dedicated mobile overlay backdrop element exists
+        let mobileBackdrop = document.getElementById('dmsSidebarBackdrop');
+        if (!mobileBackdrop) {
+            mobileBackdrop = document.createElement('div');
+            mobileBackdrop.id = 'dmsSidebarBackdrop';
+            mobileBackdrop.className = 'dms-sidebar-backdrop';
+            document.body.appendChild(mobileBackdrop);
+        }
+
+        function closeMobileSidebar() {
+            html.classList.remove('dms-sidebar-open-mobile');
+        }
+
         function toggleSidebar(forceState) {
             let isCollapsed;
             if (window.innerWidth < 768) {
@@ -297,6 +310,9 @@
                 html.classList.toggle('dms-sidebar-open-mobile');
                 return;
             }
+
+            // If resizing or switching back to desktop while mobile sidebar was open, clean up
+            html.classList.remove('dms-sidebar-open-mobile');
 
             if (typeof forceState === 'boolean') {
                 isCollapsed = forceState;
@@ -319,15 +335,17 @@
             }, 250);
         }
 
-        // Toggle buttons
+        // Toggle button in topbar
         const topbarToggle = document.getElementById('dmsSidebarToggle');
         if (topbarToggle) {
             topbarToggle.addEventListener('click', function (e) {
                 e.preventDefault();
+                e.stopPropagation();
                 toggleSidebar();
             });
         }
 
+        // Desktop collapse button in sidebar header
         const brandCollapseBtn = document.getElementById('sidebarCollapseBtn');
         if (brandCollapseBtn) {
             brandCollapseBtn.addEventListener('click', function (e) {
@@ -336,14 +354,44 @@
             });
         }
 
-        // Close mobile sidebar on outside click
-        document.addEventListener('click', function (e) {
-            if (window.innerWidth < 768 && html.classList.contains('dms-sidebar-open-mobile')) {
-                const sidebar = document.getElementById('dmsSidebar');
-                const toggle = document.getElementById('dmsSidebarToggle');
-                if (sidebar && !sidebar.contains(e.target) && toggle && !toggle.contains(e.target)) {
-                    html.classList.remove('dms-sidebar-open-mobile');
+        // Mobile close button in sidebar header
+        const mobileCloseBtn = document.getElementById('sidebarCloseMobileBtn');
+        if (mobileCloseBtn) {
+            mobileCloseBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                closeMobileSidebar();
+            });
+        }
+
+        // Tap on backdrop closes mobile sidebar and prevents clicking underlying page
+        mobileBackdrop.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeMobileSidebar();
+        });
+
+        // Close mobile sidebar on Escape key
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && html.classList.contains('dms-sidebar-open-mobile')) {
+                closeMobileSidebar();
+            }
+        });
+
+        // Auto-close mobile sidebar when clicking a destination menu link
+        const navLinks = document.querySelectorAll('.dms-sidebar-menu a.dms-menu-item');
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth < 768) {
+                    closeMobileSidebar();
                 }
+            });
+        });
+
+        // Clean up mobile drawer state on desktop resize
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768 && html.classList.contains('dms-sidebar-open-mobile')) {
+                closeMobileSidebar();
             }
         });
 

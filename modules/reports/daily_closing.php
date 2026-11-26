@@ -462,6 +462,9 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <small class="text-muted">Master daily reconciliation: Sales billing, Cash recovered, New Udhaar, Returns, Expenses, and Profit margins</small>
             </div>
             <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-success shadow-sm" id="btnBroadcastClosingWa" data-date="<?= htmlspecialchars($fromDate) ?>" title="Broadcast Daily Summary to Owners via Open-WA">
+                    <i class="bi bi-whatsapp me-1"></i> WhatsApp Broadcast
+                </button>
                 <button type="button" class="btn btn-sm btn-navy shadow-sm" onclick="window.print()">
                     <i class="bi bi-printer me-1"></i> Print Formal Closing Sheet (F10)
                 </button>
@@ -1468,6 +1471,49 @@ require_once INCLUDES_PATH . '/topbar.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const btnBroadcast = document.getElementById('btnBroadcastClosingWa');
+    if (btnBroadcast) {
+        btnBroadcast.addEventListener('click', function() {
+            const date = btnBroadcast.getAttribute('data-date');
+            if (!confirm('Broadcast Daily Closing & Roznamcha summary for ' + date + ' to Owners and Managing Partners via WhatsApp?')) {
+                return;
+            }
+
+            btnBroadcast.disabled = true;
+            const originalHtml = btnBroadcast.innerHTML;
+            btnBroadcast.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Broadcasting...';
+
+            const fd = new FormData();
+            fd.append('action', 'broadcast_closing');
+            fd.append('date', date);
+
+            fetch('<?= APP_URL ?>/ajax/whatsapp/send.php', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    showToast(res.message || 'Daily summary broadcast successfully!', 'success');
+                } else {
+                    showToast(res.message || res.error || 'Broadcast failed. Check WhatsApp settings.', 'danger');
+                }
+            })
+            .catch(err => {
+                showToast('Broadcast error: ' + err.message, 'danger');
+            })
+            .finally(() => {
+                btnBroadcast.disabled = false;
+                btnBroadcast.innerHTML = originalHtml;
+            });
+        });
+    }
+});
+</script>
 
 <?php
 require_once INCLUDES_PATH . '/footer.php';

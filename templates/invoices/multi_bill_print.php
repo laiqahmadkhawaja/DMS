@@ -131,8 +131,10 @@ $totalPages = count($pages);
                     $compactMode = true;
                     $padRows = max(4, count($invoiceItems));
                 }
+                $slotSuffix = str_replace('-', '', $layoutMode);
+                $slotClass = ($layoutMode === 'auto') ? "bill-slot-{$billsInPage}up" : "bill-slot-{$slotSuffix}";
             ?>
-                <div class="bill-slot">
+                <div class="bill-slot <?= $slotClass ?>">
                     <?php require __DIR__ . '/bill_print.php'; ?>
                 </div>
 

@@ -87,14 +87,14 @@ $isSettled = !empty($run['status']) && $run['status'] === 'completed';
                 if ($run['run_type'] === 'manual') {
                     $prevBal = ((float)$b['prev_balance'] > 0 || (float)$b['net_amount'] > 0) ? (float)$b['prev_balance'] : $custBal;
                     $totalDue = $prevBal + $billAmount;
-                    $remainingBal = max(0, $totalDue - ($cashVal + $returnVal));
+                    $remainingBal = ($creditVal > 0) ? $creditVal : max(0, $totalDue - ($cashVal + $returnVal));
                 } elseif ($isSettled) {
                     $prevBal = max(0, $custBal - $creditVal);
-                    $remainingBal = max(0, $prevBal + $billAmount - ($cashVal + $returnVal));
+                    $remainingBal = ($creditVal > 0) ? $creditVal : max(0, $prevBal + $billAmount - ($cashVal + $returnVal));
                     $totalDue = $prevBal + $billAmount;
                 } else {
                     $prevBal = $custBal;
-                    $remainingBal = $prevBal + $billAmount;
+                    $remainingBal = ($creditVal > 0) ? $creditVal : ($prevBal + $billAmount);
                     $totalDue = $prevBal + $billAmount;
                 }
 

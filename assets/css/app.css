@@ -248,72 +248,72 @@ html, body {
 }
 
 /* ==========================================================================
-   Collapsed Sidebar State (.dms-sidebar-collapsed)
+   Collapsed Sidebar State (.dms-sidebar-collapsed) - Desktop Only (>= 768px)
    ========================================================================== */
 
-.dms-sidebar-collapsed .dms-sidebar {
-    width: 62px;
-}
-
-.dms-sidebar-collapsed .dms-sidebar .dms-brand-text,
-.dms-sidebar-collapsed .dms-sidebar .dms-sidebar-collapse-btn,
-.dms-sidebar-collapsed .dms-sidebar .toggle-chevron,
-.dms-sidebar-collapsed .dms-sidebar .dms-menu-header {
-    display: none !important;
-}
-
-.dms-sidebar-collapsed .dms-sidebar-brand {
-    justify-content: center !important;
-    padding: 0 !important;
-}
-
-.dms-sidebar-collapsed .dms-sidebar-brand i {
-    font-size: 1.35rem;
-}
-
-.dms-sidebar-collapsed .dms-menu-item {
-    font-size: 0 !important;
-    justify-content: center;
-    padding: 0.65rem 0;
-    gap: 0;
-    border-left-width: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.dms-sidebar-collapsed .dms-menu-item i {
-    font-size: 1.15rem !important;
-    width: auto !important;
-    margin: 0 !important;
-}
-
-.dms-sidebar-collapsed .dms-section-toggle {
-    font-size: 0 !important;
-    justify-content: center;
-    padding: 0.65rem 0;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.dms-sidebar-collapsed .dms-section-toggle span {
-    font-size: 0 !important;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 0 !important;
-}
-
-.dms-sidebar-collapsed .dms-section-toggle span i {
-    font-size: 1.15rem !important;
-    margin: 0 !important;
-}
-
-.dms-sidebar-collapsed .dms-submenu .dms-menu-item {
-    padding: 0.45rem 0;
-}
-
-/* Smooth Expand on Hover for Desktop when Collapsed */
 @media (min-width: 768px) {
+    .dms-sidebar-collapsed .dms-sidebar {
+        width: 62px;
+    }
+
+    .dms-sidebar-collapsed .dms-sidebar .dms-brand-text,
+    .dms-sidebar-collapsed .dms-sidebar .dms-sidebar-collapse-btn,
+    .dms-sidebar-collapsed .dms-sidebar .toggle-chevron,
+    .dms-sidebar-collapsed .dms-sidebar .dms-menu-header {
+        display: none !important;
+    }
+
+    .dms-sidebar-collapsed .dms-sidebar-brand {
+        justify-content: center !important;
+        padding: 0 !important;
+    }
+
+    .dms-sidebar-collapsed .dms-sidebar-brand i {
+        font-size: 1.35rem;
+    }
+
+    .dms-sidebar-collapsed .dms-menu-item {
+        font-size: 0 !important;
+        justify-content: center;
+        padding: 0.65rem 0;
+        gap: 0;
+        border-left-width: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .dms-sidebar-collapsed .dms-menu-item i {
+        font-size: 1.15rem !important;
+        width: auto !important;
+        margin: 0 !important;
+    }
+
+    .dms-sidebar-collapsed .dms-section-toggle {
+        font-size: 0 !important;
+        justify-content: center;
+        padding: 0.65rem 0;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .dms-sidebar-collapsed .dms-section-toggle span {
+        font-size: 0 !important;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 !important;
+    }
+
+    .dms-sidebar-collapsed .dms-section-toggle span i {
+        font-size: 1.15rem !important;
+        margin: 0 !important;
+    }
+
+    .dms-sidebar-collapsed .dms-submenu .dms-menu-item {
+        padding: 0.45rem 0;
+    }
+
+    /* Smooth Expand on Hover for Desktop when Collapsed */
     .dms-sidebar-collapsed .dms-sidebar:hover {
         width: 250px;
         box-shadow: 6px 0 25px rgba(0, 0, 0, 0.45);
@@ -369,24 +369,77 @@ html, body {
     }
 }
 
-/* Mobile Sidebar Behavior */
+/* Mobile Sidebar Behavior (< 768px) */
 @media (max-width: 767.98px) {
     .dms-sidebar {
         position: fixed;
         top: 0;
         bottom: 0;
         left: 0;
-        transform: translateX(-100%);
+        width: 280px !important;
+        max-width: 85vw;
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100vh;
+        max-height: 100dvh;
         z-index: 1070;
-        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1), visibility 0.26s;
+        box-shadow: none;
     }
     
     html.dms-sidebar-open-mobile .dms-sidebar {
         transform: translateX(0);
+        visibility: visible;
+        box-shadow: 6px 0 30px rgba(0, 0, 0, 0.6);
     }
     
-    .dms-sidebar-collapsed .dms-sidebar {
-        width: 250px;
+    /* Dedicated Mobile Overlay Backdrop */
+    .dms-sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        background-color: rgba(15, 23, 42, 0.65);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        z-index: 1065;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.24s ease, visibility 0.24s;
+    }
+
+    html.dms-sidebar-open-mobile .dms-sidebar-backdrop {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Prevent underlying page scroll when mobile drawer is open */
+    html.dms-sidebar-open-mobile,
+    html.dms-sidebar-open-mobile body {
+        overflow: hidden !important;
+    }
+
+    /* Topbar on mobile */
+    .dms-topbar {
+        padding: 0 0.75rem;
+    }
+    .dms-topbar-left {
+        gap: 0.5rem;
+    }
+    .dms-topbar-right {
+        gap: 0.35rem;
+    }
+    .dms-content, .dms-main-content {
+        padding: 0.85rem;
+    }
+
+    /* Hide keyboard shortcut bar on mobile touch devices */
+    .dms-shortcut-bar {
+        display: none !important;
     }
 }
 

@@ -90,7 +90,20 @@ if ($action === 'cancel') {
     db()->prepare("UPDATE sales_invoices SET status = 'finalized', finalized_at = NOW(), updated_at = NOW() WHERE id = ?")
         ->execute([$id]);
 
-    set_flash('success', "Invoice #{$invoice['invoice_number']} finalized.");
+    if (function_exists('whatsapp_is_enabled') && whatsapp_is_enabled() && (string)get_setting('whatsapp_auto_send_invoice', '0') === '1') {
+        try {
+            $waRes = whatsapp_send_invoice($id);
+            if ($waRes['success']) {
+                set_flash('success', "Invoice #{$invoice['invoice_number']} finalized & WhatsApp bill sent!");
+            } else {
+                set_flash('warning', "Invoice #{$invoice['invoice_number']} finalized. WhatsApp notice: " . htmlspecialchars($waRes['error'] ?? 'Server unreachable'));
+            }
+        } catch (Throwable $waEx) {
+            error_log("WhatsApp auto-send exception: " . $waEx->getMessage());
+        }
+    } else {
+        set_flash('success', "Invoice #{$invoice['invoice_number']} finalized.");
+    }
     redirect(APP_URL . '/modules/invoices/view.php?id=' . $id);
 } else {
     set_flash('danger', 'Unknown action.');

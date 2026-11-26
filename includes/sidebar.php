@@ -34,9 +34,14 @@ $isSettingsActive   = in_array($activeMenu, ['settings', 'users', 'audit']);
                 <small class="text-truncate d-block text-secondary">Distribution Management</small>
             </div>
         </div>
-        <button type="button" class="btn btn-sm btn-link text-white-50 p-0 dms-sidebar-collapse-btn d-none d-md-inline-flex" id="sidebarCollapseBtn" title="Collapse Sidebar (Ctrl+B)">
-            <i class="bi bi-chevron-left"></i>
-        </button>
+        <div class="d-flex align-items-center">
+            <button type="button" class="btn btn-sm btn-link text-white-50 p-0 dms-sidebar-collapse-btn d-none d-md-inline-flex" id="sidebarCollapseBtn" title="Collapse Sidebar (Ctrl+B)">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-white p-1 d-md-none dms-sidebar-close-mobile-btn text-decoration-none lh-1" id="sidebarCloseMobileBtn" aria-label="Close Sidebar" title="Close">
+                <i class="bi bi-x-lg fs-5"></i>
+            </button>
+        </div>
     </div>
     
     <ul class="dms-sidebar-menu">

@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $settingsToUpdate = $_POST['settings'] ?? [];
     
     // Explicitly handle checkboxes that may not be sent if unchecked
-    $knownBooleans = ['allow_realtime_routes', 'enforce_fixed_routes'];
+    $knownBooleans = ['allow_realtime_routes', 'enforce_fixed_routes', 'whatsapp_enabled', 'whatsapp_auto_send_invoice'];
     foreach ($knownBooleans as $boolKey) {
         if (!isset($settingsToUpdate[$boolKey])) {
             $settingsToUpdate[$boolKey] = '0';
@@ -290,6 +290,80 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
                     </div>
 
+                    <!-- WhatsApp & Open-WA Gateway Settings -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-whatsapp text-success me-2 fs-5"></i>
+                                <h6 class="mb-0 fw-bold text-navy">WhatsApp Gateway (Open-WA Integration)</h6>
+                            </div>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border" id="openwaLiveBadge">
+                                <i class="bi bi-circle-fill me-1" style="font-size:0.5rem;"></i> Not Checked
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">
+                                Connect to your self-hosted Open-WA REST API server to send direct customer invoices, PDF ledgers, and daily closing summaries to WhatsApp.
+                            </p>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" name="settings[whatsapp_enabled]" id="waEnabled" value="1" <?= get_setting('whatsapp_enabled', '1') == '1' ? 'checked' : '' ?>>
+                                <label class="form-check-label fw-semibold" for="waEnabled">Enable WhatsApp Sending via Open-WA</label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">Open-WA Server Base URL</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light"><i class="bi bi-hdd-network"></i></span>
+                                    <input type="text" name="settings[whatsapp_api_url]" id="waApiUrl" class="form-control" 
+                                           value="<?= htmlspecialchars(get_setting('whatsapp_api_url', 'http://localhost:8080')) ?>" placeholder="http://localhost:8080">
+                                    <button type="button" class="btn btn-outline-success" id="btnTestOpenWa">
+                                        <i class="bi bi-plug-fill me-1"></i> Test Connection
+                                    </button>
+                                </div>
+                                <small class="text-muted" style="font-size:0.75rem;">Your hosted Open-WA API address (e.g. <code>http://localhost:8080</code> or <code>http://192.168.1.50:8080</code>)</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">API Secret Key (Optional)</label>
+                                <input type="password" name="settings[whatsapp_api_key]" class="form-control form-control-sm" 
+                                       value="<?= htmlspecialchars(get_setting('whatsapp_api_key', '')) ?>" placeholder="Leave blank if no key is configured on server">
+                            </div>
+
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="settings[whatsapp_auto_send_invoice]" id="waAutoSend" value="1" <?= get_setting('whatsapp_auto_send_invoice', '0') == '1' ? 'checked' : '' ?>>
+                                <label class="form-check-label small" for="waAutoSend">
+                                    Auto-send WhatsApp bill to customer when Sales Invoice is finalized
+                                </label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">Daily Closing Broadcast Numbers (Owners / Partners)</label>
+                                <input type="text" name="settings[whatsapp_owner_phones]" class="form-control form-control-sm" 
+                                       value="<?= htmlspecialchars(get_setting('whatsapp_owner_phones', '')) ?>" placeholder="03001234567, 03017654321">
+                                <small class="text-muted" style="font-size:0.75rem;">Comma-separated phone numbers that will receive daily Roznamcha summaries</small>
+                            </div>
+
+                            <!-- Interactive Live Test Send Box -->
+                            <div class="p-3 bg-light rounded border">
+                                <label class="form-label small fw-bold text-navy mb-2"><i class="bi bi-send-check text-primary me-1"></i> Quick Test WhatsApp Sending</label>
+                                <div class="input-group input-group-sm mb-2">
+                                    <input type="text" id="waTestPhone" class="form-control" placeholder="Recipient Phone (03001234567)">
+                                    <button type="button" class="btn btn-navy" id="btnSendTestWa">
+                                        <i class="bi bi-chat-dots me-1"></i> Send Text
+                                    </button>
+                                </div>
+                                <div class="input-group input-group-sm">
+                                    <input type="file" id="waTestFile" class="form-control" accept="image/*,application/pdf">
+                                    <button type="button" class="btn btn-outline-success" id="btnSendTestFile">
+                                        <i class="bi bi-paperclip me-1"></i> Send Pic/PDF
+                                    </button>
+                                </div>
+                                <div id="waTestResult" class="small mt-2" style="display:none;"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Sequential Numbering Prefixes -->
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-header bg-white py-3 border-bottom d-flex align-items-center">
@@ -378,6 +452,148 @@ require_once INCLUDES_PATH . '/topbar.php';
         </form>
     </div>
 </div>
+
+<script>
+// WhatsApp Open-WA Interactive Handlers
+document.addEventListener('DOMContentLoaded', function() {
+    const btnTest = document.getElementById('btnTestOpenWa');
+    const badge = document.getElementById('openwaLiveBadge');
+    if (btnTest) {
+        btnTest.addEventListener('click', async function() {
+            btnTest.disabled = true;
+            const originalHtml = btnTest.innerHTML;
+            btnTest.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking...';
+            badge.className = 'badge bg-warning bg-opacity-10 text-warning border border-warning';
+            badge.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i> Checking server...';
+
+            try {
+                const res = await dmsFetch('<?= APP_URL ?>/ajax/whatsapp/send.php?action=test_connection');
+                if (res && res.success) {
+                    badge.className = 'badge bg-success bg-opacity-10 text-success border border-success';
+                    badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> ' + (res.data?.host_number ? 'Online (' + res.data.host_number + ')' : 'Online');
+                    showToast('Open-WA Server is Online & Authenticated!', 'success');
+                } else {
+                    badge.className = 'badge bg-danger bg-opacity-10 text-danger border border-danger';
+                    badge.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i> ' + ((res && res.message) ? res.message : 'Offline / Error');
+                }
+            } catch (e) {
+                badge.className = 'badge bg-danger bg-opacity-10 text-danger border border-danger';
+                badge.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i> Unreachable';
+            } finally {
+                btnTest.disabled = false;
+                btnTest.innerHTML = originalHtml;
+            }
+        });
+    }
+
+    // Send Test Message
+    const btnSendTest = document.getElementById('btnSendTestWa');
+    const testPhoneInput = document.getElementById('waTestPhone');
+    const testResult = document.getElementById('waTestResult');
+    if (btnSendTest) {
+        btnSendTest.addEventListener('click', async function() {
+            const phone = testPhoneInput.value.trim();
+            if (!phone) {
+                showToast('Please enter recipient phone number (e.g. 03001234567)', 'warning');
+                testPhoneInput.focus();
+                return;
+            }
+
+            btnSendTest.disabled = true;
+            const origHtml = btnSendTest.innerHTML;
+            btnSendTest.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+            testResult.style.display = 'block';
+            testResult.className = 'small mt-2 alert alert-info py-2 mb-0';
+            testResult.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Sending test message to ' + phone + ' via Open-WA...';
+
+            try {
+                const fd = new FormData();
+                fd.append('action', 'send_test_message');
+                fd.append('phone', phone);
+
+                const res = await fetch('<?= APP_URL ?>/ajax/whatsapp/send.php', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                }).then(r => r.json());
+
+                if (res.success) {
+                    testResult.className = 'small mt-2 alert alert-success py-2 mb-0';
+                    testResult.innerHTML = '<i class="bi bi-check-circle me-1"></i> ' + res.message;
+                    showToast(res.message, 'success');
+                } else {
+                    testResult.className = 'small mt-2 alert alert-danger py-2 mb-0';
+                    testResult.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> ' + (res.message || 'Sending failed');
+                    showToast(res.message || 'Sending failed', 'danger');
+                }
+            } catch (err) {
+                testResult.className = 'small mt-2 alert alert-danger py-2 mb-0';
+                testResult.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> ' + err.message;
+            } finally {
+                btnSendTest.disabled = false;
+                btnSendTest.innerHTML = origHtml;
+            }
+        });
+    }
+
+    // Send Test Picture / PDF File
+    const btnSendTestFile = document.getElementById('btnSendTestFile');
+    const testFileInput = document.getElementById('waTestFile');
+    if (btnSendTestFile) {
+        btnSendTestFile.addEventListener('click', async function() {
+            const phone = testPhoneInput.value.trim();
+            if (!phone) {
+                showToast('Please enter recipient phone number (e.g. 03001234567)', 'warning');
+                testPhoneInput.focus();
+                return;
+            }
+            if (!testFileInput.files || !testFileInput.files[0]) {
+                showToast('Please choose an image or PDF file to send', 'warning');
+                testFileInput.click();
+                return;
+            }
+
+            const file = testFileInput.files[0];
+            btnSendTestFile.disabled = true;
+            const origHtml = btnSendTestFile.innerHTML;
+            btnSendTestFile.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+            testResult.style.display = 'block';
+            testResult.className = 'small mt-2 alert alert-info py-2 mb-0';
+            testResult.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Uploading and sending ' + file.name + ' via Open-WA...';
+
+            try {
+                const fd = new FormData();
+                fd.append('action', 'send_file');
+                fd.append('phone', phone);
+                fd.append('caption', 'Test file transmission from DMS (' + file.name + ')');
+                fd.append('file', file);
+
+                const res = await fetch('<?= APP_URL ?>/ajax/whatsapp/send.php', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                }).then(r => r.json());
+
+                if (res.success) {
+                    testResult.className = 'small mt-2 alert alert-success py-2 mb-0';
+                    testResult.innerHTML = '<i class="bi bi-check-circle me-1"></i> ' + res.message;
+                    showToast(res.message, 'success');
+                } else {
+                    testResult.className = 'small mt-2 alert alert-danger py-2 mb-0';
+                    testResult.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> ' + (res.message || 'File send failed');
+                    showToast(res.message || 'File send failed', 'danger');
+                }
+            } catch (err) {
+                testResult.className = 'small mt-2 alert alert-danger py-2 mb-0';
+                testResult.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> ' + err.message;
+            } finally {
+                btnSendTestFile.disabled = false;
+                btnSendTestFile.innerHTML = origHtml;
+            }
+        });
+    }
+});
+</script>
 
 <?php
 require_once INCLUDES_PATH . '/footer.php';

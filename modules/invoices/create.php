@@ -291,7 +291,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             db()->commit();
 
-            set_flash('success', "Sales invoice <strong>{$invoiceNumber}</strong> successfully created and finalized!");
+            // Auto-send WhatsApp bill to customer if enabled in settings
+            if (function_exists('whatsapp_is_enabled') && whatsapp_is_enabled() && (string)get_setting('whatsapp_auto_send_invoice', '0') === '1') {
+                try {
+                    $waRes = whatsapp_send_invoice($invoiceId);
+                    if ($waRes['success']) {
+                        set_flash('success', "Sales invoice <strong>{$invoiceNumber}</strong> created & sent via WhatsApp!");
+                    } else {
+                        set_flash('warning', "Sales invoice <strong>{$invoiceNumber}</strong> created. WhatsApp auto-send notice: " . htmlspecialchars($waRes['error'] ?? 'Server unreachable'));
+                    }
+                } catch (Throwable $waEx) {
+                    error_log("WhatsApp auto-send exception: " . $waEx->getMessage());
+                }
+            } else {
+                set_flash('success', "Sales invoice <strong>{$invoiceNumber}</strong> successfully created and finalized!");
+            }
             redirect(APP_URL . '/modules/invoices/view.php?id=' . $invoiceId);
 
         } catch (Exception $e) {
