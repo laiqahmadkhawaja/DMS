@@ -26,7 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $settingsToUpdate = $_POST['settings'] ?? [];
     
     // Explicitly handle checkboxes that may not be sent if unchecked
-    $knownBooleans = ['allow_realtime_routes', 'enforce_fixed_routes', 'whatsapp_enabled', 'whatsapp_auto_send_invoice'];
+    $knownBooleans = ['allow_realtime_routes', 'enforce_fixed_routes'];
+    if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()) {
+        $knownBooleans[] = 'whatsapp_enabled';
+        $knownBooleans[] = 'whatsapp_auto_send_invoice';
+    }
     foreach ($knownBooleans as $boolKey) {
         if (!isset($settingsToUpdate[$boolKey])) {
             $settingsToUpdate[$boolKey] = '0';
@@ -290,6 +294,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
                     </div>
 
+                    <?php if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
                     <!-- WhatsApp & Open-WA Gateway Settings -->
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
@@ -389,6 +394,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
 
                     <!-- Sequential Numbering Prefixes -->
                     <div class="card border-0 shadow-sm mb-4">
@@ -479,6 +485,7 @@ require_once INCLUDES_PATH . '/topbar.php';
     </div>
 </div>
 
+<?php if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
 <script>
 // WhatsApp Open-WA Interactive Handlers
 document.addEventListener('DOMContentLoaded', function() {
@@ -695,6 +702,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+<?php endif; ?>
 
 <?php
 require_once INCLUDES_PATH . '/footer.php';

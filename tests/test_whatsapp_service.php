@@ -110,6 +110,70 @@ assert($emptyCheck['connected'] === false, "Empty URL must not connect");
 assert(str_contains($emptyCheck['error'], 'not configured'), "Must warn that URL is not configured");
 echo "  [PASS] Unconfigured URL caught immediately without curl: {$emptyCheck['error']}\n";
 
+echo "\nTesting Master Client-Wise Feature Toggle (system_features.status ENUM on/off)...\n";
+$db = Database::getConnection();
+
+// Ensure master feature is 'on'
+$db->exec("UPDATE system_features SET status = 'on' WHERE feature_key = 'whatsapp'");
+assert(is_whatsapp_feature_enabled(true) === true, "Master feature should be enabled when status is 'on'");
+echo "  [PASS] When system_features.status = 'on': is_whatsapp_feature_enabled() -> TRUE\n";
+
+// Toggle master feature to 'off'
+$db->exec("UPDATE system_features SET status = 'off' WHERE feature_key = 'whatsapp'");
+assert(is_whatsapp_feature_enabled(true) === false, "Master feature should be disabled when status is 'off'");
+assert(whatsapp_is_enabled() === false, "whatsapp_is_enabled() must return false when feature is off");
+
+$connOff = whatsapp_check_connection('https://wa.darwarqamgrw.in', '', 'test');
+assert($connOff['connected'] === false && str_contains($connOff['error'], 'disabled in system features'), "Check connection must fail when feature is off");
+
+$textOff = whatsapp_send_text('03001234567', 'Test message');
+assert($textOff['success'] === false && str_contains($textOff['error'], 'disabled in system features'), "Send text must fail when feature is off");
+
+$fileOff = whatsapp_send_file('03001234567', 'dGVzdA==', 'test.txt');
+assert($fileOff['success'] === false && str_contains($fileOff['error'], 'disabled in system features'), "Send file must fail when feature is off");
+
+$invOff = whatsapp_send_invoice(1);
+assert($invOff['success'] === false && str_contains($invOff['error'], 'disabled in system features'), "Send invoice must fail when feature is off");
+
+$dailyOff = whatsapp_broadcast_daily_closing();
+assert($dailyOff['success'] === false && str_contains($dailyOff['error'], 'disabled in system features'), "Daily broadcast must fail when feature is off");
+
+echo "  [PASS] When system_features.status = 'off': All WhatsApp actions safely blocked\n";
+
+// Re-enable master feature to 'on'
+$db->exec("UPDATE system_features SET status = 'on' WHERE feature_key = 'whatsapp'");
+assert(is_whatsapp_feature_enabled(true) === true, "Master feature should be re-enabled when status is restored to 'on'");
+echo "  [PASS] Re-enabled system_features.status = 'on' -> TRUE\n";
+
+echo "\nTesting Customer-Level WhatsApp Toggle (customers.whatsapp_status ENUM on/off)...\n";
+if ($latestCust) {
+    // Test with customer whatsapp_status = 'on'
+    $db->exec("UPDATE customers SET whatsapp_status = 'on' WHERE id = " . (int)$latestCust);
+    assert(customer_has_whatsapp_enabled((int)$latestCust) === true, "Customer whatsapp should be enabled");
+    echo "  [PASS] Customer #{$latestCust} status = 'on' -> customer_has_whatsapp_enabled() = TRUE\n";
+
+    // Test with customer whatsapp_status = 'off'
+    $db->exec("UPDATE customers SET whatsapp_status = 'off' WHERE id = " . (int)$latestCust);
+    assert(customer_has_whatsapp_enabled((int)$latestCust) === false, "Customer whatsapp should be disabled");
+    echo "  [PASS] Customer #{$latestCust} status = 'off' -> customer_has_whatsapp_enabled() = FALSE\n";
+
+    // When customer has whatsapp_status = 'off', whatsapp_send_invoice must be blocked for this customer
+    if ($latestInv) {
+        // Temporarily assign this customer to latest invoice to test
+        $origCustId = db_fetch_val("SELECT customer_id FROM sales_invoices WHERE id = ?", [$latestInv]);
+        $db->exec("UPDATE sales_invoices SET customer_id = " . (int)$latestCust . " WHERE id = " . (int)$latestInv);
+        $custSendRes = whatsapp_send_invoice((int)$latestInv);
+        assert($custSendRes['success'] === false && str_contains($custSendRes['error'], 'disabled for customer'), "Send invoice must be blocked if customer whatsapp_status is 'off'");
+        echo "  [PASS] Invoice sending safely blocked for customer with whatsapp_status = 'off': {$custSendRes['error']}\n";
+        // Restore invoice customer
+        $db->exec("UPDATE sales_invoices SET customer_id = " . (int)$origCustId . " WHERE id = " . (int)$latestInv);
+    }
+
+    // Restore customer to 'on'
+    $db->exec("UPDATE customers SET whatsapp_status = 'on' WHERE id = " . (int)$latestCust);
+    echo "  [PASS] Customer #{$latestCust} restored to status = 'on'\n";
+}
+
 echo "\n==================================================\n";
 echo "ALL WHATSAPP SERVICE TESTS PASSED CLEANLY!\n";
 echo "==================================================\n";

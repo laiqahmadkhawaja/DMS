@@ -105,11 +105,79 @@ function whatsapp_get_config(?string $baseUrl = null, ?string $apiKey = null, ?s
 }
 
 /**
+ * Master Client-Wise Switch for WhatsApp Integration.
+ * 
+ * Configurable via database `system_features` table:
+ * `feature_key` = 'whatsapp'
+ * `status` = ENUM('on', 'off')
+ *
+ * Can be manually set in phpMyAdmin per client/installation:
+ * UPDATE system_features SET status = 'off' WHERE feature_key = 'whatsapp';
+ *
+ * @param bool $forceFresh Whether to bypass static cache (useful for tests and dynamic updates)
+ * @return bool True if 'on', False if 'off'
+ */
+function is_whatsapp_feature_enabled(bool $forceFresh = false): bool {
+    static $statusCache = null;
+    if ($statusCache !== null && !$forceFresh) {
+        return $statusCache;
+    }
+
+    try {
+        $db = Database::getConnection();
+        $stmt = $db->prepare("SELECT status FROM system_features WHERE feature_key = 'whatsapp' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch();
+        if ($row && isset($row['status'])) {
+            $statusCache = (strtolower((string)$row['status']) === 'on');
+            return $statusCache;
+        }
+    } catch (Throwable $e) {
+        // Table may not exist yet or query failed, fallback to settings
+    }
+
+    // Fallback to settings table
+    $settingVal = strtolower((string)get_setting('whatsapp_feature_status', 'on'));
+    $statusCache = ($settingVal === 'on' || $settingVal === '1');
+    return $statusCache;
+}
+
+/**
+ * Check if a specific customer has WhatsApp communications enabled.
+ *
+ * @param int $customerId
+ * @return bool True if customer status is 'on' (or column not found), False if 'off'
+ */
+function customer_has_whatsapp_enabled(int $customerId): bool {
+    if (!is_whatsapp_feature_enabled()) {
+        return false;
+    }
+    if ($customerId <= 0) {
+        return true;
+    }
+    try {
+        $db = Database::getConnection();
+        $stmt = $db->prepare("SELECT whatsapp_status FROM customers WHERE id = ? LIMIT 1");
+        $stmt->execute([$customerId]);
+        $val = $stmt->fetchColumn();
+        if ($val !== false && $val !== null) {
+            return strtolower((string)$val) === 'on';
+        }
+    } catch (Throwable $e) {
+        // Fallback to true if column query fails
+    }
+    return true;
+}
+
+/**
  * Check if WhatsApp service is enabled in DMS settings
  *
  * @return bool
  */
 function whatsapp_is_enabled(): bool {
+    if (!is_whatsapp_feature_enabled()) {
+        return false;
+    }
     return (string)get_setting('whatsapp_enabled', '1') === '1';
 }
 
@@ -237,6 +305,13 @@ function whatsapp_api_request(string $endpoint, string $method = 'POST', array $
  * @return array
  */
 function whatsapp_check_connection(?string $baseUrl = null, ?string $apiKey = null, ?string $sessionId = null): array {
+    if (!is_whatsapp_feature_enabled()) {
+        return [
+            'connected' => false,
+            'error'     => 'WhatsApp integration is disabled in system features for this installation.'
+        ];
+    }
+
     $cfg = whatsapp_get_config($baseUrl, $apiKey, $sessionId);
     if (empty($cfg['base_url'])) {
         return [
@@ -332,6 +407,10 @@ function whatsapp_check_connection(?string $baseUrl = null, ?string $apiKey = nu
  * @return array
  */
 function whatsapp_send_text(string $phone, string $message, ?array $configOverride = null): array {
+    if (!is_whatsapp_feature_enabled()) {
+        return ['success' => false, 'error' => 'WhatsApp integration is disabled in system features for this installation.'];
+    }
+
     $jid = whatsapp_format_number($phone);
     if (!$jid) {
         return ['success' => false, 'error' => 'Invalid mobile phone number provided.'];
@@ -395,6 +474,10 @@ function whatsapp_send_text(string $phone, string $message, ?array $configOverri
  * @return array
  */
 function whatsapp_send_file(string $phone, string $base64OrDataUri, string $filename, string $caption = '', ?array $configOverride = null): array {
+    if (!is_whatsapp_feature_enabled()) {
+        return ['success' => false, 'error' => 'WhatsApp integration is disabled in system features for this installation.'];
+    }
+
     $jid = whatsapp_format_number($phone);
     if (!$jid) {
         return ['success' => false, 'error' => 'Invalid mobile phone number provided.'];
@@ -636,7 +719,16 @@ function whatsapp_build_invoice_summary(int $invoiceId): array {
  * @return array
  */
 function whatsapp_send_invoice(int $invoiceId, ?string $overridePhone = null): array {
+    if (!is_whatsapp_feature_enabled()) {
+        return ['success' => false, 'error' => 'WhatsApp integration is disabled in system features for this installation.'];
+    }
+
     $data = whatsapp_build_invoice_summary($invoiceId);
+    $customerId = (int)($data['invoice']['customer_id'] ?? 0);
+    if ($customerId > 0 && !customer_has_whatsapp_enabled($customerId)) {
+        return ['success' => false, 'error' => "WhatsApp messaging is disabled for customer '{$data['invoice']['shop_name']}'."];
+    }
+
     $phone = $overridePhone ?: $data['phone'];
 
     if (empty($phone)) {
@@ -709,6 +801,10 @@ function whatsapp_build_customer_statement(int $customerId, ?string $startDate =
  * @return array
  */
 function whatsapp_broadcast_daily_closing(?string $closingDate = null): array {
+    if (!is_whatsapp_feature_enabled()) {
+        return ['success' => false, 'error' => 'WhatsApp integration is disabled in system features for this installation.'];
+    }
+
     $date = $closingDate ?: date('Y-m-d');
     $currency = DEFAULT_CURRENCY;
     $clientName = get_setting('distributor_name', CLIENT_NAME);

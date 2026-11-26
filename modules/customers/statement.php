@@ -189,6 +189,7 @@ if ($viewMode === 'parties_credit') {
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-end no-print">
+                                    <?php if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
                                     <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 me-1" title="Send WhatsApp Statement via Open-WA" onclick="openWhatsAppDrawer({
                                         customerId: <?= $party['id'] ?>,
                                         phone: '<?= addslashes(htmlspecialchars($party['phone'] ?? '')) ?>',
@@ -198,6 +199,7 @@ if ($viewMode === 'parties_credit') {
                                     })">
                                         <i class="bi bi-whatsapp"></i>
                                     </button>
+                                    <?php endif; ?>
                                     <a href="<?= APP_URL ?>/modules/customers/statement.php?view=single&id=<?= $party['id'] ?>" class="btn btn-xs btn-outline-primary py-0 px-2">
                                         View Ledger
                                     </a>
@@ -304,7 +306,7 @@ require_once INCLUDES_PATH . '/topbar.php';
         <a href="<?= APP_URL ?>/modules/customers/statement.php?view=parties_credit" class="btn btn-sm btn-outline-primary">
             &larr; Parties Credit Summary
         </a>
-        <?php if ($selectedCust): ?>
+        <?php if ($selectedCust && function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
             <button type="button" class="btn btn-sm btn-success" title="Send WhatsApp Statement via Open-WA" onclick="openWhatsAppDrawer({
                 customerId: <?= $selectedCust['id'] ?>,
                 phone: '<?= addslashes(htmlspecialchars($selectedCust['phone'] ?? '')) ?>',

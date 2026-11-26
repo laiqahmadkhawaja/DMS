@@ -345,6 +345,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 <a href="print.php?id=<?= $inv['id'] ?>" target="_blank" class="btn btn-outline-secondary" title="Print Customer Memo">
                                                     <i class="bi bi-printer"></i>
                                                 </a>
+                                                <?php if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
                                                 <button type="button" class="btn btn-outline-success" title="Send WhatsApp Bill via Open-WA" onclick="openWhatsAppDrawer({
                                                     invoiceId: <?= $inv['id'] ?>,
                                                     phone: '<?= addslashes(htmlspecialchars($inv['customer_phone'] ?? '')) ?>',
@@ -354,6 +355,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                                 })">
                                                     <i class="bi bi-whatsapp"></i>
                                                 </button>
+                                                <?php endif; ?>
                                                 <?php if ($inv['status'] !== 'cancelled'): ?>
                                                     <a href="../returns/create.php?invoice_id=<?= $inv['id'] ?>" class="btn btn-outline-danger" title="Sales Return (مال واپسی)">
                                                         <i class="bi bi-arrow-return-left"></i>

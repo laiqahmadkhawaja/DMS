@@ -121,6 +121,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <i class="bi bi-files me-1"></i> 2-up Duplicate
                     </a>
                 </div>
+                <?php if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
                 <button type="button" class="btn btn-success btn-sm shadow-sm" onclick="openWhatsAppDrawer({
                     invoiceId: <?= $invoice['id'] ?>,
                     phone: '<?= addslashes(htmlspecialchars($invoice['customer_phone'] ?? '')) ?>',
@@ -130,6 +131,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                 })" title="Send Invoice via WhatsApp (Open-WA)">
                     <i class="bi bi-whatsapp me-1"></i> WhatsApp Bill
                 </button>
+                <?php endif; ?>
                 <?php if ($invoice['status'] !== 'cancelled' && $invoice['status'] !== 'settled' && has_permission('invoices_cancel')): ?>
                     <a href="action.php?action=cancel&id=<?= $invoice['id'] ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Cancel this invoice?');">
                         <i class="bi bi-x-circle me-1"></i> Cancel Bill

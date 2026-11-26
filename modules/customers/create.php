@@ -27,6 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $discountPct    = (float)($_POST['default_discount_percent'] ?? 0);
     $notes          = clean_input($_POST['notes'] ?? '');
     $isActive       = isset($_POST['is_active']) ? 1 : 0;
+    $whatsappStatus = (isset($_POST['whatsapp_status']) && $_POST['whatsapp_status'] === 'off') ? 'off' : 'on';
+    if (!isset($_POST['whatsapp_status']) && isset($_POST['submitted'])) {
+        $whatsappStatus = 'off';
+    }
 
     $validator = new Validator();
     $validator->required('customer_code', $customerCode)
@@ -56,23 +60,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db_transaction(function ($pdo) use (
                 $customerCode, $shopName, $ownerName, $phone, $cnicOrNtn, $address,
                 $areaId, $bookerId, $creditLimit, $creditDays, $openingBalance,
-                $discountPct, $notes, $isActive
+                $discountPct, $notes, $isActive, $whatsappStatus
             ) {
                 $stmt = $pdo->prepare("
                     INSERT INTO customers (
                         customer_code, shop_name, owner_name, phone, cnic_or_ntn, address,
                         area_id, booker_id, credit_limit, credit_days, opening_balance,
-                        current_balance, default_discount_percent, notes, is_active, created_at
+                        current_balance, default_discount_percent, notes, is_active, whatsapp_status, created_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, NOW()
+                        ?, ?, ?, ?, ?, NOW()
                     )
                 ");
                 $stmt->execute([
                     $customerCode, $shopName, $ownerName, $phone, $cnicOrNtn, $address,
                     $areaId, $bookerId, $creditLimit, $creditDays, $openingBalance,
-                    $openingBalance, $discountPct, $notes, $isActive
+                    $openingBalance, $discountPct, $notes, $isActive, $whatsappStatus
                 ]);
                 $customerId = (int)$pdo->lastInsertId();
 
@@ -223,10 +227,20 @@ require_once INCLUDES_PATH . '/topbar.php';
                         <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Shop landmarks or delivery instructions..."></textarea>
                     </div>
 
-                    <div class="form-check form-switch">
+                    <input type="hidden" name="submitted" value="1">
+                    <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" name="is_active" value="1" id="custActive" checked>
                         <label class="form-check-label small" for="custActive">Customer Active for Order Booking & Billing</label>
                     </div>
+
+                    <?php if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="whatsapp_status" value="on" id="custWhatsappStatus" checked>
+                        <label class="form-check-label small" for="custWhatsappStatus">
+                            <i class="bi bi-whatsapp text-success me-1"></i> WhatsApp Messaging Active (ENUM: on/off)
+                        </label>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

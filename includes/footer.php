@@ -326,8 +326,10 @@ function filterF1Guide() {
 <!-- Global Quick Customer / Retailer Slide Drawer (Real-Time Dynamic Customer Creation) -->
 <?php require_once __DIR__ . '/drawers/quick_customer_drawer.php'; ?>
 
+<?php if (function_exists('is_whatsapp_feature_enabled') && is_whatsapp_feature_enabled()): ?>
 <!-- Global Quick WhatsApp Dispatcher Slide Drawer (Open-WA Integration) -->
 <?php require_once __DIR__ . '/drawers/quick_whatsapp_drawer.php'; ?>
+<?php endif; ?>
 
 <!-- Local Scripts (No CDNs) -->
 <script src="<?= APP_URL ?>/assets/bootstrap/bootstrap.bundle.min.js"></script>

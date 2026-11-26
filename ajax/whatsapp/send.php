@@ -16,6 +16,15 @@ if (!is_logged_in()) {
     exit;
 }
 
+// Master Client-Wise Feature Toggle: block all actions if feature is turned off
+if (!function_exists('is_whatsapp_feature_enabled') || !is_whatsapp_feature_enabled()) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'WhatsApp integration is disabled in system features for this installation.'
+    ]);
+    exit;
+}
+
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 // Support live configuration overrides passed from frontend form (before settings are saved)

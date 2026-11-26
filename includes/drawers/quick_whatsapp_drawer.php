@@ -14,6 +14,10 @@
 if (!defined('DMS_RUNNING')) {
     exit('Direct access not permitted.');
 }
+
+if (!function_exists('is_whatsapp_feature_enabled') || !is_whatsapp_feature_enabled()) {
+    return;
+}
 ?>
 <!-- Non-Modal Slide-out Drawer: Open-WA WhatsApp Sender -->
 <div id="drawer-quick-whatsapp" class="dms-drawer" style="width: 520px; max-width: 95vw;">
