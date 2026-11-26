@@ -104,6 +104,12 @@ assert($cfg2['session_id'] === 'default', "Empty session_id should default to 'd
 assert($cfg2['is_https'] === false, "Config is_https should be false for HTTP");
 echo "  [PASS] Default session_id fallback verified\n";
 
+echo "\nTesting Unconfigured URL Guard (Zero 8080 fallback)...\n";
+$emptyCheck = whatsapp_check_connection('');
+assert($emptyCheck['connected'] === false, "Empty URL must not connect");
+assert(str_contains($emptyCheck['error'], 'not configured'), "Must warn that URL is not configured");
+echo "  [PASS] Unconfigured URL caught immediately without curl: {$emptyCheck['error']}\n";
+
 echo "\n==================================================\n";
 echo "ALL WHATSAPP SERVICE TESTS PASSED CLEANLY!\n";
 echo "==================================================\n";

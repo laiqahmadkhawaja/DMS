@@ -86,7 +86,7 @@ function whatsapp_normalize_url(string $url): string {
  * @return array ['base_url' => string, 'api_key' => string, 'session_id' => string, 'is_https' => bool]
  */
 function whatsapp_get_config(?string $baseUrl = null, ?string $apiKey = null, ?string $sessionId = null): array {
-    $rawUrl = $baseUrl !== null ? $baseUrl : (string)get_setting('whatsapp_api_url', 'http://localhost:8080');
+    $rawUrl = $baseUrl !== null ? $baseUrl : (string)get_setting('whatsapp_api_url', '');
     $normalizedUrl = whatsapp_normalize_url($rawUrl);
 
     $resolvedApiKey = $apiKey !== null ? trim($apiKey) : trim((string)get_setting('whatsapp_api_key', ''));
@@ -183,14 +183,24 @@ function whatsapp_api_request(string $endpoint, string $method = 'POST', array $
     $raw = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErr = curl_error($ch);
+    $curlErrNo = curl_errno($ch);
     curl_close($ch);
 
     if ($raw === false) {
+        $detail = $curlErr;
+        if ($curlErrNo === CURLE_COULDNT_RESOLVE_HOST) {
+            $parsedHost = parse_url($baseUrl, PHP_URL_HOST) ?: $baseUrl;
+            $detail = "Could not resolve domain name '{$parsedHost}'. Check your server URL, DNS settings, or network connection.";
+        } elseif ($curlErrNo === CURLE_OPERATION_TIMEDOUT) {
+            $detail = "Connection timed out to Open-WA server ({$baseUrl}). Ensure server is online and accepting requests.";
+        } elseif ($curlErrNo === CURLE_COULDNT_CONNECT) {
+            $detail = "Could not connect to Open-WA server ({$baseUrl}). Port or server is unreachable.";
+        }
         return [
             'success'  => false,
             'status'   => $httpCode,
             'response' => null,
-            'error'    => 'Connection failed: ' . ($curlErr ?: 'Unable to reach Open-WA server at ' . $baseUrl)
+            'error'    => 'Connection failed: ' . ($detail ?: 'Unable to reach Open-WA server at ' . $baseUrl)
         ];
     }
 
@@ -215,35 +225,55 @@ function whatsapp_api_request(string $endpoint, string $method = 'POST', array $
  */
 function whatsapp_check_connection(?string $baseUrl = null, ?string $apiKey = null, ?string $sessionId = null): array {
     $cfg = whatsapp_get_config($baseUrl, $apiKey, $sessionId);
+    if (empty($cfg['base_url'])) {
+        return [
+            'connected' => false,
+            'error'     => 'Open-WA server URL is not configured. Please enter your Open-WA server address (e.g. https://wa.darwarqamgrw.in).'
+        ];
+    }
+
     $sId = $cfg['session_id'];
     $override = ['base_url' => $cfg['base_url'], 'api_key' => $cfg['api_key'], 'session_id' => $sId];
 
-    // Try multiple standard endpoints in order across both modern and legacy Open-WA deployments
+    // Try standard endpoints in priority order (Modern OpenWA Gateway first, then fallback)
     $testEndpoints = [
-        "/api/sessions/" . urlencode($sId) . "/status",
         "/api/sessions/" . urlencode($sId),
+        "/api/sessions/" . urlencode($sId) . "/status",
         "/api/sessions",
+        "/health",
+        "/status",
         "/" . urlencode($sId) . "/getHostNumber",
         "/getHostNumber",
         "/" . urlencode($sId) . "/getBatteryLevel",
         "/getBatteryLevel",
         "/api/" . urlencode($sId) . "/status-session",
-        "/status",
-        "/health",
         "/"
     ];
 
     $lastError = 'Could not connect to Open-WA server.';
-    $lastStatus = 0;
 
     foreach ($testEndpoints as $ep) {
         $res = whatsapp_api_request($ep, 'GET', [], 4, $override);
         if ($res['success']) {
-            $hostNo = 'Online';
-            if (is_array($res['response'])) {
-                $hostNo = $res['response']['response'] ?? $res['response']['status'] ?? $res['response']['host'] ?? 'Connected';
-            } elseif (is_string($res['response']) && strlen($res['response']) < 50) {
-                $hostNo = $res['response'];
+            $body = $res['response'];
+            $hostNo = 'Online & Connected';
+            if (is_array($body)) {
+                $statusKey = $body['status'] ?? $body['state'] ?? $body['sessionStatus'] ?? null;
+                if ($statusKey) {
+                    $hostNo = match (strtolower((string)$statusKey)) {
+                        'ready', 'connected' => 'Online & Ready',
+                        'qr_ready', 'scan_qr_code' => 'QR Scan Required (Please scan QR code)',
+                        'authenticating', 'starting' => 'Authenticating...',
+                        'action_required' => 'Action Required on Phone',
+                        default => 'Status: ' . ucfirst((string)$statusKey)
+                    };
+                }
+                if (!empty($body['host']) || !empty($body['phone'])) {
+                    $phoneStr = $body['host'] ?? $body['phone'];
+                    $hostNo .= " ({$phoneStr})";
+                }
+            } elseif (is_string($body) && strlen($body) < 50) {
+                $hostNo = $body;
             }
             return [
                 'connected'   => true,
@@ -252,7 +282,7 @@ function whatsapp_check_connection(?string $baseUrl = null, ?string $apiKey = nu
             ];
         }
 
-        $lastStatus = $res['status'];
+        // Authentication failure is fatal - don't keep probing
         if ($res['status'] === 401 || $res['status'] === 403) {
             return [
                 'connected' => false,
@@ -260,8 +290,17 @@ function whatsapp_check_connection(?string $baseUrl = null, ?string $apiKey = nu
             ];
         }
 
+        // Network-level failures (cannot resolve domain, timeout, connection refused) - fail immediately!
         if (!empty($res['error'])) {
             $lastError = $res['error'];
+            if (str_contains($res['error'], 'Could not resolve') || 
+                str_contains($res['error'], 'Connection timed out') ||
+                str_contains($res['error'], 'Could not connect')) {
+                return [
+                    'connected' => false,
+                    'error'     => $res['error']
+                ];
+            }
         }
     }
 

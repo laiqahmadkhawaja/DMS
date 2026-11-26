@@ -316,12 +316,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text bg-light"><i class="bi bi-hdd-network"></i></span>
                                     <input type="text" name="settings[whatsapp_api_url]" id="waApiUrl" class="form-control" 
-                                           value="<?= htmlspecialchars(get_setting('whatsapp_api_url', 'http://localhost:8080')) ?>" placeholder="https://wa.darwarqamgrw.in or http://localhost:8080">
+                                           value="<?= htmlspecialchars(get_setting('whatsapp_api_url', '')) ?>" placeholder="https://wa.darwarqamgrw.in">
                                     <button type="button" class="btn btn-outline-success" id="btnTestOpenWa">
                                         <i class="bi bi-plug-fill me-1"></i> Test Connection
                                     </button>
                                 </div>
-                                <small class="text-muted" style="font-size:0.75rem;">Your hosted Open-WA API address (e.g. <code>https://wa.darwarqamgrw.in</code> or <code>http://localhost:8080</code>. Supports both HTTP and HTTPS).</small>
+                                <small class="text-muted" style="font-size:0.75rem;">Your hosted Open-WA API address (e.g. <code>https://wa.darwarqamgrw.in</code>. Supports both HTTP and HTTPS).</small>
                             </div>
 
                             <div class="row g-2 mb-3">
@@ -479,11 +479,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const apiKey = document.getElementById('waApiKey')?.value?.trim() || '';
             const sessionId = document.getElementById('waSessionId')?.value?.trim() || '';
 
+            if (!apiUrl) {
+                showToast('Please enter your Open-WA Server Base URL (e.g. https://wa.darwarqamgrw.in)', 'warning');
+                document.getElementById('waApiUrl').focus();
+                return;
+            }
+
             btnTest.disabled = true;
             const originalHtml = btnTest.innerHTML;
             btnTest.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking...';
             badge.className = 'badge bg-warning bg-opacity-10 text-warning border border-warning';
-            badge.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i> Checking server...';
+            badge.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i> Testing ' + apiUrl + '...';
 
             try {
                 const fd = new FormData();
