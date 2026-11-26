@@ -38,6 +38,47 @@ if ($apiUrl !== null || $apiKey !== null || $sessionId !== null) {
 
 try {
     switch ($action) {
+        case 'save_settings':
+            $enabled = !empty($_POST['whatsapp_enabled']) ? '1' : '0';
+            $url = trim($_POST['whatsapp_api_url'] ?? '');
+            $session = trim($_POST['whatsapp_session_id'] ?? 'default');
+            $key = trim($_POST['whatsapp_api_key'] ?? '');
+            $autoSend = !empty($_POST['whatsapp_auto_send_invoice']) ? '1' : '0';
+            $owners = trim($_POST['whatsapp_owner_phones'] ?? '');
+
+            if ($session === '') {
+                $session = 'default';
+            }
+
+            $stmt = db()->prepare("
+                INSERT INTO settings (setting_group, setting_key, setting_value, updated_at)
+                VALUES ('whatsapp', ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
+            ");
+
+            $items = [
+                'whatsapp_enabled'           => $enabled,
+                'whatsapp_api_url'           => $url,
+                'whatsapp_session_id'        => $session,
+                'whatsapp_api_key'           => $key,
+                'whatsapp_auto_send_invoice' => $autoSend,
+                'whatsapp_owner_phones'      => $owners
+            ];
+
+            foreach ($items as $k => $v) {
+                $stmt->execute([$k, $v]);
+            }
+
+            if (function_exists('audit_log')) {
+                audit_log('update', 'settings', 'whatsapp_gateway', "Saved Open-WA WhatsApp Gateway configuration via Settings page button");
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'WhatsApp gateway settings saved successfully into database!'
+            ]);
+            break;
+
         case 'test_connection':
             $status = whatsapp_check_connection($apiUrl, $apiKey, $sessionId);
             if ($status['connected']) {

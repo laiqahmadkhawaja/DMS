@@ -359,6 +359,17 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <small class="text-muted" style="font-size:0.75rem;">Comma-separated phone numbers that will receive daily Roznamcha summaries</small>
                             </div>
 
+                            <!-- Instant Save WhatsApp Configuration Button -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded border">
+                                <div>
+                                    <div class="fw-bold small text-navy"><i class="bi bi-floppy-fill text-primary me-1"></i> Save Gateway Configuration</div>
+                                    <small class="text-muted" style="font-size:0.75rem;">Saves URL, Session ID, and API Key directly to database.</small>
+                                </div>
+                                <button type="button" class="btn btn-navy btn-sm px-3 fw-semibold shadow-sm" id="btnSaveWhatsAppOnly">
+                                    <i class="bi bi-check2-circle me-1"></i> Save WhatsApp Settings
+                                </button>
+                            </div>
+
                             <!-- Interactive Live Test Send Box -->
                             <div class="p-3 bg-light rounded border">
                                 <label class="form-label small fw-bold text-navy mb-2"><i class="bi bi-send-check text-primary me-1"></i> Quick Test WhatsApp Sending</label>
@@ -471,6 +482,44 @@ require_once INCLUDES_PATH . '/topbar.php';
 <script>
 // WhatsApp Open-WA Interactive Handlers
 document.addEventListener('DOMContentLoaded', function() {
+    // Instant Save WhatsApp Gateway Settings via AJAX
+    const btnSaveWa = document.getElementById('btnSaveWhatsAppOnly');
+    if (btnSaveWa) {
+        btnSaveWa.addEventListener('click', async function() {
+            btnSaveWa.disabled = true;
+            const origHtml = btnSaveWa.innerHTML;
+            btnSaveWa.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+            try {
+                const fd = new FormData();
+                fd.append('action', 'save_settings');
+                fd.append('whatsapp_enabled', document.getElementById('waEnabled')?.checked ? '1' : '0');
+                fd.append('whatsapp_api_url', document.getElementById('waApiUrl')?.value?.trim() || '');
+                fd.append('whatsapp_session_id', document.getElementById('waSessionId')?.value?.trim() || 'default');
+                fd.append('whatsapp_api_key', document.getElementById('waApiKey')?.value?.trim() || '');
+                fd.append('whatsapp_auto_send_invoice', document.getElementById('waAutoSend')?.checked ? '1' : '0');
+                fd.append('whatsapp_owner_phones', document.querySelector('input[name="settings[whatsapp_owner_phones]"]')?.value?.trim() || '');
+
+                const res = await fetch('<?= APP_URL ?>/ajax/whatsapp/send.php', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd
+                }).then(r => r.json());
+
+                if (res && res.success) {
+                    showToast(res.message || 'WhatsApp gateway settings saved successfully!', 'success');
+                } else {
+                    showToast(res.message || 'Failed to save settings', 'danger');
+                }
+            } catch (err) {
+                showToast('Error saving settings: ' + err.message, 'danger');
+            } finally {
+                btnSaveWa.disabled = false;
+                btnSaveWa.innerHTML = origHtml;
+            }
+        });
+    }
+
     const btnTest = document.getElementById('btnTestOpenWa');
     const badge = document.getElementById('openwaLiveBadge');
     if (btnTest) {
