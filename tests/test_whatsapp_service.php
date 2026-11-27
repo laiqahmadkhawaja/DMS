@@ -7,6 +7,12 @@ define('DMS_RUNNING', true);
 require_once __DIR__ . '/../config/config.php';
 require_once INCLUDES_PATH . '/whatsapp_service.php';
 
+$db = Database::getConnection();
+$initialFeatureStatus = db_fetch_val("SELECT status FROM system_features WHERE feature_key = 'whatsapp'") ?: 'on';
+// Temporarily set to 'on' for general functional testing
+$db->exec("UPDATE system_features SET status = 'on' WHERE feature_key = 'whatsapp'");
+is_whatsapp_feature_enabled(true);
+
 echo "Testing WhatsApp Number Formatting...\n";
 
 // Test 1: Pakistani local format (03001234567 -> 923001234567@c.us)
@@ -172,6 +178,12 @@ if ($latestCust) {
     // Restore customer to 'on'
     $db->exec("UPDATE customers SET whatsapp_status = 'on' WHERE id = " . (int)$latestCust);
     echo "  [PASS] Customer #{$latestCust} restored to status = 'on'\n";
+}
+
+// Restore initial system feature status
+if (!empty($initialFeatureStatus)) {
+    $db->exec("UPDATE system_features SET status = " . $db->quote($initialFeatureStatus) . " WHERE feature_key = 'whatsapp'");
+    is_whatsapp_feature_enabled(true);
 }
 
 echo "\n==================================================\n";
