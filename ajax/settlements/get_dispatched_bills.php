@@ -48,6 +48,13 @@ if ($deliveryRunId > 0) {
 $whereClause = implode(" AND ", $where);
 
 try {
+    $runJoin = "";
+    $runSelect = ", 0.00 as field_cash, 0.00 as field_credit, 0.00 as field_return, NULL as field_return_items_json";
+    if ($deliveryRunId > 0) {
+        $runJoin = "LEFT JOIN delivery_run_bills drb ON (drb.invoice_id = inv.id AND drb.delivery_run_id = {$deliveryRunId})";
+        $runSelect = ", COALESCE(drb.cash_collected, 0.00) as field_cash, COALESCE(drb.credit_given, 0.00) as field_credit, COALESCE(drb.return_value, 0.00) as field_return, drb.return_items_json as field_return_items_json";
+    }
+
     $bills = db_fetch_all("
         SELECT 
             inv.id as invoice_id,
@@ -64,10 +71,12 @@ try {
             inv.load_sheet_id,
             a.area_name,
             b.booker_name
+            {$runSelect}
         FROM sales_invoices inv
         JOIN customers c ON inv.customer_id = c.id
         JOIN areas a ON inv.area_id = a.id
         JOIN bookers b ON inv.booker_id = b.id
+        {$runJoin}
         WHERE {$whereClause}
         ORDER BY a.area_name ASC, c.shop_name ASC
     ", $params);

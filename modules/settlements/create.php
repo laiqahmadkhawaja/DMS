@@ -774,6 +774,13 @@ function renderSettlementTable() {
         const sr = idx + 1;
         const billAmt = parseFloat(b.net_amount) || 0;
 
+        const initialCredit = parseFloat(b.field_credit) > 0 ? parseFloat(b.field_credit).toFixed(0) : '';
+        const initialReturn = parseFloat(b.field_return) > 0 ? parseFloat(b.field_return).toFixed(0) : '';
+        const initialCash   = parseFloat(b.field_cash) > 0 ? parseFloat(b.field_cash).toFixed(0) : '';
+        const returnJsonVal = escapeHtml(b.field_return_items_json || '');
+        const hasReturnJson = returnJsonVal.length > 5;
+        const initialDiff   = (billAmt - ((parseFloat(b.field_cash) || 0) + (parseFloat(b.field_credit) || 0) + (parseFloat(b.field_return) || 0))).toFixed(0);
+
         html += `
             <tr class="settle-row" data-index="${idx}" data-amount="${billAmt}">
                 <td class="text-center fw-bold text-muted">${sr}</td>
@@ -789,31 +796,32 @@ function renderSettlementTable() {
                 </td>
                 <td class="text-center fw-bold text-dark fs-6">${billAmt.toFixed(0)}</td>
                 <td>
-                    <input type="number" name="items[${b.invoice_id}][credit]" class="form-control form-control-sm text-center credit-inp" step="1" min="0" placeholder="0">
+                    <input type="number" name="items[${b.invoice_id}][credit]" class="form-control form-control-sm text-center credit-inp" step="1" min="0" placeholder="0" value="${initialCredit}">
                 </td>
                 <td>
                     <div class="input-group input-group-sm">
-                        <input type="number" name="items[${b.invoice_id}][return]" id="return_inp_${b.invoice_id}" class="form-control form-control-sm text-center return-inp" step="1" min="0" placeholder="0">
+                        <input type="number" name="items[${b.invoice_id}][return]" id="return_inp_${b.invoice_id}" class="form-control form-control-sm text-center return-inp" step="1" min="0" placeholder="0" value="${initialReturn}">
                         <button type="button" class="btn btn-outline-secondary btn-sm px-1 py-0" onclick="openBillReturnModal(${idx})" title="Select exact return items from this bill">
                             <i class="bi bi-box-seam" style="font-size: 11px;"></i>
                         </button>
                     </div>
-                    <input type="hidden" name="items[${b.invoice_id}][return_items_json]" id="return_items_json_${b.invoice_id}" value="">
-                    <div id="return_badge_${b.invoice_id}" class="text-success small fw-semibold mt-1 d-none" style="font-size: 10px;">
+                    <input type="hidden" name="items[${b.invoice_id}][return_items_json]" id="return_items_json_${b.invoice_id}" value="${returnJsonVal}">
+                    <div id="return_badge_${b.invoice_id}" class="text-success small fw-semibold mt-1 ${hasReturnJson ? '' : 'd-none'}" style="font-size: 10px;">
                         <i class="bi bi-check2-circle"></i> Items selected
                     </div>
                 </td>
                 <td>
-                    <input type="number" name="items[${b.invoice_id}][cash]" class="form-control form-control-sm text-center cash-inp fw-bold text-success" step="1" min="0" placeholder="0">
+                    <input type="number" name="items[${b.invoice_id}][cash]" class="form-control form-control-sm text-center cash-inp fw-bold text-success" step="1" min="0" placeholder="0" value="${initialCash}">
                 </td>
-                <td class="text-center fw-bold diff-cell text-muted">
-                    ${billAmt.toFixed(0)}
+                <td class="text-center fw-bold diff-cell ${Math.abs(parseFloat(initialDiff)) <= 0 ? 'text-success' : 'text-danger'}">
+                    ${initialDiff}
                 </td>
             </tr>
         `;
     });
 
     tbody.innerHTML = html;
+    recalcTotals();
 
     // Attach listeners with dynamic auto-adjusting
     document.querySelectorAll('.cash-inp').forEach(inp => {

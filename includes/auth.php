@@ -48,7 +48,90 @@ function current_user_id(): ?int {
 }
 
 /**
+ * Check if the currently authenticated user is strictly field staff (Order Booker or Salesman)
+ * and not an administrative or back-office user.
+ *
+ * @return bool
+ */
+function is_field_staff(): bool {
+    if (!is_logged_in()) {
+        return false;
+    }
+    $roles = $_SESSION['roles'] ?? [];
+    // If user has administrative / back-office roles, they are full ERP users
+    if (in_array('admin', $roles, true) || in_array('manager', $roles, true) || in_array('accountant', $roles, true) || in_array('operator', $roles, true)) {
+        return false;
+    }
+    // If user has booker or salesman role, they are strictly field staff
+    if (in_array('booker', $roles, true) || in_array('salesman', $roles, true)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Resolve linked salesman record for the authenticated user
+ */
+function get_current_salesman(): ?array {
+    $userId = current_user_id();
+    if (!$userId) return null;
+
+    // 1. Check direct user_id link
+    $sm = db_fetch_one("SELECT * FROM salesmen WHERE user_id = ? AND is_deleted = 0", [$userId]);
+    if ($sm) return $sm;
+
+    // 2. Link by phone or full_name / username
+    $u = db_fetch_one("SELECT id, username, full_name, phone FROM users WHERE id = ?", [$userId]);
+    if ($u) {
+        if (!empty($u['phone'])) {
+            $sm = db_fetch_one("SELECT * FROM salesmen WHERE phone = ? AND is_deleted = 0", [$u['phone']]);
+            if ($sm) {
+                db()->prepare("UPDATE salesmen SET user_id = ? WHERE id = ?")->execute([$userId, $sm['id']]);
+                return $sm;
+            }
+        }
+        $sm = db_fetch_one("SELECT * FROM salesmen WHERE (salesman_name = ? OR employee_code = ?) AND is_deleted = 0", [$u['full_name'], $u['username']]);
+        if ($sm) {
+            db()->prepare("UPDATE salesmen SET user_id = ? WHERE id = ?")->execute([$userId, $sm['id']]);
+            return $sm;
+        }
+    }
+    return null;
+}
+
+/**
+ * Resolve linked booker record for the authenticated user
+ */
+function get_current_booker(): ?array {
+    $userId = current_user_id();
+    if (!$userId) return null;
+
+    // 1. Check direct user_id link
+    $bk = db_fetch_one("SELECT * FROM bookers WHERE user_id = ? AND is_deleted = 0", [$userId]);
+    if ($bk) return $bk;
+
+    // 2. Link by phone or full_name / username
+    $u = db_fetch_one("SELECT id, username, full_name, phone FROM users WHERE id = ?", [$userId]);
+    if ($u) {
+        if (!empty($u['phone'])) {
+            $bk = db_fetch_one("SELECT * FROM bookers WHERE phone = ? AND is_deleted = 0", [$u['phone']]);
+            if ($bk) {
+                db()->prepare("UPDATE bookers SET user_id = ? WHERE id = ?")->execute([$userId, $bk['id']]);
+                return $bk;
+            }
+        }
+        $bk = db_fetch_one("SELECT * FROM bookers WHERE (booker_name = ? OR booker_code = ?) AND is_deleted = 0", [$u['full_name'], $u['username']]);
+        if ($bk) {
+            db()->prepare("UPDATE bookers SET user_id = ? WHERE id = ?")->execute([$userId, $bk['id']]);
+            return $bk;
+        }
+    }
+    return null;
+}
+
+/**
  * Guard function to enforce authentication on pages and AJAX endpoints
+ * Strictly restricts orderbookers and salesmen to the mobile app interface.
  *
  * @return void
  */
@@ -62,6 +145,33 @@ function require_login(): void {
         } else {
             set_flash_message('warning', 'Please sign in to access the system.');
             redirect(APP_URL . '/login.php');
+        }
+    }
+
+    // STRICT BOUNDARY RESTRICTION FOR ORDER BOOKERS & SALESMEN:
+    // They are strictly barred from traversing any desktop ERP page.
+    if (is_field_staff()) {
+        $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+        $isAllowed = (strpos($script, '/modules/app/') !== false)
+                  || (strpos($script, '/app/') !== false)
+                  || (str_ends_with($script, 'app.php'))
+                  || (str_ends_with($script, 'logout.php'));
+
+        if (!$isAllowed) {
+            $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+                      || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+            if ($isAjax) {
+                if (!headers_sent()) {
+                    http_response_code(403);
+                    header('Content-Type: application/json; charset=utf-8');
+                }
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Access denied: Field staff accounts are restricted to the Mobile App.'
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect(APP_URL . '/modules/app/index.php');
         }
     }
 }
