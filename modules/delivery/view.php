@@ -231,9 +231,9 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                             foreach ($bills as $b): 
                                 $billAmount = (float)$b['net_amount'];
-                                $cashVal   = $b['settled_cash'] !== null ? (float)$b['settled_cash'] : (float)$b['paid_amount'];
-                                $creditVal = $b['settled_credit'] !== null ? (float)$b['settled_credit'] : (float)$b['credit_amount'];
-                                $returnVal = $b['settled_return'] !== null ? (float)$b['settled_return'] : (float)$b['return_amount'];
+                                $cashVal   = $b['settled_cash'] !== null ? (float)$b['settled_cash'] : ((float)$b['paid_amount'] > 0 ? (float)$b['paid_amount'] : (float)($b['cash_collected'] ?? 0));
+                                $creditVal = $b['settled_credit'] !== null ? (float)$b['settled_credit'] : ((float)$b['credit_amount'] > 0 ? (float)$b['credit_amount'] : (float)($b['credit_given'] ?? 0));
+                                $returnVal = $b['settled_return'] !== null ? (float)$b['settled_return'] : ((float)$b['return_amount'] > 0 ? (float)$b['return_amount'] : (float)($b['return_value'] ?? 0));
 
                                 $custBal = (float)($b['customer_current_balance'] ?? 0);
                                 if ($run['run_type'] === 'manual') {

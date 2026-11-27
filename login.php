@@ -8,6 +8,9 @@ require_once __DIR__ . '/config/config.php';
 
 // If user already authenticated, redirect immediately before rendering HTML
 if (is_logged_in()) {
+    if (is_field_staff()) {
+        redirect(APP_URL . '/modules/app/index.php');
+    }
     redirect(APP_URL . '/dashboard.php');
 }
 
@@ -26,6 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $result = attempt_login($usernameVal, $passwordVal);
     if ($result['success']) {
         set_flash_message('success', 'Welcome back, ' . e($_SESSION['full_name']));
+        if (is_field_staff()) {
+            redirect(APP_URL . '/modules/app/index.php');
+        }
         redirect(APP_URL . '/dashboard.php');
     } else {
         $error = $result['message'];
