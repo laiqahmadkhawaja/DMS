@@ -101,3 +101,7 @@ require_once INCLUDES_PATH . '/inventory_functions.php';
 require_once INCLUDES_PATH . '/accounting_functions.php';
 require_once INCLUDES_PATH . '/partner_functions.php';
 require_once INCLUDES_PATH . '/whatsapp_service.php';
+require_once INCLUDES_PATH . '/migration_runner.php';
+
+// Automatically detect and apply pending database migrations on every update
+auto_run_pending_migrations();

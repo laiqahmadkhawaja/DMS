@@ -459,6 +459,46 @@ require_once INCLUDES_PATH . '/topbar.php';
                         </div>
                     </div>
 
+                    <!-- Database Migrations & Schema Synchronization -->
+                    <?php
+                    $availMig = function_exists('get_available_migration_files') ? get_available_migration_files() : [];
+                    $pendMig  = function_exists('get_pending_migrations') ? get_pending_migrations() : [];
+                    $appliedCount = count($availMig) - count($pendMig);
+                    ?>
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-database-check text-primary me-2 fs-5"></i>
+                                <h6 class="mb-0 fw-bold text-navy">Database Schema & Auto-Migrations</h6>
+                            </div>
+                            <?php if (count($pendMig) === 0): ?>
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Up to Date (<?= $appliedCount ?>/<?= count($availMig) ?>)
+                                </span>
+                            <?php else: ?>
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> <?= count($pendMig) ?> Pending
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-3">
+                                DMS automatically detects and applies new migration files on every update or page load. You can also view details or trigger a manual synchronization below.
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded border">
+                                <div class="small">
+                                    <span class="text-muted">Applied Migrations:</span> <strong class="text-success"><?= $appliedCount ?></strong> / <strong class="text-dark"><?= count($availMig) ?></strong>
+                                    <?php if (count($pendMig) > 0): ?>
+                                        <span class="badge bg-warning text-dark ms-2"><?= count($pendMig) ?> Pending</span>
+                                    <?php endif; ?>
+                                </div>
+                                <a href="<?= APP_URL ?>/database/migrate.php" class="btn btn-outline-primary btn-sm fw-semibold">
+                                    <i class="bi bi-play-circle me-1"></i> Manage Migrations
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Environment & Security Summary -->
                     <div class="card border-0 shadow-sm bg-light">
                         <div class="card-body">
