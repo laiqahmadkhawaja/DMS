@@ -266,8 +266,42 @@ $activeUser = current_user();
 
         .prod-rates {
             display: flex;
-            gap: 12px;
+            gap: 6px;
             font-size: 12px;
+            flex-wrap: wrap;
+        }
+
+        .prod-rates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+            gap: 6px;
+            margin: 2px 0 6px 0;
+        }
+
+        .prod-rate-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 5px 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .prod-rate-box .rate-lbl {
+            font-size: 10px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            line-height: 1.1;
+            margin-bottom: 2px;
+        }
+
+        .prod-rate-box .rate-val {
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.2;
         }
 
         .prod-rate-badge {
@@ -280,11 +314,11 @@ $activeUser = current_user();
         /* Stepper Counter */
         .qty-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            gap: 6px;
             background: #f8fafc;
             padding: 8px;
             border-radius: 8px;
+            border: 1px solid #f1f5f9;
         }
 
         .stepper-box {
@@ -294,12 +328,12 @@ $activeUser = current_user();
             background: #ffffff;
             border: 1px solid #cbd5e1;
             border-radius: 8px;
-            padding: 2px 4px;
+            padding: 2px;
         }
 
         .stepper-btn {
-            width: 30px;
-            height: 30px;
+            width: 28px;
+            height: 28px;
             border: none;
             background: #e2e8f0;
             border-radius: 6px;
@@ -309,6 +343,7 @@ $activeUser = current_user();
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            color: #1e293b;
         }
 
         .stepper-btn:active {
@@ -316,12 +351,13 @@ $activeUser = current_user();
         }
 
         .stepper-val {
-            width: 40px;
+            width: 36px;
             text-align: center;
             font-weight: bold;
             border: none;
             outline: none;
-            font-size: 14px;
+            font-size: 13px;
+            background: transparent;
         }
 
         /* Floating Bottom Cart Bar */
@@ -710,6 +746,41 @@ $activeUser = current_user();
                 <div><strong>Previous Balance:</strong> <span class="text-danger fw-bold" id="currentShopBal">Rs. 0</span></div>
                 <div><strong>Credit Limit:</strong> <span class="text-success fw-bold" id="currentShopLimit">Rs. 0</span></div>
             </div>
+            <div id="custDiscountNotice" class="mt-2 pt-2 border-top small text-primary fw-bold" style="display: none;">
+                <i class="bi bi-tag-fill me-1"></i> <span id="custDiscountNoticeVal">0% Default Discount</span>
+            </div>
+        </div>
+
+        <!-- Pricing Mode (Wholesale vs MRP) & Trade Scheme Bar -->
+        <div class="app-card p-2 mb-2 bg-white shadow-sm border">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <span class="small fw-bold text-dark d-flex align-items-center gap-1">
+                    <i class="bi bi-tag-fill text-primary"></i> Rate Tier:
+                </span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Pricing Mode Tier">
+                    <input type="radio" class="btn-check" name="app_pricing_mode" id="appPricingWholesale" value="wholesale" checked autocomplete="off" onchange="setAppPricingMode('wholesale')">
+                    <label class="btn btn-outline-primary btn-sm px-2 py-1 fw-bold cursor-pointer" for="appPricingWholesale" id="lblAppWholesale" title="Apply standard Wholesale rates to cart">
+                        <i class="bi bi-shop me-1"></i> Wholesale Price
+                    </label>
+
+                    <input type="radio" class="btn-check" name="app_pricing_mode" id="appPricingMrp" value="mrp" autocomplete="off" onchange="setAppPricingMode('mrp')">
+                    <label class="btn btn-outline-success btn-sm px-2 py-1 fw-bold cursor-pointer" for="appPricingMrp" id="lblAppMrp" title="Apply printed MRP / Retail rates to cart">
+                        <i class="bi bi-tag-fill me-1"></i> Retail / MRP Price
+                    </label>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2 border-top">
+                <div class="form-check form-switch m-0 d-inline-flex align-items-center gap-2">
+                    <input class="form-check-input cursor-pointer" type="checkbox" role="switch" id="appFreeLooseToggle" onchange="onAppFreeLooseToggle()">
+                    <label class="form-check-label small fw-bold text-success cursor-pointer" for="appFreeLooseToggle" title="Trade Scheme: Loose pieces will be free (Rs 0) in bill total, but will be dispatched on load form">
+                        <i class="bi bi-gift-fill text-warning me-1"></i> Free Loose Pcs (سکیم / بونس پیس مفت)
+                    </label>
+                </div>
+                <span class="badge bg-warning text-dark small" id="schemeActivePill" style="display:none; font-size: 10px;">
+                    <i class="bi bi-check-circle-fill me-1"></i>Scheme Active
+                </span>
+            </div>
         </div>
 
         <!-- Product Search & Filter -->
@@ -934,8 +1005,39 @@ $activeUser = current_user();
         </div>
 
         <div class="bg-light p-2 rounded-3 mb-2" style="font-size: 12px;">
-            <div><strong>Retailer:</strong> <span id="cartShopNameDisplay">-</span></div>
-            <div><strong>Current Balance:</strong> <span class="text-danger" id="cartShopBalDisplay">Rs. 0</span></div>
+            <div class="d-flex justify-content-between">
+                <div><strong>Retailer:</strong> <span id="cartShopNameDisplay">-</span></div>
+                <div><span class="badge bg-primary" id="cartPricingTierBadge">Wholesale</span></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+                <div><strong>Current Balance:</strong> <span class="text-danger" id="cartShopBalDisplay">Rs. 0</span></div>
+                <div id="cartSchemeNotice" style="display: none;"><span class="badge bg-warning text-dark"><i class="bi bi-gift-fill me-1"></i>Free Pcs Scheme Active</span></div>
+            </div>
+        </div>
+
+        <!-- Discount Mechanism Bar in Cart Modal -->
+        <div class="bg-light p-2 rounded-3 border mb-2" style="font-size: 12px;">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <strong><i class="bi bi-percent text-danger me-1"></i> Discount Mechanism:</strong>
+                <div class="btn-group btn-group-sm">
+                    <input type="radio" class="btn-check" name="cart_discount_mode" id="cDiscItem" value="item_rate" checked onchange="setCartDiscountMode('item_rate')">
+                    <label class="btn btn-outline-secondary btn-sm py-0 px-2" for="cDiscItem" style="font-size: 11px;">Per Item %</label>
+                    <input type="radio" class="btn-check" name="cart_discount_mode" id="cDiscSubtotal" value="subtotal" onchange="setCartDiscountMode('subtotal')">
+                    <label class="btn btn-outline-secondary btn-sm py-0 px-2" for="cDiscSubtotal" style="font-size: 11px;">Subtotal</label>
+                </div>
+            </div>
+            <div id="cartSubtotalDiscRow" style="display: none;" class="pt-1 border-top mt-1">
+                <div class="row g-2 align-items-center">
+                    <div class="col-6">
+                        <label class="small text-muted mb-0" style="font-size: 11px;">Disc %:</label>
+                        <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm text-end" id="cartSubtotalPct" placeholder="0%" oninput="onCartSubtotalPctChange()">
+                    </div>
+                    <div class="col-6">
+                        <label class="small text-muted mb-0" style="font-size: 11px;">Disc Rs:</label>
+                        <input type="number" step="0.01" min="0" class="form-control form-control-sm text-end" id="cartSubtotalAmt" placeholder="0.00" oninput="onCartSubtotalAmtChange()">
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Cart Items List -->
@@ -953,7 +1055,15 @@ $activeUser = current_user();
                 <span>Total Units / Pieces:</span>
                 <strong id="cartSummaryUnits">0 Pcs</strong>
             </div>
-            <div class="d-flex justify-content-between mb-1 fs-6 fw-bold border-top pt-1 text-primary">
+            <div class="d-flex justify-content-between mb-1 text-muted" id="cartSummaryGrossRow" style="display: none;">
+                <span>Gross Amount:</span>
+                <span id="cartSummaryGross">Rs. 0</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1 text-danger" id="cartSummaryDiscountRow" style="display: none;">
+                <span>Total Discount:</span>
+                <strong id="cartSummaryDiscount">- Rs. 0</strong>
+            </div>
+            <div class="d-flex justify-content-between mb-1 fs-6 fw-bold border-top pt-1 text-success">
                 <span>Net Order Total:</span>
                 <span id="cartSummaryTotal">Rs. 0</span>
             </div>
@@ -1119,7 +1229,12 @@ let APP_STATE = {
     activeBookerId: 0,
     selectedCustomerId: 0,
     selectedCustomer: null,
-    cart: {}, // productId => { carton_qty, pack_qty, pcs_qty, rate, disc }
+    pricingMode: 'wholesale', // 'wholesale' or 'mrp'
+    freeLoosePieces: 0,        // 0 or 1 (Trade Scheme)
+    discountMode: 'item_rate', // 'item_rate' or 'subtotal'
+    subtotalDiscountPercent: 0,
+    subtotalDiscountAmount: 0,
+    cart: {}, // productId => { carton_qty, pack_qty, pcs_qty, discount_percent }
     deliveryRuns: [],
     activeRunId: 0,
     fieldReturns: [],
@@ -1312,11 +1427,211 @@ function selectCustomer(c) {
 
     document.getElementById('cartShopNameDisplay').textContent = c.shop_name;
     document.getElementById('cartShopBalDisplay').textContent = 'Rs. ' + Number(c.current_balance).toLocaleString();
+
+    const discNotice = document.getElementById('custDiscountNotice');
+    const discNoticeVal = document.getElementById('custDiscountNoticeVal');
+    const defaultDisc = parseFloat(c.default_discount_percent) || 0;
+    if (defaultDisc > 0) {
+        if (discNotice) discNotice.style.display = 'block';
+        if (discNoticeVal) discNoticeVal.textContent = defaultDisc + '% Default Retailer Discount Active';
+        // Prefill default discount on existing cart items if item has no discount
+        Object.keys(APP_STATE.cart).forEach(pid => {
+            if (!APP_STATE.cart[pid].discount_percent) {
+                APP_STATE.cart[pid].discount_percent = defaultDisc;
+            }
+        });
+    } else {
+        if (discNotice) discNotice.style.display = 'none';
+    }
 }
 
 // -----------------------------------------------------------------
 // 4. ORDER BOOKING & PRODUCT CARDS
 // -----------------------------------------------------------------
+function getProductRates(p, mode) {
+    mode = mode || APP_STATE.pricingMode || 'wholesale';
+    const packsPerCtn = parseFloat(p.packs_per_ctn) > 0 ? parseFloat(p.packs_per_ctn) : (parseFloat(p.carton_qty) > 0 ? parseFloat(p.carton_qty) : 1);
+    const pcsPerPack  = parseFloat(p.pcs_per_pack) > 0 ? parseFloat(p.pcs_per_pack) : (parseFloat(p.pack_qty) > 0 ? parseFloat(p.pack_qty) : 1);
+    const pcsPerCtn   = parseFloat(p.pcs_per_ctn) > 0 ? parseFloat(p.pcs_per_ctn) : (packsPerCtn * pcsPerPack);
+
+    if (mode === 'mrp') {
+        const mrpCarton = parseFloat(p.mrp_carton_rate) > 0 
+            ? parseFloat(p.mrp_carton_rate) 
+            : (parseFloat(p.retail_carton_rate) > 0 ? parseFloat(p.retail_carton_rate) : (parseFloat(p.retail_rate) > 0 ? parseFloat(p.retail_rate) : (parseFloat(p.carton_rate) || parseFloat(p.wholesale_rate) || 0)));
+        const mrpPack   = packsPerCtn > 0 ? (mrpCarton / packsPerCtn) : mrpCarton;
+        const mrpPiece  = parseFloat(p.mrp_piece_rate) > 0 
+            ? parseFloat(p.mrp_piece_rate) 
+            : (parseFloat(p.retail_piece_rate) > 0 ? parseFloat(p.retail_piece_rate) : (pcsPerCtn > 0 ? mrpCarton / pcsPerCtn : mrpCarton));
+        return {
+            carton_rate: mrpCarton,
+            pack_rate: mrpPack,
+            piece_rate: mrpPiece,
+            packs_per_ctn: packsPerCtn,
+            pcs_per_pack: pcsPerPack,
+            pcs_per_ctn: pcsPerCtn
+        };
+    } else {
+        const wsCarton  = parseFloat(p.wholesale_carton_rate) > 0 
+            ? parseFloat(p.wholesale_carton_rate) 
+            : (parseFloat(p.carton_rate) > 0 ? parseFloat(p.carton_rate) : (parseFloat(p.wholesale_rate) || 0));
+        const wsPack    = packsPerCtn > 0 ? (wsCarton / packsPerCtn) : wsCarton;
+        const wsPiece   = parseFloat(p.wholesale_piece_rate) > 0 
+            ? parseFloat(p.wholesale_piece_rate) 
+            : (parseFloat(p.piece_rate) > 0 ? parseFloat(p.piece_rate) : (pcsPerCtn > 0 ? wsCarton / pcsPerCtn : wsCarton));
+        return {
+            carton_rate: wsCarton,
+            pack_rate: wsPack,
+            piece_rate: wsPiece,
+            packs_per_ctn: packsPerCtn,
+            pcs_per_pack: pcsPerPack,
+            pcs_per_ctn: pcsPerCtn
+        };
+    }
+}
+
+function setAppPricingMode(mode) {
+    APP_STATE.pricingMode = mode === 'mrp' ? 'mrp' : 'wholesale';
+    const tierBadge = document.getElementById('cartPricingTierBadge');
+    if (tierBadge) {
+        tierBadge.textContent = APP_STATE.pricingMode === 'mrp' ? 'Retail / MRP Price' : 'Wholesale Price';
+        tierBadge.className = APP_STATE.pricingMode === 'mrp' ? 'badge bg-success' : 'badge bg-primary';
+    }
+    renderProducts();
+    updateCartBar();
+    renderCartModalItems();
+}
+
+function onAppFreeLooseToggle() {
+    const chk = document.getElementById('appFreeLooseToggle');
+    APP_STATE.freeLoosePieces = chk && chk.checked ? 1 : 0;
+    const pill = document.getElementById('schemeActivePill');
+    if (pill) pill.style.display = APP_STATE.freeLoosePieces ? 'inline-block' : 'none';
+    const notice = document.getElementById('cartSchemeNotice');
+    if (notice) notice.style.display = APP_STATE.freeLoosePieces ? 'block' : 'none';
+    renderProducts();
+    updateCartBar();
+    renderCartModalItems();
+}
+
+function setCartDiscountMode(mode) {
+    APP_STATE.discountMode = mode === 'subtotal' ? 'subtotal' : 'item_rate';
+    const subRow = document.getElementById('cartSubtotalDiscRow');
+    if (subRow) subRow.style.display = APP_STATE.discountMode === 'subtotal' ? 'block' : 'none';
+    updateCartBar();
+    renderCartModalItems();
+}
+
+function onCartSubtotalPctChange() {
+    if (APP_STATE.discountMode !== 'subtotal') return;
+    const pct = parseFloat(document.getElementById('cartSubtotalPct').value) || 0;
+    APP_STATE.subtotalDiscountPercent = pct;
+    const totals = calculateCartTotals();
+    const amt = Math.round(((totals.gross * pct) / 100) * 100) / 100;
+    APP_STATE.subtotalDiscountAmount = amt;
+    const amtInput = document.getElementById('cartSubtotalAmt');
+    if (amtInput && document.activeElement !== amtInput) {
+        amtInput.value = amt > 0 ? amt.toFixed(2) : '';
+    }
+    renderCartTotalsOnly();
+}
+
+function onCartSubtotalAmtChange() {
+    if (APP_STATE.discountMode !== 'subtotal') return;
+    const amt = parseFloat(document.getElementById('cartSubtotalAmt').value) || 0;
+    APP_STATE.subtotalDiscountAmount = amt;
+    const totals = calculateCartTotals();
+    const pct = totals.gross > 0 ? Math.round(((amt / totals.gross) * 100) * 100) / 100 : 0;
+    APP_STATE.subtotalDiscountPercent = pct;
+    const pctInput = document.getElementById('cartSubtotalPct');
+    if (pctInput && document.activeElement !== pctInput) {
+        pctInput.value = pct > 0 ? pct.toFixed(2) : '';
+    }
+    renderCartTotalsOnly();
+}
+
+function updateItemDiscount(productId, discPct) {
+    if (APP_STATE.cart[productId]) {
+        APP_STATE.cart[productId].discount_percent = Math.max(0, Math.min(100, parseFloat(discPct) || 0));
+        updateCartBar();
+        renderCartModalItems();
+    }
+}
+
+function calculateItemLine(p, item) {
+    const rates = getProductRates(p, APP_STATE.pricingMode);
+    const ctn = parseFloat(item.carton_qty) || 0;
+    const pck = parseFloat(item.pack_qty) || 0;
+    const pcs = parseFloat(item.pcs_qty) || 0;
+
+    const totalPieces = (ctn * rates.pcs_per_ctn) + (pck * rates.pcs_per_pack) + pcs;
+    const effectivePcs = APP_STATE.freeLoosePieces === 1 ? 0 : pcs;
+    const billablePieces = (ctn * rates.pcs_per_ctn) + (pck * rates.pcs_per_pack) + effectivePcs;
+    const cartonEquiv = ctn + (pck / rates.packs_per_ctn) + (effectivePcs / rates.pcs_per_ctn);
+    const lineGross = Math.round(cartonEquiv * rates.carton_rate * 100) / 100;
+
+    let lineDiscount = 0;
+    if (APP_STATE.discountMode === 'item_rate') {
+        const dPct = parseFloat(item.discount_percent) || 0;
+        lineDiscount = Math.round((lineGross * (dPct / 100)) * 100) / 100;
+    }
+    const lineNet = Math.max(0, lineGross - lineDiscount);
+
+    return {
+        rates,
+        ctn,
+        pck,
+        pcs,
+        totalPieces,
+        effectivePcs,
+        billablePieces,
+        cartonEquiv: ctn + (pck / rates.packs_per_ctn) + (pcs / rates.pcs_per_ctn),
+        lineGross,
+        lineDiscount,
+        lineNet
+    };
+}
+
+function calculateCartTotals() {
+    let gross = 0;
+    let itemDiscounts = 0;
+    let totalCartons = 0;
+    let totalPieces = 0;
+    const keys = Object.keys(APP_STATE.cart);
+
+    keys.forEach(pid => {
+        const p = APP_STATE.products.find(item => item.id == pid);
+        if (p) {
+            const line = calculateItemLine(p, APP_STATE.cart[pid]);
+            gross += line.lineGross;
+            itemDiscounts += line.lineDiscount;
+            totalCartons += line.cartonEquiv;
+            totalPieces += line.totalPieces;
+        }
+    });
+
+    let totalDiscount = 0;
+    if (APP_STATE.discountMode === 'subtotal') {
+        if (APP_STATE.subtotalDiscountAmount > 0) {
+            totalDiscount = Math.min(gross, APP_STATE.subtotalDiscountAmount);
+        } else if (APP_STATE.subtotalDiscountPercent > 0) {
+            totalDiscount = Math.round((gross * (APP_STATE.subtotalDiscountPercent / 100)) * 100) / 100;
+        }
+    } else {
+        totalDiscount = itemDiscounts;
+    }
+
+    const net = Math.max(0, Math.round((gross - totalDiscount) * 100) / 100);
+
+    return {
+        gross,
+        totalDiscount,
+        net,
+        totalCartons,
+        totalPieces,
+        itemCount: keys.length
+    };
+}
+
 function renderCategories() {
     const container = document.getElementById('categoryPills');
     container.innerHTML = '<div class="cat-pill active" onclick="filterByCategory(0, this)">All Categories</div>';
@@ -1357,96 +1672,156 @@ function renderProducts() {
     }
 
     container.innerHTML = filtered.map(p => {
-        const cartItem = APP_STATE.cart[p.id] || { carton_qty: 0, pack_qty: 0, pcs_qty: 0 };
+        const defaultDisc = APP_STATE.selectedCustomer ? (parseFloat(APP_STATE.selectedCustomer.default_discount_percent) || 0) : 0;
+        const cartItem = APP_STATE.cart[p.id] || { carton_qty: 0, pack_qty: 0, pcs_qty: 0, discount_percent: defaultDisc };
         const hasStock = p.saleable_qty > 0;
+        const rates = getProductRates(p, APP_STATE.pricingMode);
+        const hasPacks = rates.packs_per_ctn > 1;
+        const isSchemeActive = APP_STATE.freeLoosePieces === 1;
+
+        // Ratio & packing label
+        let packingLabel = `${rates.pcs_per_ctn} Pcs/Ctn`;
+        if (hasPacks) {
+            packingLabel = `1 Ctn = ${rates.packs_per_ctn} Pks • 1 Pk = ${rates.pcs_per_pack} Pcs (${rates.pcs_per_ctn} Pcs/Ctn)`;
+        } else {
+            packingLabel = `1 Ctn = ${rates.pcs_per_ctn} Pcs`;
+        }
+
+        const line = calculateItemLine(p, cartItem);
+        const itemHasQty = (cartItem.carton_qty > 0 || cartItem.pack_qty > 0 || cartItem.pcs_qty > 0);
 
         return `
             <div class="prod-card">
                 <div class="prod-header">
                     <div>
                         <div class="prod-title">${p.product_name}</div>
-                        <div class="prod-sub">${p.category_name || ''} • 1 Ctn = ${p.pcs_per_ctn || 1} Pcs</div>
+                        <div class="prod-sub">${p.category_name ? p.category_name + ' • ' : ''}${packingLabel}</div>
                     </div>
                     <div>
                         <span class="badge ${hasStock ? 'bg-success' : 'bg-danger'}">
-                            Stock: ${Math.round(p.saleable_qty)}
+                            Stock: ${Math.round(p.saleable_qty).toLocaleString()}
                         </span>
                     </div>
                 </div>
 
-                <div class="prod-rates">
-                    <div class="prod-rate-badge">Ctn Rate: <strong>Rs. ${Number(p.carton_rate).toLocaleString()}</strong></div>
-                    <div class="prod-rate-badge">Pcs Rate: <strong>Rs. ${p.piece_rate}</strong></div>
+                <!-- Product-wise Rate Breakdown (Carton, Pack, Piece) -->
+                <div class="prod-rates-grid">
+                    <div class="prod-rate-box">
+                        <span class="rate-lbl">Ctn Rate</span>
+                        <strong class="rate-val text-primary">Rs. ${Math.round(rates.carton_rate).toLocaleString()}</strong>
+                    </div>
+                    ${hasPacks ? `
+                    <div class="prod-rate-box">
+                        <span class="rate-lbl">Pack Rate</span>
+                        <strong class="rate-val text-info">Rs. ${rates.pack_rate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                    </div>
+                    ` : ''}
+                    <div class="prod-rate-box">
+                        <span class="rate-lbl">Piece Rate</span>
+                        <strong class="rate-val text-success">Rs. ${rates.piece_rate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                    </div>
                 </div>
 
-                <div class="qty-row">
+                <!-- Steppers: Cartons, Packs (if available), Loose Pieces -->
+                <div class="qty-row" style="grid-template-columns: ${hasPacks ? '1fr 1fr 1fr' : '1fr 1fr'};">
                     <!-- Carton Counter -->
                     <div>
-                        <small class="text-muted d-block mb-1">Cartons (Ctn):</small>
+                        <small class="text-muted d-block mb-1" style="font-size: 11px;">Cartons (Ctn):</small>
                         <div class="stepper-box">
                             <button class="stepper-btn" onclick="updateQty(${p.id}, 'carton_qty', -1)">-</button>
-                            <input type="number" class="stepper-val" value="${cartItem.carton_qty}" readonly>
+                            <input type="number" class="stepper-val" value="${cartItem.carton_qty}" min="0" oninput="setDirectQty(${p.id}, 'carton_qty', this.value)">
                             <button class="stepper-btn" onclick="updateQty(${p.id}, 'carton_qty', 1)">+</button>
                         </div>
                     </div>
 
+                    ${hasPacks ? `
+                    <!-- Pack Counter -->
+                    <div>
+                        <small class="text-muted d-block mb-1" style="font-size: 11px;">Packs (Pks):</small>
+                        <div class="stepper-box">
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pack_qty', -1)">-</button>
+                            <input type="number" class="stepper-val" value="${cartItem.pack_qty || 0}" min="0" oninput="setDirectQty(${p.id}, 'pack_qty', this.value)">
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pack_qty', 1)">+</button>
+                        </div>
+                    </div>
+                    ` : ''}
+
                     <!-- Pieces Counter -->
                     <div>
-                        <small class="text-muted d-block mb-1">Loose Pieces (Pcs):</small>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted" style="font-size: 11px;">Pieces (Pcs):</small>
+                            ${isSchemeActive && cartItem.pcs_qty > 0 ? `<span class="badge bg-warning text-dark py-0 px-1" style="font-size: 9px;">Free</span>` : ''}
+                        </div>
                         <div class="stepper-box">
                             <button class="stepper-btn" onclick="updateQty(${p.id}, 'pcs_qty', -1)">-</button>
-                            <input type="number" class="stepper-val" value="${cartItem.pcs_qty}" readonly>
+                            <input type="number" class="stepper-val" value="${cartItem.pcs_qty}" min="0" oninput="setDirectQty(${p.id}, 'pcs_qty', this.value)">
                             <button class="stepper-btn" onclick="updateQty(${p.id}, 'pcs_qty', 1)">+</button>
                         </div>
                     </div>
                 </div>
+
+                <!-- Product Card Subtotal & Scheme Note -->
+                ${itemHasQty ? `
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-1" style="font-size: 12px;">
+                    <span class="text-muted">
+                        Qty: <strong>${Math.round(line.totalPieces)} Pcs</strong> (${line.cartonEquiv.toFixed(2)} Ctn)
+                        ${isSchemeActive && cartItem.pcs_qty > 0 ? `<span class="text-success fw-bold ms-1">(+${cartItem.pcs_qty} Pcs Free Scheme)</span>` : ''}
+                    </span>
+                    <span class="fw-bold text-primary">Rs. ${line.lineNet.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+                ` : ''}
             </div>
         `;
     }).join('');
 }
 
-function updateQty(productId, field, delta) {
+function ensureCartItem(productId) {
     if (!APP_STATE.cart[productId]) {
-        APP_STATE.cart[productId] = { carton_qty: 0, pack_qty: 0, pcs_qty: 0 };
+        const defaultDisc = APP_STATE.selectedCustomer ? (parseFloat(APP_STATE.selectedCustomer.default_discount_percent) || 0) : 0;
+        APP_STATE.cart[productId] = { carton_qty: 0, pack_qty: 0, pcs_qty: 0, discount_percent: defaultDisc };
     }
+}
 
-    const cur = APP_STATE.cart[productId][field] || 0;
+function cleanCartItemIfEmpty(productId) {
+    const it = APP_STATE.cart[productId];
+    if (it && (it.carton_qty || 0) === 0 && (it.pack_qty || 0) === 0 && (it.pcs_qty || 0) === 0) {
+        delete APP_STATE.cart[productId];
+    }
+}
+
+function updateQty(productId, field, delta) {
+    ensureCartItem(productId);
+    const cur = parseFloat(APP_STATE.cart[productId][field]) || 0;
     const next = Math.max(0, cur + delta);
     APP_STATE.cart[productId][field] = next;
 
-    // Clean empty
-    if (APP_STATE.cart[productId].carton_qty === 0 && APP_STATE.cart[productId].pcs_qty === 0) {
-        delete APP_STATE.cart[productId];
-    }
-
+    cleanCartItemIfEmpty(productId);
     renderProducts();
     updateCartBar();
+    renderCartModalItems();
+}
+
+function setDirectQty(productId, field, val) {
+    ensureCartItem(productId);
+    const num = Math.max(0, parseFloat(val) || 0);
+    APP_STATE.cart[productId][field] = num;
+
+    cleanCartItemIfEmpty(productId);
+    updateCartBar();
+    renderCartTotalsOnly();
 }
 
 function updateCartBar() {
-    const keys = Object.keys(APP_STATE.cart);
     const cartBar = document.getElementById('cartStickyBar');
+    const totals = calculateCartTotals();
 
-    if (keys.length === 0) {
+    if (totals.itemCount === 0) {
         cartBar.style.display = 'none';
         return;
     }
 
-    let totalAmt = 0;
-    let totalItems = keys.length;
-
-    keys.forEach(pid => {
-        const p = APP_STATE.products.find(item => item.id == pid);
-        if (p) {
-            const item = APP_STATE.cart[pid];
-            const basePieces = (item.carton_qty * p.pcs_per_ctn) + item.pcs_qty;
-            const rate = p.piece_rate > 0 ? p.piece_rate : (p.carton_rate / p.pcs_per_ctn);
-            totalAmt += (basePieces * rate);
-        }
-    });
-
-    document.getElementById('cartItemsBadge').textContent = totalItems;
-    document.getElementById('cartTotalAmt').textContent = 'Rs. ' + Math.round(totalAmt).toLocaleString();
+    document.getElementById('cartItemsBadge').textContent = totals.itemCount;
+    document.getElementById('cartTotalAmt').textContent = 'Rs. ' + Math.round(totals.net).toLocaleString();
     cartBar.style.display = 'block';
 }
 
@@ -1459,51 +1834,93 @@ function closeCartModal() {
     document.getElementById('modalCartSheet').classList.remove('show');
 }
 
+function renderCartTotalsOnly() {
+    const totals = calculateCartTotals();
+
+    const ctnEl = document.getElementById('cartSummaryCartons');
+    if (ctnEl) ctnEl.textContent = totals.totalCartons.toFixed(2) + ' Ctn';
+
+    const unitEl = document.getElementById('cartSummaryUnits');
+    if (unitEl) unitEl.textContent = Math.round(totals.totalPieces).toLocaleString() + ' Pcs';
+
+    const grossRow = document.getElementById('cartSummaryGrossRow');
+    const grossEl  = document.getElementById('cartSummaryGross');
+    const discRow  = document.getElementById('cartSummaryDiscountRow');
+    const discEl   = document.getElementById('cartSummaryDiscount');
+    const totalEl  = document.getElementById('cartSummaryTotal');
+
+    if (totals.totalDiscount > 0) {
+        if (grossRow) grossRow.style.display = 'flex';
+        if (grossEl) grossEl.textContent = 'Rs. ' + Math.round(totals.gross).toLocaleString();
+        if (discRow) discRow.style.display = 'flex';
+        if (discEl) discEl.textContent = '- Rs. ' + Math.round(totals.totalDiscount).toLocaleString();
+    } else {
+        if (grossRow) grossRow.style.display = 'none';
+        if (discRow) discRow.style.display = 'none';
+    }
+
+    if (totalEl) totalEl.textContent = 'Rs. ' + Math.round(totals.net).toLocaleString();
+
+    // Update sticky bar as well
+    const cartTotalAmt = document.getElementById('cartTotalAmt');
+    if (cartTotalAmt) cartTotalAmt.textContent = 'Rs. ' + Math.round(totals.net).toLocaleString();
+}
+
 function renderCartModalItems() {
     const container = document.getElementById('cartItemsListContainer');
     const keys = Object.keys(APP_STATE.cart);
 
     if (keys.length === 0) {
         container.innerHTML = '<div class="text-center py-4 text-muted">Your cart is empty.</div>';
+        renderCartTotalsOnly();
         return;
     }
 
-    let grandTotal = 0;
-    let totalCartons = 0;
-    let totalUnits = 0;
+    const isScheme = APP_STATE.freeLoosePieces === 1;
 
     container.innerHTML = keys.map(pid => {
         const p = APP_STATE.products.find(item => item.id == pid);
+        if (!p) return '';
         const item = APP_STATE.cart[pid];
-        const basePieces = (item.carton_qty * p.pcs_per_ctn) + item.pcs_qty;
-        const rate = p.piece_rate > 0 ? p.piece_rate : (p.carton_rate / p.pcs_per_ctn);
-        const lineTotal = Math.round(basePieces * rate);
-
-        grandTotal += lineTotal;
-        totalCartons += item.carton_qty + (item.pcs_qty / p.pcs_per_ctn);
-        totalUnits += basePieces;
+        const line = calculateItemLine(p, item);
 
         return `
-            <div class="p-2 border-bottom d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="fw-bold">${p.product_name}</div>
-                    <small class="text-muted">
-                        ${item.carton_qty} Ctn, ${item.pcs_qty} Pcs (@ Rs. ${rate})
-                    </small>
+            <div class="p-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="fw-bold">${p.product_name}</div>
+                        <small class="text-muted">
+                            ${item.carton_qty > 0 ? item.carton_qty + ' Ctn ' : ''}
+                            ${item.pack_qty > 0 ? item.pack_qty + ' Pk ' : ''}
+                            ${item.pcs_qty > 0 ? item.pcs_qty + ' Pcs ' : ''}
+                            (@ Rs. ${line.rates.carton_rate.toLocaleString()}/ctn)
+                        </small>
+                        ${isScheme && item.pcs_qty > 0 ? `
+                            <div class="small text-success fw-bold">
+                                <i class="bi bi-gift-fill me-1"></i> ${item.pcs_qty} Loose Pcs Free Scheme (Rs. 0)
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold text-primary">Rs. ${line.lineNet.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <button class="btn btn-sm btn-link text-danger p-0" onclick="removeCartItem(${pid})">
+                            <i class="bi bi-trash"></i> Remove
+                        </button>
+                    </div>
                 </div>
-                <div class="text-end">
-                    <div class="fw-bold text-primary">Rs. ${lineTotal.toLocaleString()}</div>
-                    <button class="btn btn-sm btn-link text-danger p-0" onclick="removeCartItem(${pid})">
-                        <i class="bi bi-trash"></i>
-                    </button>
+
+                ${APP_STATE.discountMode === 'item_rate' ? `
+                <div class="d-flex align-items-center justify-content-end gap-2 mt-1 pt-1 border-top" style="font-size: 11px;">
+                    <span class="text-muted">Item Disc %:</span>
+                    <input type="number" step="0.5" min="0" max="100" class="form-control form-control-sm text-end py-0 px-1" style="width: 70px; height: 24px; font-size: 11px;" value="${item.discount_percent || 0}" onchange="updateItemDiscount(${pid}, this.value)">
+                    ${line.lineDiscount > 0 ? `<span class="text-danger">(-Rs. ${line.lineDiscount.toFixed(2)})</span>` : ''}
                 </div>
+                ` : ''}
             </div>
         `;
     }).join('');
 
-    document.getElementById('cartSummaryCartons').textContent = totalCartons.toFixed(1) + ' Ctn';
-    document.getElementById('cartSummaryUnits').textContent = Math.round(totalUnits) + ' Pcs';
-    document.getElementById('cartSummaryTotal').textContent = 'Rs. ' + Math.round(grandTotal).toLocaleString();
+    renderCartTotalsOnly();
 }
 
 function removeCartItem(pid) {
@@ -1535,13 +1952,15 @@ async function submitOrderBooking() {
     const orderItems = keys.map(pid => {
         const p = APP_STATE.products.find(item => item.id == pid);
         const item = APP_STATE.cart[pid];
+        const rates = getProductRates(p, APP_STATE.pricingMode);
         return {
             product_id: parseInt(pid),
-            carton_qty: item.carton_qty,
-            pack_qty: item.pack_qty || 0,
-            pcs_qty: item.pcs_qty,
-            rate: p.piece_rate > 0 ? p.piece_rate : (p.carton_rate / p.pcs_per_ctn),
-            discount_percent: 0
+            unit: 'ctn',
+            carton_qty: parseFloat(item.carton_qty) || 0,
+            pack_qty: parseFloat(item.pack_qty) || 0,
+            pcs_qty: parseFloat(item.pcs_qty) || 0,
+            rate: rates.carton_rate,
+            discount_percent: APP_STATE.discountMode === 'item_rate' ? (parseFloat(item.discount_percent) || 0) : 0
         };
     });
 
@@ -1549,6 +1968,11 @@ async function submitOrderBooking() {
         customer_id: APP_STATE.selectedCustomerId,
         salesman_id: APP_STATE.activeSalesmanId,
         booker_id: APP_STATE.activeBookerId,
+        pricing_mode: APP_STATE.pricingMode,
+        discount_mode: APP_STATE.discountMode,
+        free_loose_pieces: APP_STATE.freeLoosePieces,
+        subtotal_discount_percent: APP_STATE.subtotalDiscountPercent,
+        subtotal_discount_amount: APP_STATE.subtotalDiscountAmount,
         order_date: '<?= date('Y-m-d') ?>',
         remarks: document.getElementById('cartRemarksInput').value || 'Booked via Mobile App',
         items: orderItems
@@ -1563,7 +1987,7 @@ async function submitOrderBooking() {
         const json = await res.json();
 
         if (json.success) {
-            showToast("Order placed successfully! Order #: " + json.data.order_number);
+            showToast("Order placed successfully! Order #: " + json.data.order_number + " (" + (json.data.pricing_mode === 'mrp' ? 'MRP Price' : 'Wholesale') + ")");
             APP_STATE.cart = {};
             renderProducts();
             updateCartBar();

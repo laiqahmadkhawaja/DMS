@@ -61,7 +61,7 @@ try {
                 SELECT 
                     p.id, p.product_name, p.product_code, p.barcode, p.category_id, p.brand_id,
                     cat.category_name,
-                    p.carton_rate, p.piece_rate, p.wholesale_rate, p.retail_rate, p.default_sale_rate,
+                    p.carton_rate, p.piece_rate, p.wholesale_rate, p.retail_rate, p.retail_carton_rate, p.retail_piece_rate, p.default_sale_rate,
                     p.carton_qty, p.pack_qty, p.packing_description, p.base_unit_id,
                     u.symbol as unit_symbol, u.unit_name,
                     COALESCE(sb.saleable_qty, 0) as saleable_qty
@@ -73,21 +73,40 @@ try {
                 ORDER BY p.product_name ASC
             ");
 
-            // Format packaging ratios on products for fast mobile cart calculation
+            // Format packaging ratios and Wholesale / MRP pricing tiers for fast mobile cart calculation
             foreach ($products as &$p) {
                 $ratios = get_product_packaging_ratios($p);
-                $p['packs_per_ctn'] = (float)$ratios['packs_per_ctn'];
-                $p['pcs_per_pack']  = (float)$ratios['pcs_per_pack'];
-                $p['pcs_per_ctn']   = (float)$ratios['pcs_per_ctn'];
-                $p['carton_rate']   = (float)$p['carton_rate'];
-                $p['piece_rate']    = (float)$p['piece_rate'];
-                if ($p['piece_rate'] <= 0 && $p['carton_rate'] > 0 && $p['pcs_per_ctn'] > 0) {
-                    $p['piece_rate'] = round($p['carton_rate'] / $p['pcs_per_ctn'], 2);
-                }
-                if ($p['carton_rate'] <= 0 && $p['piece_rate'] > 0 && $p['pcs_per_ctn'] > 0) {
-                    $p['carton_rate'] = round($p['piece_rate'] * $p['pcs_per_ctn'], 2);
-                }
-                $p['saleable_qty']  = (float)$p['saleable_qty'];
+                $packsPerCtn = (float)$ratios['packs_per_ctn'];
+                $pcsPerPack  = (float)$ratios['pcs_per_pack'];
+                $pcsPerCtn   = (float)$ratios['pcs_per_ctn'];
+
+                $p['packs_per_ctn'] = $packsPerCtn;
+                $p['pcs_per_pack']  = $pcsPerPack;
+                $p['pcs_per_ctn']   = $pcsPerCtn;
+
+                // Wholesale rates
+                $wsCarton = (float)($p['carton_rate'] > 0 ? $p['carton_rate'] : ($p['wholesale_rate'] ?: 0));
+                $wsPack   = $packsPerCtn > 0 ? round($wsCarton / $packsPerCtn, 2) : $wsCarton;
+                $wsPiece  = (float)($p['piece_rate'] > 0 ? $p['piece_rate'] : ($pcsPerCtn > 0 ? round($wsCarton / $pcsPerCtn, 2) : $wsCarton));
+
+                // Retail / MRP rates
+                $mrpCarton = (float)($p['retail_carton_rate'] > 0 ? $p['retail_carton_rate'] : ($p['retail_rate'] > 0 ? $p['retail_rate'] : $wsCarton));
+                $mrpPack   = $packsPerCtn > 0 ? round($mrpCarton / $packsPerCtn, 2) : $mrpCarton;
+                $mrpPiece  = (float)($p['retail_piece_rate'] > 0 ? $p['retail_piece_rate'] : ($pcsPerCtn > 0 ? round($mrpCarton / $pcsPerCtn, 2) : $mrpCarton));
+
+                $p['wholesale_carton_rate'] = $wsCarton;
+                $p['wholesale_pack_rate']   = $wsPack;
+                $p['wholesale_piece_rate']  = $wsPiece;
+
+                $p['mrp_carton_rate']       = $mrpCarton;
+                $p['mrp_pack_rate']         = $mrpPack;
+                $p['mrp_piece_rate']        = $mrpPiece;
+
+                // Backwards-compatible aliases
+                $p['carton_rate']  = $wsCarton;
+                $p['pack_rate']    = $wsPack;
+                $p['piece_rate']   = $wsPiece;
+                $p['saleable_qty'] = (float)$p['saleable_qty'];
             }
             unset($p);
 
@@ -195,6 +214,19 @@ try {
             $remarks      = clean_input($input['remarks'] ?? 'Booked via Mobile App');
             $orderStatus  = !empty($input['confirm_now']) ? 'confirmed' : 'confirmed'; // Default confirmed for fast workflow
 
+            $pricingMode = clean_input($input['pricing_mode'] ?? 'wholesale');
+            if ($pricingMode !== 'mrp') {
+                $pricingMode = 'wholesale';
+            }
+
+            $discountMode = clean_input($input['discount_mode'] ?? 'item_rate');
+            if ($discountMode !== 'subtotal') {
+                $discountMode = 'item_rate';
+            }
+            $freeLoosePieces = !empty($input['free_loose_pieces']) ? 1 : 0;
+            $subtotalDiscountPercent = (float)($input['subtotal_discount_percent'] ?? 0);
+            $subtotalDiscountAmount  = (float)($input['subtotal_discount_amount'] ?? 0);
+
             $items = $input['items'] ?? [];
             if ($customerId <= 0) {
                 json_error('Please select a customer / shop.');
@@ -243,6 +275,7 @@ try {
                 $pcsQty    = (float)($item['pcs_qty'] ?? 0);
                 $rate      = (float)($item['rate'] ?? 0);
                 $discPct   = (float)($item['discount_percent'] ?? 0);
+                $unitCode  = strtolower(trim((string)($item['unit'] ?? 'ctn')));
 
                 if ($productId <= 0) continue;
                 if ($cartonQty <= 0 && $packQty <= 0 && $pcsQty <= 0) continue;
@@ -251,25 +284,64 @@ try {
                 if (!$prod) continue;
 
                 $ratios = get_product_packaging_ratios($prod);
-                $totalPieces = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $ratios['packs_per_ctn'], $ratios['pcs_per_pack']);
-                $cartonEquiv = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $ratios['packs_per_ctn'], $ratios['pcs_per_pack']);
+                $packsPerCtn = (float)$ratios['packs_per_ctn'];
+                $pcsPerPack  = (float)$ratios['pcs_per_pack'];
+                $pcsPerCtn   = (float)$ratios['pcs_per_ctn'];
 
+                $totalPieces = calculate_base_pieces($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
+                $cartonEquiv = calculate_carton_equivalent($cartonQty, $packQty, $pcsQty, $packsPerCtn, $pcsPerPack);
+
+                // If Free Loose Pieces scheme is active, loose pieces are not charged
+                $billablePcs = $freeLoosePieces ? 0 : $pcsQty;
+                $billableBasePieces = calculate_base_pieces($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+                $billableCartons    = calculate_carton_equivalent($cartonQty, $packQty, $billablePcs, $packsPerCtn, $pcsPerPack);
+
+                // Determine effective rate if not provided or zero
                 if ($rate <= 0) {
-                    $rate = (float)($prod['piece_rate'] > 0 ? $prod['piece_rate'] : ($prod['carton_rate'] / max(1, $ratios['pcs_per_ctn'])));
+                    if ($pricingMode === 'mrp') {
+                        $cRate = (float)($prod['retail_carton_rate'] > 0 ? $prod['retail_carton_rate'] : ($prod['retail_rate'] > 0 ? $prod['retail_rate'] : ($prod['carton_rate'] ?: $prod['wholesale_rate'])));
+                    } else {
+                        $cRate = (float)($prod['carton_rate'] > 0 ? $prod['carton_rate'] : ($prod['wholesale_rate'] ?: 0));
+                    }
+                    if ($unitCode === 'pcs') {
+                        $rate = (float)($pricingMode === 'mrp' && $prod['retail_piece_rate'] > 0 ? $prod['retail_piece_rate'] : ($prod['piece_rate'] > 0 ? $prod['piece_rate'] : ($pcsPerCtn > 0 ? round($cRate / $pcsPerCtn, 2) : $cRate)));
+                    } elseif ($unitCode === 'pack' || $unitCode === 'pck') {
+                        $rate = $packsPerCtn > 0 ? round($cRate / $packsPerCtn, 2) : $cRate;
+                    } else {
+                        $rate = $cRate;
+                    }
                 }
 
-                $lineGross = round($totalPieces * $rate, 2);
-                $lineDisc  = round($lineGross * ($discPct / 100), 2);
-                $lineNet   = round($lineGross - $lineDisc, 2);
+                if ($unitCode === 'pcs') {
+                    $lineGross = round($billableBasePieces * $rate, 2);
+                    $unitId = 4; // Piece unit
+                } elseif ($unitCode === 'pack' || $unitCode === 'pck') {
+                    $billablePacks = ($cartonQty * $packsPerCtn) + $packQty + ($pcsPerPack > 0 ? ($billablePcs / $pcsPerPack) : 0);
+                    $lineGross = round($billablePacks * $rate, 2);
+                    $unitId = 3; // Packet unit
+                } else {
+                    $lineGross = round($billableCartons * $rate, 2);
+                    $unitId = 1; // Carton unit
+                }
+
+                if ($discountMode === 'subtotal') {
+                    $lineDisc = 0.0;
+                    $discPct = 0.0;
+                    $lineNet = $lineGross;
+                } else {
+                    $lineDisc = round($lineGross * ($discPct / 100), 2);
+                    $lineNet  = round($lineGross - $lineDisc, 2);
+                    $discountTotal += $lineDisc;
+                }
 
                 $grossAmount   += $lineGross;
-                $discountTotal += $lineDisc;
-                $totalCartons  += $cartonEquiv;
+                $totalCartons  += $cartonQty;
+                $totalPieces   += $pcsQty;
                 $totalUnits    += $totalPieces;
 
                 $validItems[] = [
                     'product_id'       => $productId,
-                    'unit_id'          => (int)$prod['base_unit_id'],
+                    'unit_id'          => $unitId,
                     'carton_qty'       => $cartonQty,
                     'pack_qty'         => $packQty,
                     'pcs_qty'          => $pcsQty,
@@ -286,26 +358,40 @@ try {
                 json_error('Order has no valid products with positive quantities.');
             }
 
-            $netAmount = round($grossAmount - $discountTotal, 2);
+            // Apply subtotal discount if subtotal discount mode is chosen
+            if ($discountMode === 'subtotal') {
+                if ($subtotalDiscountAmount > 0) {
+                    $discountTotal = min($grossAmount, $subtotalDiscountAmount);
+                    $subtotalDiscountPercent = $grossAmount > 0 ? round(($discountTotal / $grossAmount) * 100, 2) : 0;
+                } elseif ($subtotalDiscountPercent > 0) {
+                    $discountTotal = round($grossAmount * ($subtotalDiscountPercent / 100), 2);
+                    $subtotalDiscountAmount = $discountTotal;
+                }
+            }
+
+            $netAmount = round(max(0, $grossAmount - $discountTotal), 2);
 
             $stmtOrd = db()->prepare("
                 INSERT INTO orders (
                     order_number, order_date, delivery_date, customer_id, booker_id, 
-                    area_id, salesman_id, discount_mode, gross_amount, discount_amount, 
-                    net_amount, total_cartons, total_units, status, remarks, 
-                    created_by, confirmed_at, created_at
+                    area_id, salesman_id, pricing_mode, discount_mode, free_loose_pieces,
+                    subtotal_discount_percent, subtotal_discount_amount,
+                    gross_amount, discount_amount, net_amount, total_cartons, total_units,
+                    status, remarks, created_by, confirmed_at, created_at
                 ) VALUES (
                     ?, ?, ?, ?, ?, 
-                    ?, ?, 'item_rate', ?, ?, 
+                    ?, ?, ?, ?, ?,
+                    ?, ?,
                     ?, ?, ?, ?, ?, 
-                    ?, NOW(), NOW()
+                    ?, ?, ?, NOW(), NOW()
                 )
             ");
             $stmtOrd->execute([
                 $orderNumber, $orderDate, $deliveryDate, $customerId, $bookerId,
-                $areaId, $salesmanId, $grossAmount, $discountTotal,
-                $netAmount, $totalCartons, $totalUnits, $orderStatus, $remarks,
-                $userId
+                $areaId, $salesmanId, $pricingMode, $discountMode, $freeLoosePieces,
+                $subtotalDiscountPercent, $subtotalDiscountAmount,
+                $grossAmount, $discountTotal, $netAmount, $totalCartons, $totalUnits,
+                $orderStatus, $remarks, $userId
             ]);
             $orderId = (int)db()->lastInsertId();
 
@@ -331,6 +417,7 @@ try {
             json_success("Order #{$orderNumber} placed successfully!", [
                 'order_id'      => $orderId,
                 'order_number'  => $orderNumber,
+                'pricing_mode'  => $pricingMode,
                 'gross_amount'  => $grossAmount,
                 'discount'      => $discountTotal,
                 'net_amount'    => $netAmount,
