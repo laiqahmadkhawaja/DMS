@@ -250,6 +250,12 @@ require_once INCLUDES_PATH . '/topbar.php';
                         $discMode = $invoice['discount_mode'] ?? ((float)($invoice['extra_discount_amount'] ?? 0) > 0 ? 'subtotal' : 'item_rate');
                         ?>
                         <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Pricing Tier:</span>
+                            <span class="badge bg-<?= ($invoice['pricing_mode'] ?? 'wholesale') === 'mrp' ? 'success' : 'primary' ?>-subtle text-<?= ($invoice['pricing_mode'] ?? 'wholesale') === 'mrp' ? 'success' : 'primary' ?> border">
+                                <?= ($invoice['pricing_mode'] ?? 'wholesale') === 'mrp' ? 'MRP Price (پرچون)' : 'Wholesale Price (ہول سیل)' ?>
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
                             <span class="text-muted">Discount Mode:</span>
                             <span class="badge <?= $discMode === 'subtotal' ? 'bg-info text-dark' : 'bg-secondary' ?>">
                                 <?= $discMode === 'subtotal' ? 'Subtotal Discount' : 'Per Item Rate' ?>

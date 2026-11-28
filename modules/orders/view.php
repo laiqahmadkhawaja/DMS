@@ -111,9 +111,12 @@ require_once INCLUDES_PATH . '/topbar.php';
             <h5 class="fw-bold text-primary font-monospace mb-1"><?= e($order['order_number']) ?></h5>
             <div class="small">Order Date: <strong><?= format_date($order['order_date']) ?></strong></div>
             <div class="small">Delivery Date: <strong><?= format_date($order['delivery_date']) ?></strong></div>
-            <div class="mt-1">
+            <div class="mt-1 d-flex justify-content-end gap-1 flex-wrap">
                 <span class="badge bg-<?= match($order['status']){ 'confirmed'=>'success', 'loaded'=>'warning', 'delivered'=>'info', 'cancelled'=>'danger', default=>'secondary' } ?>-subtle text-<?= match($order['status']){ 'confirmed'=>'success', 'loaded'=>'warning', 'delivered'=>'info', 'cancelled'=>'danger', default=>'secondary' } ?> border">
                     Status: <?= strtoupper(str_replace('_', ' ', $order['status'])) ?>
+                </span>
+                <span class="badge bg-<?= ($order['pricing_mode'] ?? 'wholesale') === 'mrp' ? 'success' : 'primary' ?>-subtle text-<?= ($order['pricing_mode'] ?? 'wholesale') === 'mrp' ? 'success' : 'primary' ?> border">
+                    Rate: <?= ($order['pricing_mode'] ?? 'wholesale') === 'mrp' ? 'MRP Price (پرچون ریٹ)' : 'Wholesale Price (ہول سیل)' ?>
                 </span>
             </div>
         </div>
@@ -145,7 +148,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                     <th class="text-center" style="width: 100px;">Carton Qty</th>
                     <th class="text-center" style="width: 100px;">Pack Qty</th>
                     <th class="text-center" style="width: 100px;">Pcs Qty</th>
-                    <th class="text-end" style="width: 130px;">Wholesale Rate</th>
+                    <th class="text-end" style="width: 130px;"><?= ($order['pricing_mode'] ?? 'wholesale') === 'mrp' ? 'MRP Rate' : 'Wholesale Rate' ?></th>
                     <th class="text-end" style="width: 90px;">Disc %</th>
                     <th class="text-end" style="width: 140px;">Line Total</th>
                 </tr>

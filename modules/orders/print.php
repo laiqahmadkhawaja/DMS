@@ -231,6 +231,9 @@ $padRows = max(8, count($items));
                             <td style="width: 16%; padding: 1px 3px;">ORDER NO.</td>
                             <td style="width: 34%; padding: 1px 3px; font-weight: bold;">
                                 <?= htmlspecialchars($order['order_number']) ?>
+                                <?php if (($order['pricing_mode'] ?? 'wholesale') === 'mrp'): ?>
+                                    <span style="font-size: 8.5px; border: 1px solid #198754; color: #198754; padding: 0 4px; border-radius: 2px; font-weight: bold; margin-left: 4px;">MRP PRICE</span>
+                                <?php endif; ?>
                                 <?php if (!empty($order['free_loose_pieces'])): ?>
                                     <span style="font-size: 8.5px; border: 1px solid #000; padding: 0 4px; border-radius: 2px; font-weight: bold; margin-left: 4px;">BONUS/سکیم</span>
                                 <?php endif; ?>

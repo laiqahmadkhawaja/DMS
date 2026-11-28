@@ -58,6 +58,9 @@ $lineHeight = $compactMode ? '19px' : '23px';
                     <td style="width: 14%; padding: 1px 3px;">BILL NO.</td>
                     <td style="width: 42%; padding: 1px 3px; font-weight: bold;">
                         <?= htmlspecialchars($invoice['invoice_number']) ?>
+                        <?php if (($invoice['pricing_mode'] ?? 'wholesale') === 'mrp'): ?>
+                            <span style="font-size: 8.5px; border: 1px solid #198754; color: #198754; padding: 0 4px; border-radius: 2px; background: #fff; margin-left: 4px; font-weight: bold;">MRP PRICE</span>
+                        <?php endif; ?>
                         <?php if (!empty($invoice['free_loose_pieces'])): ?>
                             <span style="font-size: 8.5px; border: 1px solid #000; padding: 0 4px; border-radius: 2px; background: #fff; margin-left: 4px; font-weight: bold;">BONUS/سکیم</span>
                         <?php endif; ?>

@@ -209,12 +209,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtInv = db()->prepare("
                     INSERT INTO sales_invoices (
                         invoice_number, invoice_date, order_id, load_sheet_id, customer_id, 
-                        booker_id, salesman_id, area_id, discount_mode, gross_amount, item_discount_amount, 
+                        booker_id, salesman_id, area_id, pricing_mode, discount_mode, gross_amount, item_discount_amount, 
                         extra_discount_amount, subtotal_discount_percent, net_amount, status, reconciliation_status, payment_status,
                         created_by, finalized_at, created_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, 
-                        ?, ?, ?, ?, ?, ?, 
+                        ?, ?, ?, ?, ?, ?, ?, 
                         ?, ?, ?, 'finalized', 'pending', 'unpaid',
                         ?, NOW(), NOW()
                     )
@@ -243,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $invNumber = generate_document_number(PREFIX_INVOICE, 'sales_invoices', 'invoice_number');
                         $stmtInv->execute([
                             $invNumber, $deliveryDate, $ord['id'], $loadSheetId, $ord['customer_id'],
-                            $ord['booker_id'], $salesmanId, $ord['area_id'], $ord['discount_mode'] ?? 'item_rate',
+                            $ord['booker_id'], $salesmanId, $ord['area_id'], $ord['pricing_mode'] ?? 'wholesale', $ord['discount_mode'] ?? 'item_rate',
                             $ord['gross_amount'], $itemDisc, $extraDisc, $subtotalDiscPct, $ord['net_amount'],
                             $userId
                         ]);

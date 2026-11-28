@@ -27,7 +27,7 @@ $products = db_fetch_all("
     SELECT 
         p.id, p.product_name, p.product_code, p.barcode, p.category_id, p.supplier_id, p.brand_id,
         cat.category_name, b.brand_name,
-        p.purchase_rate, p.purchase_carton_rate, p.purchase_piece_rate, p.default_sale_rate, p.wholesale_rate, p.carton_rate, p.piece_rate, p.retail_rate,
+        p.purchase_rate, p.purchase_carton_rate, p.purchase_piece_rate, p.default_sale_rate, p.wholesale_rate, p.carton_rate, p.piece_rate, p.retail_rate, p.retail_carton_rate, p.retail_piece_rate,
         p.carton_qty, p.pack_qty, p.packing_description, p.base_unit_id, u.symbol as unit_symbol,
         COALESCE(sb.saleable_qty, 0) as saleable_qty
     FROM products p
@@ -63,6 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $itemUnits      = $_POST['item_unit'] ?? [];
     $itemRates      = $_POST['item_rate'] ?? [];
     $itemDiscounts  = $_POST['item_discount_percent'] ?? [];
+
+    $pricingMode = clean_input($_POST['pricing_mode'] ?? 'wholesale');
+    if ($pricingMode !== 'mrp') {
+        $pricingMode = 'wholesale';
+    }
 
     $discountMode = clean_input($_POST['discount_mode'] ?? 'item_rate');
     if ($discountMode !== 'subtotal') {
@@ -199,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $createdOrderId = db_transaction(function () use (
                 $orderNumber, $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
-                $discountMode, $freeLoosePieces, $subtotalDiscountPercent, $subtotalDiscountAmount,
+                $pricingMode, $discountMode, $freeLoosePieces, $subtotalDiscountPercent, $subtotalDiscountAmount,
                 $grossAmount, $discountAmount, $netAmount, $orderStatus, $remarks,
                 $validItems, $totalCartons, $totalUnits
             ) {
@@ -208,13 +213,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = db()->prepare("
                     INSERT INTO orders (
                         order_number, order_date, delivery_date, customer_id, booker_id, area_id,
-                        discount_mode, free_loose_pieces, subtotal_discount_percent, subtotal_discount_amount,
+                        pricing_mode, discount_mode, free_loose_pieces, subtotal_discount_percent, subtotal_discount_amount,
                         total_cartons, total_units,
                         gross_amount, discount_amount, net_amount, status, remarks,
                         created_by, confirmed_at, created_at, updated_at
                     ) VALUES (
                         ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?,
                         ?, ?,
                         ?, ?, ?, ?, ?,
                         ?, ?, NOW(), NOW()
@@ -223,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt->execute([
                     $orderNumber, $orderDate, $deliveryDate, $customerId, $bookerId, $areaId,
-                    $discountMode, $freeLoosePieces, $subtotalDiscountPercent, $subtotalDiscountAmount,
+                    $pricingMode, $discountMode, $freeLoosePieces, $subtotalDiscountPercent, $subtotalDiscountAmount,
                     $totalCartons, $totalUnits,
                     $grossAmount, $discountAmount, $netAmount, $orderStatus, $remarks,
                     current_user_id(), $confirmedAt
@@ -455,13 +460,13 @@ require_once INCLUDES_PATH . '/topbar.php';
 
                                     <div class="prod-price-stock">
                                         <div>
-                                            <div class="prod-price" style="font-size: 12.5px; line-height: 1.25; margin-bottom: 2px;">
+                                            <div class="prod-price" id="card_c_rate_<?= $p['id'] ?>" style="font-size: 12.5px; line-height: 1.25; margin-bottom: 2px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['carton_rate'], 0) ?> <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>
                                             </div>
-                                            <div class="text-primary fw-semibold" style="font-size: 11px; line-height: 1.25; margin-bottom: 2px;">
+                                            <div class="text-primary fw-semibold" id="card_pk_rate_<?= $p['id'] ?>" style="font-size: 11px; line-height: 1.25; margin-bottom: 2px;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format($packsPerCtn > 0 ? ((float)$p['carton_rate'] / $packsPerCtn) : (float)$p['carton_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>
                                             </div>
-                                            <div class="text-secondary fw-semibold" style="font-size: 11px; line-height: 1.25;">
+                                            <div class="text-secondary fw-semibold" id="card_pc_rate_<?= $p['id'] ?>" style="font-size: 11px; line-height: 1.25;">
                                                 <?= DEFAULT_CURRENCY ?> <?= number_format((float)$p['piece_rate'], 2) ?> <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pc</span>
                                             </div>
                                         </div>
@@ -479,13 +484,32 @@ require_once INCLUDES_PATH . '/topbar.php';
                 <div class="col-lg-7">
                     <div class="pos-cart-container">
                         <div class="pos-cart-header">
-                            <span class="fw-bold text-navy">
-                                <i class="bi bi-cart3 me-1 text-primary"></i> Order Items Cart 
-                                <span class="badge bg-primary ms-1" id="cartItemCount">0 items</span>
-                            </span>
-                            <button type="button" class="btn btn-xs btn-outline-danger" onclick="clearCart()" id="btnClearCart" style="display:none;">
-                                <i class="bi bi-trash me-1"></i> Clear Cart
-                            </button>
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <span class="fw-bold text-navy">
+                                    <i class="bi bi-cart3 me-1 text-primary"></i> Order Items Cart 
+                                    <span class="badge bg-primary ms-1" id="cartItemCount">0 items</span>
+                                </span>
+                            </div>
+
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <!-- Real-Time Wholesale vs MRP Price Switcher -->
+                                <input type="hidden" name="pricing_mode" id="selectedPricingMode" value="wholesale">
+                                <div class="btn-group btn-group-sm shadow-sm" role="group" aria-label="Pricing Mode Tier">
+                                    <input type="radio" class="btn-check" name="pricing_mode_tier" id="tierWholesale" value="wholesale" checked autocomplete="off" onchange="setPricingMode('wholesale')">
+                                    <label class="btn btn-outline-primary btn-sm px-2 py-1 fw-bold cursor-pointer" for="tierWholesale" id="lblTierWholesale" title="Apply standard Wholesale rates to cart">
+                                        <i class="bi bi-shop me-1"></i> Wholesale Price
+                                    </label>
+
+                                    <input type="radio" class="btn-check" name="pricing_mode_tier" id="tierMrp" value="mrp" autocomplete="off" onchange="setPricingMode('mrp')">
+                                    <label class="btn btn-outline-success btn-sm px-2 py-1 fw-bold cursor-pointer" for="tierMrp" id="lblTierMrp" title="Apply printed MRP / Retail rates to cart">
+                                        <i class="bi bi-tag-fill me-1"></i> MRP Price
+                                    </label>
+                                </div>
+
+                                <button type="button" class="btn btn-xs btn-outline-danger" onclick="clearCart()" id="btnClearCart" style="display:none;">
+                                    <i class="bi bi-trash me-1"></i> Clear Cart
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Discount Mode & Free Loose Pieces Scheme Bar -->
@@ -976,6 +1000,115 @@ function recalculateAllRows() {
 }
 
 let cartItems = {};
+let currentPricingMode = 'wholesale';
+
+function getProductRates(prod, mode) {
+    mode = mode || currentPricingMode;
+    const packsPerCtn = parseFloat(prod.carton_qty) > 0 ? parseFloat(prod.carton_qty) : 1;
+    const pcsPerPack  = parseFloat(prod.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
+    const pcsPerCtn   = packsPerCtn * pcsPerPack;
+
+    if (mode === 'mrp') {
+        const mrpCarton = parseFloat(prod.retail_carton_rate) > 0 
+            ? parseFloat(prod.retail_carton_rate) 
+            : (parseFloat(prod.retail_rate) > 0 ? parseFloat(prod.retail_rate) : (parseFloat(prod.carton_rate) || parseFloat(prod.wholesale_rate) || 0));
+        const mrpPack   = packsPerCtn > 0 ? (mrpCarton / packsPerCtn) : mrpCarton;
+        const mrpPiece  = parseFloat(prod.retail_piece_rate) > 0 
+            ? parseFloat(prod.retail_piece_rate) 
+            : (pcsPerCtn > 0 ? (mrpCarton / pcsPerCtn) : mrpCarton);
+        return {
+            carton_rate: mrpCarton,
+            pack_rate: mrpPack,
+            piece_rate: mrpPiece,
+            pcs_per_ctn: pcsPerCtn,
+            packs_per_ctn: packsPerCtn
+        };
+    } else {
+        const wsCarton  = parseFloat(prod.carton_rate) > 0 
+            ? parseFloat(prod.carton_rate) 
+            : (parseFloat(prod.wholesale_rate) || 0);
+        const wsPack    = packsPerCtn > 0 ? (wsCarton / packsPerCtn) : wsCarton;
+        const wsPiece   = parseFloat(prod.piece_rate) > 0 
+            ? parseFloat(prod.piece_rate) 
+            : (pcsPerCtn > 0 ? (wsCarton / pcsPerCtn) : wsCarton);
+        return {
+            carton_rate: wsCarton,
+            pack_rate: wsPack,
+            piece_rate: wsPiece,
+            pcs_per_ctn: pcsPerCtn,
+            packs_per_ctn: packsPerCtn
+        };
+    }
+}
+
+function setPricingMode(mode) {
+    currentPricingMode = mode;
+    const hiddenInp = document.getElementById('selectedPricingMode');
+    if (hiddenInp) hiddenInp.value = mode;
+
+    const radioWs = document.getElementById('tierWholesale');
+    const radioMrp = document.getElementById('tierMrp');
+    if (radioWs && radioMrp) {
+        if (mode === 'mrp') {
+            radioMrp.checked = true;
+        } else {
+            radioWs.checked = true;
+        }
+    }
+
+    // 1. Update all items currently in cart in real-time
+    Object.keys(cartItems).forEach(pid => {
+        const item = cartItems[pid];
+        const prod = productMap[pid];
+        if (!item || !prod) return;
+
+        const rates = getProductRates(prod, mode);
+        item.carton_rate = rates.carton_rate;
+        item.pack_rate   = rates.pack_rate;
+        item.piece_rate  = rates.piece_rate;
+
+        if (item.unit === 'pcs') {
+            item.rate = rates.piece_rate;
+        } else if (item.unit === 'pack') {
+            item.rate = rates.pack_rate;
+        } else {
+            item.rate = rates.carton_rate;
+        }
+
+        const inputRate = document.getElementById('input_rate_' + pid);
+        if (inputRate) {
+            inputRate.value = Number(item.rate || 0).toFixed(2);
+            inputRate.classList.add('bg-warning-subtle');
+            setTimeout(() => inputRate.classList.remove('bg-warning-subtle'), 400);
+        }
+
+        updateCartRow(pid);
+    });
+
+    recalculateCartSummary();
+
+    // 2. Update all product cards on left in real-time
+    updateProductCardsPricing(mode);
+}
+
+function updateProductCardsPricing(mode) {
+    DMS_PRODUCTS.forEach(p => {
+        const rates = getProductRates(p, mode);
+        const cardCtn = document.getElementById('card_c_rate_' + p.id);
+        const cardPk  = document.getElementById('card_pk_rate_' + p.id);
+        const cardPc  = document.getElementById('card_pc_rate_' + p.id);
+
+        if (cardCtn) {
+            cardCtn.innerHTML = `<?= DEFAULT_CURRENCY ?> ${Math.round(rates.carton_rate).toLocaleString()} <span class="text-muted fw-normal" style="font-size: 10px;">/ Ctn</span>`;
+        }
+        if (cardPk) {
+            cardPk.innerHTML = `<?= DEFAULT_CURRENCY ?> ${rates.pack_rate.toFixed(2)} <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pack</span>`;
+        }
+        if (cardPc) {
+            cardPc.innerHTML = `<?= DEFAULT_CURRENCY ?> ${rates.piece_rate.toFixed(2)} <span class="text-muted fw-normal" style="font-size: 9.5px;">/ Pc</span>`;
+        }
+    });
+}
 
 function addProductToCart(productId) {
     const prod = productMap[productId];
@@ -986,12 +1119,13 @@ function addProductToCart(productId) {
         cartItems[productId].carton_qty += 1;
         updateCartRow(productId);
     } else {
-        const packsPerCtn = parseFloat(prod.carton_qty) > 0 ? parseFloat(prod.carton_qty) : 1;
+        const rates = getProductRates(prod, currentPricingMode);
+        const packsPerCtn = rates.packs_per_ctn;
         const pcsPerPack  = parseFloat(prod.pack_qty) > 0 ? parseFloat(prod.pack_qty) : 1;
-        const pcsPerCtn   = packsPerCtn * pcsPerPack;
-        const cartonRate  = parseFloat(prod.carton_rate) || parseFloat(prod.wholesale_rate) || 0;
-        const packRate    = packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate;
-        const pieceRate   = parseFloat(prod.piece_rate) || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
+        const pcsPerCtn   = rates.pcs_per_ctn;
+        const cartonRate  = rates.carton_rate;
+        const packRate    = rates.pack_rate;
+        const pieceRate   = rates.piece_rate;
 
         cartItems[productId] = {
             product_id: productId,
