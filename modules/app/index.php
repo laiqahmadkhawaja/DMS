@@ -61,6 +61,11 @@ $activeUser = current_user();
             -webkit-user-select: none;
         }
 
+        input, textarea, select, button {
+            user-select: auto !important;
+            -webkit-user-select: auto !important;
+        }
+
         /* App Top Header */
         .app-topbar {
             position: sticky;
@@ -329,11 +334,12 @@ $activeUser = current_user();
             border: 1px solid #cbd5e1;
             border-radius: 8px;
             padding: 2px;
+            gap: 2px;
         }
 
         .stepper-btn {
-            width: 28px;
-            height: 28px;
+            width: 32px;
+            height: 32px;
             border: none;
             background: #e2e8f0;
             border-radius: 6px;
@@ -344,6 +350,8 @@ $activeUser = current_user();
             justify-content: center;
             cursor: pointer;
             color: #1e293b;
+            flex-shrink: 0;
+            touch-action: manipulation;
         }
 
         .stepper-btn:active {
@@ -351,13 +359,28 @@ $activeUser = current_user();
         }
 
         .stepper-val {
-            width: 36px;
+            flex: 1;
+            min-width: 36px;
+            height: 32px;
             text-align: center;
-            font-weight: bold;
-            border: none;
+            font-weight: 700;
+            border: 1px solid transparent;
+            border-radius: 6px;
             outline: none;
-            font-size: 13px;
-            background: transparent;
+            font-size: 14px;
+            background: #ffffff;
+            color: #0f172a;
+            padding: 0 4px;
+            cursor: text;
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            touch-action: manipulation;
+        }
+
+        .stepper-val:focus {
+            border-color: var(--app-secondary);
+            background: #eff6ff;
+            box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.2);
         }
 
         /* Floating Bottom Cart Bar */
@@ -1728,9 +1751,9 @@ function renderProducts() {
                     <div>
                         <small class="text-muted d-block mb-1" style="font-size: 11px;">Cartons (Ctn):</small>
                         <div class="stepper-box">
-                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'carton_qty', -1)">-</button>
-                            <input type="number" class="stepper-val" value="${cartItem.carton_qty}" min="0" oninput="setDirectQty(${p.id}, 'carton_qty', this.value)">
-                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'carton_qty', 1)">+</button>
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'carton_qty', -1)" type="button">-</button>
+                            <input type="number" inputmode="numeric" pattern="[0-9]*" class="stepper-val" value="${cartItem.carton_qty}" min="0" oninput="setDirectQty(${p.id}, 'carton_qty', this.value)" onfocus="if(this.value=='0')this.value='';this.select();" onblur="onQtyBlur(${p.id}, 'carton_qty', this)">
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'carton_qty', 1)" type="button">+</button>
                         </div>
                     </div>
 
@@ -1739,9 +1762,9 @@ function renderProducts() {
                     <div>
                         <small class="text-muted d-block mb-1" style="font-size: 11px;">Packs (Pks):</small>
                         <div class="stepper-box">
-                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pack_qty', -1)">-</button>
-                            <input type="number" class="stepper-val" value="${cartItem.pack_qty || 0}" min="0" oninput="setDirectQty(${p.id}, 'pack_qty', this.value)">
-                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pack_qty', 1)">+</button>
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pack_qty', -1)" type="button">-</button>
+                            <input type="number" inputmode="numeric" pattern="[0-9]*" class="stepper-val" value="${cartItem.pack_qty || 0}" min="0" oninput="setDirectQty(${p.id}, 'pack_qty', this.value)" onfocus="if(this.value=='0')this.value='';this.select();" onblur="onQtyBlur(${p.id}, 'pack_qty', this)">
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pack_qty', 1)" type="button">+</button>
                         </div>
                     </div>
                     ` : ''}
@@ -1753,23 +1776,21 @@ function renderProducts() {
                             ${isSchemeActive && cartItem.pcs_qty > 0 ? `<span class="badge bg-warning text-dark py-0 px-1" style="font-size: 9px;">Free</span>` : ''}
                         </div>
                         <div class="stepper-box">
-                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pcs_qty', -1)">-</button>
-                            <input type="number" class="stepper-val" value="${cartItem.pcs_qty}" min="0" oninput="setDirectQty(${p.id}, 'pcs_qty', this.value)">
-                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pcs_qty', 1)">+</button>
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pcs_qty', -1)" type="button">-</button>
+                            <input type="number" inputmode="numeric" pattern="[0-9]*" class="stepper-val" value="${cartItem.pcs_qty}" min="0" oninput="setDirectQty(${p.id}, 'pcs_qty', this.value)" onfocus="if(this.value=='0')this.value='';this.select();" onblur="onQtyBlur(${p.id}, 'pcs_qty', this)">
+                            <button class="stepper-btn" onclick="updateQty(${p.id}, 'pcs_qty', 1)" type="button">+</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Product Card Subtotal & Scheme Note -->
-                ${itemHasQty ? `
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-1" style="font-size: 12px;">
+                <div class="card-subtotal-footer d-flex justify-content-between align-items-center pt-2 border-top mt-1" id="cardFooter_${p.id}" style="font-size: 12px; display: ${itemHasQty ? 'flex' : 'none'};">
                     <span class="text-muted">
                         Qty: <strong>${Math.round(line.totalPieces)} Pcs</strong> (${line.cartonEquiv.toFixed(2)} Ctn)
                         ${isSchemeActive && cartItem.pcs_qty > 0 ? `<span class="text-success fw-bold ms-1">(+${cartItem.pcs_qty} Pcs Free Scheme)</span>` : ''}
                     </span>
                     <span class="fw-bold text-primary">Rs. ${line.lineNet.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
-                ` : ''}
             </div>
         `;
     }).join('');
@@ -1806,9 +1827,44 @@ function setDirectQty(productId, field, val) {
     const num = Math.max(0, parseFloat(val) || 0);
     APP_STATE.cart[productId][field] = num;
 
-    cleanCartItemIfEmpty(productId);
     updateCartBar();
     renderCartTotalsOnly();
+    updateCardSubtotalDisplay(productId);
+}
+
+function onQtyBlur(productId, field, el) {
+    if (el.value === '' || isNaN(parseFloat(el.value))) {
+        el.value = '0';
+    }
+    setDirectQty(productId, field, el.value);
+    cleanCartItemIfEmpty(productId);
+    updateCardSubtotalDisplay(productId);
+}
+
+function updateCardSubtotalDisplay(productId) {
+    const cardFooter = document.getElementById('cardFooter_' + productId);
+    if (!cardFooter) return;
+
+    const p = APP_STATE.products.find(item => item.id == productId);
+    const item = APP_STATE.cart[productId] || { carton_qty: 0, pack_qty: 0, pcs_qty: 0 };
+    const hasQty = (item.carton_qty > 0 || item.pack_qty > 0 || item.pcs_qty > 0);
+
+    if (!hasQty || !p) {
+        cardFooter.style.display = 'none';
+        return;
+    }
+
+    const line = calculateItemLine(p, item);
+    const isSchemeActive = APP_STATE.freeLoosePieces === 1;
+
+    cardFooter.innerHTML = `
+        <span class="text-muted">
+            Qty: <strong>${Math.round(line.totalPieces)} Pcs</strong> (${line.cartonEquiv.toFixed(2)} Ctn)
+            ${isSchemeActive && item.pcs_qty > 0 ? `<span class="text-success fw-bold ms-1">(+${item.pcs_qty} Pcs Free Scheme)</span>` : ''}
+        </span>
+        <span class="fw-bold text-primary">Rs. ${line.lineNet.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+    `;
+    cardFooter.style.display = 'flex';
 }
 
 function updateCartBar() {
