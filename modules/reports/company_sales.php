@@ -148,6 +148,7 @@ foreach ($returnsRaw as $ret) {
 $companies = [];
 $grandTotals = [
     'cartons'          => 0.0,
+    'packs'            => 0.0,
     'pieces'           => 0.0,
     'gross_amount'     => 0.0,
     'return_amount'    => 0.0,
@@ -169,6 +170,7 @@ foreach ($itemRows as $row) {
             'supplier_city'       => $row['supplier_city'],
             'total_items_count'   => 0,
             'cartons_sold'        => 0.0,
+            'packs_sold'          => 0.0,
             'pieces_sold'         => 0.0,
             'gross_amount'        => 0.0,
             'return_amount'       => 0.0,
@@ -202,6 +204,7 @@ foreach ($itemRows as $row) {
 
     $companies[$supId]['total_items_count']++;
     $companies[$supId]['cartons_sold']       += (float)$row['cartons_sold'];
+    $companies[$supId]['packs_sold']         += (float)$row['packs_sold'];
     $companies[$supId]['pieces_sold']        += (float)$row['pcs_sold'];
     $companies[$supId]['gross_amount']       += $gross;
     $companies[$supId]['return_amount']      += $retAmount;
@@ -216,6 +219,7 @@ foreach ($itemRows as $row) {
         'product_name'       => $row['product_name'],
         'category_name'      => $row['category_name'],
         'cartons_sold'       => (float)$row['cartons_sold'],
+        'packs_sold'         => (float)$row['packs_sold'],
         'pcs_sold'           => (float)$row['pcs_sold'],
         'gross_amount'       => $gross,
         'return_amount'      => $retAmount,
@@ -227,6 +231,7 @@ foreach ($itemRows as $row) {
     ];
 
     $grandTotals['cartons']          += (float)$row['cartons_sold'];
+    $grandTotals['packs']            += (float)$row['packs_sold'];
     $grandTotals['pieces']           += (float)$row['pcs_sold'];
     $grandTotals['gross_amount']     += $gross;
     $grandTotals['return_amount']    += $retAmount;

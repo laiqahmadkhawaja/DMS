@@ -51,6 +51,7 @@ $productSales = db_fetch_all("
         p.supplier_id,
         COALESCE(s.supplier_name, 'Direct Brand') as supplier_name,
         COALESCE(SUM(sii.carton_qty), 0) as cartons_sold,
+        COALESCE(SUM(sii.pack_qty), 0) as packs_sold,
         COALESCE(SUM(sii.pcs_qty), 0) as pcs_sold,
         COALESCE(SUM(sii.quantity), 0) as total_units_sold,
         COALESCE(SUM(sii.line_total), 0) as gross_amount,
@@ -81,6 +82,7 @@ $productSales = db_fetch_all("
 // Calculate Totals
 $totals = [
     'cartons' => 0.0,
+    'packs'   => 0.0,
     'pieces'  => 0.0,
     'gross'   => 0.0,
     'returns' => 0.0,
@@ -92,6 +94,7 @@ foreach ($productSales as &$ps) {
     $ps['net_amount'] = $net;
 
     $totals['cartons'] += (float)$ps['cartons_sold'];
+    $totals['packs']   += (float)$ps['packs_sold'];
     $totals['pieces']  += (float)$ps['pcs_sold'];
     $totals['gross']   += (float)$ps['gross_amount'];
     $totals['returns'] += (float)$ps['return_amount'];
@@ -226,6 +229,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th>Category</th>
                                 <th class="text-center">Ratio</th>
                                 <th class="text-center">Cartons</th>
+                                <th class="text-center">Packs</th>
                                 <th class="text-center">Pieces</th>
                                 <th class="text-end">Gross Sales</th>
                                 <th class="text-end text-danger">Returns</th>
@@ -255,6 +259,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <td class="small text-muted"><?= htmlspecialchars($row['category_name']) ?></td>
                                         <td class="text-center small"><?= (int)$row['ratio'] ?> pcs</td>
                                         <td class="text-center fw-semibold"><?= number_format($row['cartons_sold'], 1) ?></td>
+                                        <td class="text-center"><?= number_format($row['packs_sold'], 0) ?></td>
                                         <td class="text-center"><?= number_format($row['pcs_sold'], 0) ?></td>
                                         <td class="text-end text-muted"><?= format_currency($row['gross_amount']) ?></td>
                                         <td class="text-end text-danger">
@@ -269,6 +274,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                             <tr>
                                 <td colspan="6" class="text-end">Grand Total:</td>
                                 <td class="text-center"><?= number_format($totals['cartons'], 1) ?></td>
+                                <td class="text-center"><?= number_format($totals['packs'], 0) ?></td>
                                 <td class="text-center"><?= number_format($totals['pieces'], 0) ?></td>
                                 <td class="text-end"><?= format_currency($totals['gross']) ?></td>
                                 <td class="text-end text-danger"><?= format_currency($totals['returns']) ?></td>

@@ -38,26 +38,50 @@ $bookerPerformance = db_fetch_all("
         b.booker_code,
         b.phone,
         b.commission_rate,
-        COUNT(DISTINCT si.id) as total_bills,
-        COALESCE(SUM(sii.carton_qty), 0) as total_cartons,
-        COALESCE(SUM(sii.pcs_qty), 0) as total_pieces,
-        COALESCE(SUM(si.gross_amount), 0) as gross_sales,
-        COALESCE(SUM(si.item_discount_amount + si.extra_discount_amount), 0) as total_discounts,
-        COALESCE(SUM(si.net_amount), 0) as net_sales,
-        COALESCE(SUM(si.credit_amount), 0) as credit_booked,
-        COALESCE(SUM(si.paid_amount), 0) as cash_collected
+        COALESCE(inv.total_bills, 0) as total_bills,
+        COALESCE(items.total_cartons, 0) as total_cartons,
+        COALESCE(items.total_packs, 0) as total_packs,
+        COALESCE(items.total_pieces, 0) as total_pieces,
+        COALESCE(inv.gross_sales, 0) as gross_sales,
+        COALESCE(inv.total_discounts, 0) as total_discounts,
+        COALESCE(inv.net_sales, 0) as net_sales,
+        COALESCE(inv.credit_booked, 0) as credit_booked,
+        COALESCE(inv.cash_collected, 0) as cash_collected
     FROM bookers b
-    LEFT JOIN sales_invoices si ON b.id = si.booker_id AND {$where}
-    LEFT JOIN sales_invoice_items sii ON si.id = sii.invoice_id
-    WHERE b.is_deleted = 0
-    GROUP BY b.id
+    LEFT JOIN (
+        SELECT 
+            si.booker_id,
+            COUNT(si.id) as total_bills,
+            SUM(si.gross_amount) as gross_sales,
+            SUM(si.item_discount_amount + si.extra_discount_amount) as total_discounts,
+            SUM(si.net_amount) as net_sales,
+            SUM(si.credit_amount) as credit_booked,
+            SUM(si.paid_amount) as cash_collected
+        FROM sales_invoices si
+        WHERE {$where}
+        GROUP BY si.booker_id
+    ) inv ON b.id = inv.booker_id
+    LEFT JOIN (
+        SELECT 
+            si.booker_id,
+            SUM(sii.carton_qty) as total_cartons,
+            SUM(sii.pack_qty) as total_packs,
+            SUM(sii.pcs_qty) as total_pieces
+        FROM sales_invoice_items sii
+        JOIN sales_invoices si ON sii.invoice_id = si.id
+        WHERE {$where}
+        GROUP BY si.booker_id
+    ) items ON b.id = items.booker_id
+    WHERE b.is_deleted = 0 " . ($bookerId ? " AND b.id = " . (int)$bookerId : "") . "
     ORDER BY net_sales DESC
-", $params);
+", array_merge($params, $params));
 
 // Overall Totals
 $totals = [
     'bills'       => 0,
     'cartons'     => 0.0,
+    'packs'       => 0.0,
+    'pieces'      => 0.0,
     'gross'       => 0.0,
     'discounts'   => 0.0,
     'net'         => 0.0,
@@ -70,6 +94,8 @@ foreach ($bookerPerformance as &$bp) {
 
     $totals['bills']      += (int)$bp['total_bills'];
     $totals['cartons']    += (float)$bp['total_cartons'];
+    $totals['packs']      += (float)$bp['total_packs'];
+    $totals['pieces']     += (float)$bp['total_pieces'];
     $totals['gross']      += (float)$bp['gross_sales'];
     $totals['discounts']  += (float)$bp['total_discounts'];
     $totals['net']        += (float)$bp['net_sales'];
@@ -164,6 +190,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <th>Booker Name</th>
                                 <th class="text-center">Bills</th>
                                 <th class="text-center">Cartons</th>
+                                <th class="text-center">Packs</th>
                                 <th class="text-end">Gross Sales</th>
                                 <th class="text-end">Discounts</th>
                                 <th class="text-end fw-bold text-navy">Net Sales</th>
@@ -184,6 +211,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                         <td class="fw-semibold"><?= htmlspecialchars($row['booker_name']) ?></td>
                                         <td class="text-center"><?= (int)$row['total_bills'] ?></td>
                                         <td class="text-center fw-semibold"><?= number_format($row['total_cartons'], 1) ?></td>
+                                        <td class="text-center"><?= number_format($row['total_packs'], 0) ?></td>
                                         <td class="text-end text-muted"><?= format_currency($row['gross_sales']) ?></td>
                                         <td class="text-end text-danger"><?= format_currency($row['total_discounts']) ?></td>
                                         <td class="text-end fw-bold text-navy fs-6"><?= format_currency($row['net_sales']) ?></td>
@@ -198,6 +226,7 @@ require_once INCLUDES_PATH . '/topbar.php';
                                 <td colspan="3" class="text-end">Grand Total:</td>
                                 <td class="text-center"><?= (int)$totals['bills'] ?></td>
                                 <td class="text-center"><?= number_format($totals['cartons'], 1) ?></td>
+                                <td class="text-center"><?= number_format($totals['packs'], 0) ?></td>
                                 <td class="text-end"><?= format_currency($totals['gross']) ?></td>
                                 <td class="text-end text-danger"><?= format_currency($totals['discounts']) ?></td>
                                 <td class="text-end text-navy"><?= format_currency($totals['net']) ?></td>

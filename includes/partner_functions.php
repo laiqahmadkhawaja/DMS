@@ -742,6 +742,7 @@ function get_partner_sales_profit_summary(int $partnerId, string $fromDate, stri
     $sales = db_fetch_one("
         SELECT 
             COALESCE(SUM(sii.carton_qty), 0) as cartons_sold,
+            COALESCE(SUM(sii.pack_qty), 0) as packs_sold,
             COALESCE(SUM(sii.pcs_qty), 0) as pcs_sold,
             COALESCE(SUM(sii.line_total), 0) as gross_amount,
             COALESCE(SUM(sii.discount_amount), 0) as discount_amount,
@@ -778,6 +779,7 @@ function get_partner_sales_profit_summary(int $partnerId, string $fromDate, stri
                 sii.quantity * (
                     CASE 
                         WHEN p.purchase_piece_rate > 0 THEN p.purchase_piece_rate 
+                        WHEN (p.carton_qty * p.pack_qty) > 0 THEN p.purchase_rate / (p.carton_qty * p.pack_qty)
                         WHEN p.carton_qty > 0 THEN p.purchase_rate / p.carton_qty 
                         ELSE p.purchase_rate 
                     END

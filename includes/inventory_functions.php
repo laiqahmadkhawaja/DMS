@@ -159,10 +159,11 @@ function convert_to_base_unit(int $productId, int $unitId, float $quantity): flo
     $unitCode = db_fetch_val("SELECT unit_code FROM units WHERE id = ?", [$unitId]);
     $ratios = get_product_packaging_ratios($prod);
 
-    if ($unitCode === 'CTN') {
+    $uCodeUpper = strtoupper(trim((string)$unitCode));
+    if ($uCodeUpper === 'CTN') {
         return $quantity * $ratios['pcs_per_ctn'];
     }
-    if ($unitCode === 'PCK' || $unitCode === 'BOX') {
+    if (in_array($uCodeUpper, ['PCK', 'PACK', 'BOX'])) {
         return $quantity * $ratios['pcs_per_pack'];
     }
 
@@ -233,6 +234,8 @@ function record_stock_movement(array $data): int {
             }
         } elseif ($unitCost <= 0 && $pieceRate > 0) {
             $unitCost = $pieceRate;
+        } elseif ($unitCost <= 0 && $cartonRate > 0 && $pcsPerCtn > 0) {
+            $unitCost = round($cartonRate / $pcsPerCtn, 6);
         }
 
         $totalCost = round($movementQty * $unitCost, 2);

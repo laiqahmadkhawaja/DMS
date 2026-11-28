@@ -154,7 +154,7 @@ if ($supplierFilter > 0) {
     $salesSummary = db_fetch_one("
         SELECT 
             COUNT(DISTINCT si.id) as total_bills,
-            COALESCE(SUM(sii.line_total), 0) as total_gross,
+            COALESCE(SUM(sii.line_total + sii.discount_amount), 0) as total_gross,
             COALESCE(SUM(sii.discount_amount), 0) as total_discounts,
             COALESCE(SUM(sii.line_total), 0) as total_net,
             COALESCE(SUM(
