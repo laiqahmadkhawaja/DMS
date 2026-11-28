@@ -103,9 +103,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($unitCode === 'pcs') {
             $lineGross = $billableBasePieces * $rate;
             $unitId = 4; // Piece unit
+        } elseif ($unitCode === 'pack' || $unitCode === 'pck') {
+            $billablePacks = ($ctnQty * $packsPerCtn) + $packQty + ($pcsPerPack > 0 ? ($billablePcs / $pcsPerPack) : 0);
+            $lineGross = $billablePacks * $rate;
+            $unitId = 3; // Packet / Pack unit
         } else {
             $lineGross = $billableCartons * $rate;
-            $unitId = 1; // Carton unit (CTN) // Carton unit
+            $unitId = 1; // Carton unit (CTN)
         }
 
         if ($discountMode === 'subtotal') {

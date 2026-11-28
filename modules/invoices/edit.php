@@ -1011,17 +1011,36 @@ function onCartRowChange(productId) {
     item.rate = rateVal;
     item.discount_percent = discVal;
 
-    // Keep carton_rate and piece_rate in sync if rate input was edited
+    // Keep rates in sync if rate input was edited
+    const packsPerCtn = item.packs_per_ctn > 0 ? item.packs_per_ctn : 1;
+    const pcsPerPack  = item.pcs_per_pack > 0 ? item.pcs_per_pack : 1;
+    const pcsPerCtn   = item.pcs_per_ctn > 0 ? item.pcs_per_ctn : (packsPerCtn * pcsPerPack);
+
     if (item.unit === 'pcs') {
         item.piece_rate = rateVal;
-        item.carton_rate = rateVal * item.pcs_per_ctn;
+        item.pack_rate = item.pcs_per_pack > 0 ? (rateVal * item.pcs_per_pack) : rateVal;
+        item.carton_rate = rateVal * pcsPerCtn;
+    } else if (item.unit === 'pack') {
+        item.pack_rate = rateVal;
+        item.carton_rate = rateVal * packsPerCtn;
+        item.piece_rate = pcsPerPack > 0 ? (rateVal / pcsPerPack) : rateVal;
     } else {
         item.carton_rate = rateVal;
-        item.piece_rate = item.pcs_per_ctn > 0 ? (rateVal / item.pcs_per_ctn) : rateVal;
+        item.pack_rate = packsPerCtn > 0 ? (rateVal / packsPerCtn) : rateVal;
+        item.piece_rate = pcsPerCtn > 0 ? (rateVal / pcsPerCtn) : rateVal;
     }
 
-    // Auto-switch unit if user specifically entered 0 Cartons and >0 Pieces
-    if (item.unit === 'ctn' && ctnVal === 0 && pcsVal > 0) {
+    // Auto-switch unit:
+    if (ctnVal === 0 && packVal > 0 && pcsVal === 0 && item.unit !== 'pack') {
+        item.unit = 'pack';
+        item.rate = item.pack_rate;
+        const unitSel = document.getElementById('input_unit_' + productId);
+        if (unitSel) unitSel.value = 'pack';
+        const inputRate = document.getElementById('input_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Pack';
+    } else if (ctnVal === 0 && packVal === 0 && pcsVal > 0 && item.unit !== 'pcs') {
         item.unit = 'pcs';
         item.rate = item.piece_rate;
         const unitSel = document.getElementById('input_unit_' + productId);
@@ -1030,7 +1049,7 @@ function onCartRowChange(productId) {
         if (inputRate) inputRate.value = item.rate.toFixed(2);
         const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
         if (lblRateUnit) lblRateUnit.innerText = '/ Piece';
-    } else if (item.unit === 'pcs' && ctnVal > 0 && pcsVal === 0) {
+    } else if (ctnVal > 0 && packVal === 0 && pcsVal === 0 && item.unit !== 'ctn') {
         item.unit = 'ctn';
         item.rate = item.carton_rate;
         const unitSel = document.getElementById('input_unit_' + productId);
@@ -1235,7 +1254,9 @@ document.addEventListener('DOMContentLoaded', function () {
             let unit = 'ctn';
             if (parseInt(sii.unit_id) === 4 || (sii.unit_symbol && sii.unit_symbol.toLowerCase().includes('pc'))) {
                 unit = 'pcs';
-            } else if (parseInt(sii.unit_id) === 3 || (sii.unit_symbol && sii.unit_symbol.toLowerCase().includes('pack'))) {
+            } else if (parseInt(sii.unit_id) === 3 || (sii.unit_symbol && (sii.unit_symbol.toLowerCase().includes('pack') || sii.unit_symbol.toLowerCase().includes('pck')))) {
+                unit = 'pack';
+            } else if (parseFloat(sii.carton_qty) === 0 && parseFloat(sii.pack_qty) > 0 && parseFloat(sii.pcs_qty) === 0) {
                 unit = 'pack';
             }
 

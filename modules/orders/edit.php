@@ -26,7 +26,7 @@ $orderItems = db_fetch_all("
     SELECT 
         oi.*,
         p.product_name, p.product_code, p.carton_qty as ctn_ratio, p.pack_qty as pack_ratio,
-        p.carton_rate, p.piece_rate, u.symbol as unit_symbol
+        p.carton_rate, p.piece_rate, u.symbol as unit_symbol, u.unit_code, u.unit_name
     FROM order_items oi
     JOIN products p ON oi.product_id = p.id
     LEFT JOIN units u ON u.id = oi.unit_id
@@ -163,9 +163,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($unitCode === 'pcs') {
                 $lineGross = $billableBasePieces * $rate;
                 $unitId = 4; // Piece unit
+            } elseif ($unitCode === 'pack' || $unitCode === 'pck') {
+                $billablePacks = ($cartonQty * $packsPerCtn) + $packQty + ($pcsPerPack > 0 ? ($billablePcs / $pcsPerPack) : 0);
+                $lineGross = $billablePacks * $rate;
+                $unitId = 3; // Packet / Pack unit
             } else {
                 $lineGross = $billableCartons * $rate;
-                $unitId = 1; // Carton unit (CTN) // Carton unit
+                $unitId = 1; // Carton unit (CTN)
             }
 
             if ($discountMode === 'subtotal') {
@@ -853,12 +857,24 @@ document.addEventListener('DOMContentLoaded', function () {
             const packsPerCtn = parseFloat(oi.ctn_ratio) > 0 ? parseFloat(oi.ctn_ratio) : (parseFloat(prod?.carton_qty) || 1);
             const pcsPerPack  = parseFloat(oi.pack_ratio) > 0 ? parseFloat(oi.pack_ratio) : (parseFloat(prod?.pack_qty) || 1);
             const pcsPerCtn   = packsPerCtn * pcsPerPack;
-            const cartonRate  = parseFloat(prod?.carton_rate) || parseFloat(prod?.wholesale_rate) || parseFloat(oi.rate) || 0;
-            const pieceRate   = parseFloat(prod?.piece_rate) || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
+            const rates       = getProductRates(prod || {}, currentPricingMode);
+            const cartonRate  = parseFloat(prod?.carton_rate) || rates.carton_rate || parseFloat(oi.rate) || 0;
+            const packRate    = rates.pack_rate || (packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate);
+            const pieceRate   = parseFloat(prod?.piece_rate) || rates.piece_rate || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
+
+            const uId = parseInt(oi.unit_id, 10);
+            const uSym = (oi.unit_symbol || '').toLowerCase();
+            const uCode = (oi.unit_code || '').toLowerCase();
+            const uName = (oi.unit_name || '').toLowerCase();
 
             let unit = 'ctn';
-            if (parseInt(oi.unit_id) === 4 || (oi.unit_symbol && oi.unit_symbol.toLowerCase().includes('pc'))) {
+            if (uId === 4 || uSym.includes('pc') || uCode.includes('pc') || uName.includes('pc')) {
                 unit = 'pcs';
+            } else if (uId === 3 || uSym.includes('pack') || uSym.includes('pck') || uCode.includes('pack') || uCode.includes('pck') || uName.includes('pack') || uName.includes('packet')) {
+                unit = 'pack';
+            } else if (parseFloat(oi.carton_qty) === 0 && parseFloat(oi.pack_qty) > 0 && parseFloat(oi.pcs_qty) === 0) {
+                // Heuristic fallback if saved previously with 0 cartons and >0 packs
+                unit = 'pack';
             }
 
             cartItems[oi.product_id] = {
@@ -873,8 +889,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 pcs_qty: parseFloat(oi.pcs_qty) || 0,
                 unit: unit,
                 carton_rate: cartonRate,
+                pack_rate: packRate,
                 piece_rate: pieceRate,
-                rate: parseFloat(oi.rate) || 0,
+                rate: parseFloat(oi.rate) || (unit === 'pack' ? packRate : (unit === 'pcs' ? pieceRate : cartonRate)),
                 discount_percent: parseFloat(oi.discount_percent) || 0,
                 line_total: parseFloat(oi.line_total) || 0
             };
@@ -1454,17 +1471,36 @@ function onCartRowChange(productId) {
     item.rate = rateVal;
     item.discount_percent = discVal;
 
-    // Keep carton_rate and piece_rate in sync if rate input was edited
+    // Keep rates in sync if rate input was edited
+    const packsPerCtn = item.packs_per_ctn > 0 ? item.packs_per_ctn : 1;
+    const pcsPerPack  = item.pcs_per_pack > 0 ? item.pcs_per_pack : 1;
+    const pcsPerCtn   = item.pcs_per_ctn > 0 ? item.pcs_per_ctn : (packsPerCtn * pcsPerPack);
+
     if (item.unit === 'pcs') {
         item.piece_rate = rateVal;
-        item.carton_rate = rateVal * item.pcs_per_ctn;
+        item.pack_rate = item.pcs_per_pack > 0 ? (rateVal * item.pcs_per_pack) : rateVal;
+        item.carton_rate = rateVal * pcsPerCtn;
+    } else if (item.unit === 'pack') {
+        item.pack_rate = rateVal;
+        item.carton_rate = rateVal * packsPerCtn;
+        item.piece_rate = pcsPerPack > 0 ? (rateVal / pcsPerPack) : rateVal;
     } else {
         item.carton_rate = rateVal;
-        item.piece_rate = item.pcs_per_ctn > 0 ? (rateVal / item.pcs_per_ctn) : rateVal;
+        item.pack_rate = packsPerCtn > 0 ? (rateVal / packsPerCtn) : rateVal;
+        item.piece_rate = pcsPerCtn > 0 ? (rateVal / pcsPerCtn) : rateVal;
     }
 
-    // Auto-switch unit if user specifically entered 0 Cartons and >0 Pieces
-    if (item.unit === 'ctn' && ctnVal === 0 && pcsVal > 0) {
+    // Auto-switch unit:
+    if (ctnVal === 0 && packVal > 0 && pcsVal === 0 && item.unit !== 'pack') {
+        item.unit = 'pack';
+        item.rate = item.pack_rate;
+        const unitSel = document.getElementById('input_unit_' + productId);
+        if (unitSel) unitSel.value = 'pack';
+        const inputRate = document.getElementById('input_rate_' + productId);
+        if (inputRate) inputRate.value = item.rate.toFixed(2);
+        const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
+        if (lblRateUnit) lblRateUnit.innerText = '/ Pack';
+    } else if (ctnVal === 0 && packVal === 0 && pcsVal > 0 && item.unit !== 'pcs') {
         item.unit = 'pcs';
         item.rate = item.piece_rate;
         const unitSel = document.getElementById('input_unit_' + productId);
@@ -1473,7 +1509,7 @@ function onCartRowChange(productId) {
         if (inputRate) inputRate.value = item.rate.toFixed(2);
         const lblRateUnit = document.getElementById('lbl_rate_unit_' + productId);
         if (lblRateUnit) lblRateUnit.innerText = '/ Piece';
-    } else if (item.unit === 'pcs' && ctnVal > 0 && pcsVal === 0) {
+    } else if (ctnVal > 0 && packVal === 0 && pcsVal === 0 && item.unit !== 'ctn') {
         item.unit = 'ctn';
         item.rate = item.carton_rate;
         const unitSel = document.getElementById('input_unit_' + productId);
