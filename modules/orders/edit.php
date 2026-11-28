@@ -858,7 +858,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const pcsPerPack  = parseFloat(oi.pack_ratio) > 0 ? parseFloat(oi.pack_ratio) : (parseFloat(prod?.pack_qty) || 1);
             const pcsPerCtn   = packsPerCtn * pcsPerPack;
             const rates       = getProductRates(prod || {}, currentPricingMode);
-            const cartonRate  = parseFloat(prod?.carton_rate) || rates.carton_rate || parseFloat(oi.rate) || 0;
+            const cartonRate  = parseFloat(prod?.carton_rate) || rates.carton_rate || 0;
             const packRate    = rates.pack_rate || (packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate);
             const pieceRate   = parseFloat(prod?.piece_rate) || rates.piece_rate || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
 
@@ -868,14 +868,39 @@ document.addEventListener('DOMContentLoaded', function () {
             const uName = (oi.unit_name || '').toLowerCase();
 
             let unit = 'ctn';
-            if (uId === 4 || uSym.includes('pc') || uCode.includes('pc') || uName.includes('pc')) {
-                unit = 'pcs';
-            } else if (uId === 3 || uSym.includes('pack') || uSym.includes('pck') || uCode.includes('pack') || uCode.includes('pck') || uName.includes('pack') || uName.includes('packet')) {
+            if (uId === 3 || uId === 2 || ['pck', 'pack', 'box'].includes(uCode) || ['pck', 'pack', 'box'].includes(uSym) || uName.includes('pack') || uName.includes('packet') || uName.includes('box')) {
                 unit = 'pack';
+            } else if (uId === 4 || uCode === 'pcs' || uSym === 'pcs' || uCode === 'pc' || uSym === 'pc' || uName.includes('piece')) {
+                unit = 'pcs';
             } else if (parseFloat(oi.carton_qty) === 0 && parseFloat(oi.pack_qty) > 0 && parseFloat(oi.pcs_qty) === 0) {
                 // Heuristic fallback if saved previously with 0 cartons and >0 packs
                 unit = 'pack';
+            } else if (parseFloat(oi.carton_qty) === 0 && parseFloat(oi.pack_qty) === 0 && parseFloat(oi.pcs_qty) > 0) {
+                unit = 'pcs';
             }
+
+            const savedRate = parseFloat(oi.rate) || 0;
+            let itemCartonRate = cartonRate;
+            let itemPackRate   = packRate;
+            let itemPieceRate  = pieceRate;
+
+            if (savedRate > 0) {
+                if (unit === 'pack') {
+                    itemPackRate   = savedRate;
+                    itemCartonRate = packsPerCtn > 0 ? (savedRate * packsPerCtn) : (cartonRate || savedRate);
+                    itemPieceRate  = pcsPerPack > 0 ? (savedRate / pcsPerPack) : (pcsPerCtn > 0 ? (itemCartonRate / pcsPerCtn) : savedRate);
+                } else if (unit === 'pcs') {
+                    itemPieceRate  = savedRate;
+                    itemCartonRate = pcsPerCtn > 0 ? (savedRate * pcsPerCtn) : (cartonRate || savedRate);
+                    itemPackRate   = pcsPerPack > 0 ? (itemPieceRate * pcsPerPack) : (packsPerCtn > 0 ? (itemCartonRate / packsPerCtn) : savedRate);
+                } else {
+                    itemCartonRate = savedRate;
+                    itemPackRate   = packsPerCtn > 0 ? (savedRate / packsPerCtn) : (packRate || savedRate);
+                    itemPieceRate  = pcsPerCtn > 0 ? (savedRate / pcsPerCtn) : (pieceRate || savedRate);
+                }
+            }
+
+            const activeRate = unit === 'pack' ? itemPackRate : (unit === 'pcs' ? itemPieceRate : itemCartonRate);
 
             cartItems[oi.product_id] = {
                 product_id: parseInt(oi.product_id),
@@ -888,13 +913,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 pack_qty: parseFloat(oi.pack_qty) || 0,
                 pcs_qty: parseFloat(oi.pcs_qty) || 0,
                 unit: unit,
-                carton_rate: cartonRate,
-                pack_rate: packRate,
-                piece_rate: pieceRate,
-                rate: parseFloat(oi.rate) || (unit === 'pack' ? packRate : (unit === 'pcs' ? pieceRate : cartonRate)),
+                carton_rate: itemCartonRate,
+                pack_rate: itemPackRate,
+                piece_rate: itemPieceRate,
+                rate: activeRate,
                 discount_percent: parseFloat(oi.discount_percent) || 0,
                 line_total: parseFloat(oi.line_total) || 0
             };
+
+            const lineGross = calculateLineGross(cartItems[oi.product_id]);
+            const mode = getDiscountMode();
+            const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * cartItems[oi.product_id].discount_percent) / 100.0);
+            cartItems[oi.product_id].line_total = lineGross - lineDisc;
 
             renderNewCartRow(oi.product_id);
             updateCardBadge(oi.product_id);

@@ -37,7 +37,7 @@ if (!$invoice) {
 $items = db_fetch_all("
     SELECT sii.*, p.product_name, p.product_code, p.carton_qty as ctn_ratio, p.pack_qty as pack_ratio,
            p.carton_rate, p.piece_rate, p.retail_carton_rate, p.retail_piece_rate, p.retail_rate, p.wholesale_rate,
-           u.symbol as unit_symbol
+           u.symbol as unit_symbol, u.unit_code, u.unit_name
     FROM sales_invoice_items sii
     JOIN products p ON sii.product_id = p.id
     LEFT JOIN units u ON u.id = sii.unit_id
@@ -1247,18 +1247,48 @@ document.addEventListener('DOMContentLoaded', function () {
             const pcsPerCtn   = packsPerCtn * pcsPerPack;
             
             const rates = getProductRates(prod || {}, currentPricingMode);
-            const cartonRate  = parseFloat(sii.rate) || rates.carton_rate;
-            const packRate    = packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate;
-            const pieceRate   = parseFloat(prod?.piece_rate) || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
+            const cartonRate  = parseFloat(prod?.carton_rate) || rates.carton_rate || 0;
+            const packRate    = rates.pack_rate || (packsPerCtn > 0 ? (cartonRate / packsPerCtn) : cartonRate);
+            const pieceRate   = parseFloat(prod?.piece_rate) || rates.piece_rate || (pcsPerCtn > 0 ? (cartonRate / pcsPerCtn) : cartonRate);
+
+            const uId = parseInt(sii.unit_id, 10);
+            const uSym = (sii.unit_symbol || '').toLowerCase();
+            const uCode = (sii.unit_code || '').toLowerCase();
+            const uName = (sii.unit_name || '').toLowerCase();
 
             let unit = 'ctn';
-            if (parseInt(sii.unit_id) === 4 || (sii.unit_symbol && sii.unit_symbol.toLowerCase().includes('pc'))) {
-                unit = 'pcs';
-            } else if (parseInt(sii.unit_id) === 3 || (sii.unit_symbol && (sii.unit_symbol.toLowerCase().includes('pack') || sii.unit_symbol.toLowerCase().includes('pck')))) {
+            if (uId === 3 || uId === 2 || ['pck', 'pack', 'box'].includes(uCode) || ['pck', 'pack', 'box'].includes(uSym) || uName.includes('pack') || uName.includes('packet') || uName.includes('box')) {
                 unit = 'pack';
+            } else if (uId === 4 || uCode === 'pcs' || uSym === 'pcs' || uCode === 'pc' || uSym === 'pc' || uName.includes('piece')) {
+                unit = 'pcs';
             } else if (parseFloat(sii.carton_qty) === 0 && parseFloat(sii.pack_qty) > 0 && parseFloat(sii.pcs_qty) === 0) {
                 unit = 'pack';
+            } else if (parseFloat(sii.carton_qty) === 0 && parseFloat(sii.pack_qty) === 0 && parseFloat(sii.pcs_qty) > 0) {
+                unit = 'pcs';
             }
+
+            const savedRate = parseFloat(sii.rate) || 0;
+            let itemCartonRate = cartonRate;
+            let itemPackRate   = packRate;
+            let itemPieceRate  = pieceRate;
+
+            if (savedRate > 0) {
+                if (unit === 'pack') {
+                    itemPackRate   = savedRate;
+                    itemCartonRate = packsPerCtn > 0 ? (savedRate * packsPerCtn) : (cartonRate || savedRate);
+                    itemPieceRate  = pcsPerPack > 0 ? (savedRate / pcsPerPack) : (pcsPerCtn > 0 ? (itemCartonRate / pcsPerCtn) : savedRate);
+                } else if (unit === 'pcs') {
+                    itemPieceRate  = savedRate;
+                    itemCartonRate = pcsPerCtn > 0 ? (savedRate * pcsPerCtn) : (cartonRate || savedRate);
+                    itemPackRate   = pcsPerPack > 0 ? (itemPieceRate * pcsPerPack) : (packsPerCtn > 0 ? (itemCartonRate / packsPerCtn) : savedRate);
+                } else {
+                    itemCartonRate = savedRate;
+                    itemPackRate   = packsPerCtn > 0 ? (savedRate / packsPerCtn) : (packRate || savedRate);
+                    itemPieceRate  = pcsPerCtn > 0 ? (savedRate / pcsPerCtn) : (pieceRate || savedRate);
+                }
+            }
+
+            const activeRate = unit === 'pack' ? itemPackRate : (unit === 'pcs' ? itemPieceRate : itemCartonRate);
 
             cartItems[sii.product_id] = {
                 product_id: parseInt(sii.product_id),
@@ -1271,19 +1301,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 pack_qty: parseFloat(sii.pack_qty) || 0,
                 pcs_qty: parseFloat(sii.pcs_qty) || 0,
                 unit: unit,
-                carton_rate: rates.carton_rate,
-                pack_rate: rates.pack_rate,
-                piece_rate: rates.piece_rate,
-                rate: parseFloat(sii.rate) || rates.carton_rate,
+                carton_rate: itemCartonRate,
+                pack_rate: itemPackRate,
+                piece_rate: itemPieceRate,
+                rate: activeRate,
                 discount_percent: parseFloat(sii.discount_percent) || 0,
                 line_total: parseFloat(sii.line_total) || 0
             };
+
+            const lineGross = calculateLineGross(cartItems[sii.product_id]);
+            const mode = getDiscountMode();
+            const lineDisc = (mode === 'subtotal') ? 0 : ((lineGross * cartItems[sii.product_id].discount_percent) / 100.0);
+            cartItems[sii.product_id].line_total = lineGross - lineDisc;
 
             renderNewCartRow(sii.product_id);
             updateCardBadge(sii.product_id);
         });
 
         recalculateCartSummary();
+        onDiscountModeChange();
     }
 
     // Keyboard Shortcuts
