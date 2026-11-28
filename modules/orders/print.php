@@ -211,11 +211,11 @@ $padRows = max(8, count($items));
                     <?= CLIENT_NAME ?>
                 </h4>
                 <?php
-                    $orderContact = array_filter([CLIENT_PHONE, CLIENT_ADDRESS]);
+                    $orderContact = array_map('htmlspecialchars', array_filter([CLIENT_PHONE, CLIENT_ADDRESS]));
                 ?>
                 <?php if (!empty($orderContact)): ?>
                 <div class="fw-semibold text-dark" style="font-size: 11px; margin-top: 2px;">
-                    <?= htmlspecialchars(implode(' &nbsp;&bull;&nbsp; ', $orderContact)) ?>
+                    <?= implode(' &nbsp;&bull;&nbsp; ', $orderContact) ?>
                 </div>
                 <?php endif; ?>
                 <div class="fw-bold text-uppercase mt-1" style="font-size: 13px; letter-spacing: 1px;">

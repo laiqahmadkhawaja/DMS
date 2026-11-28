@@ -41,11 +41,11 @@ $lineHeight = $compactMode ? '19px' : '23px';
             <?= CLIENT_NAME ?>
         </h4>
         <?php
-            $headerContact = array_filter([CLIENT_PHONE, CLIENT_ADDRESS]);
+            $headerContact = array_map('htmlspecialchars', array_filter([CLIENT_PHONE, CLIENT_ADDRESS]));
         ?>
         <?php if (!empty($headerContact)): ?>
         <div class="fw-bold text-dark client-contact" style="font-size: <?= $compactMode ? '10px' : '11px' ?>; margin-top: 2px;">
-            <?= htmlspecialchars(implode(' &nbsp; ', $headerContact)) ?>
+            <?= implode(' &nbsp;&bull;&nbsp; ', $headerContact) ?>
         </div>
         <?php endif; ?>
     </div>
