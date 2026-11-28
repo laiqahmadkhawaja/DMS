@@ -126,9 +126,6 @@ $pageTitle = 'Sign In — ' . APP_NAME;
             </div>
         </form>
 
-        <div class="mt-4 pt-3 border-top text-center text-muted small">
-            Default credentials: <span class="badge bg-light text-dark border">admin</span> / <span class="badge bg-light text-dark border">admin123</span>
-        </div>
     </div>
 </div>
 
